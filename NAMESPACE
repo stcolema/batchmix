@@ -1,0 +1,51 @@
+useDynLib(batchmix)
+
+importFrom(ggplot2,
+  aes_string, 
+  facet_grid, 
+  facet_wrap, 
+  geom_line, 
+  geom_point, 
+  ggplot,
+  label_both,
+  labeller,
+  labs
+)
+
+importFrom(stats, 
+  median,
+  rbeta,
+  rchisq,
+  rnorm
+)
+
+importFrom(tidyr, contains, pivot_longer)
+
+importFrom(Rcpp,evalCpp, sourceCpp)
+
+export(batchSemiSupervisedMixtureModel,
+  batchUnsupervisedMixtureModel,
+  calcAllocProb,
+  collectAcceptanceRates,
+  generateBatchData,
+  generateBatchDataMVT,
+  generateBatchDataVaryingRepresentation,
+  generateInitialLabels,
+  getLikelihood,
+  getSampledBatchScale,
+  getSampledBatchShift,
+  getSampledClusterMeans,
+  plotLikelihoods,
+  plotSampledBatchMeans,
+  plotSampledBatchScales,
+  plotSampledClusterMeans,
+  plotSampledParameter,
+  predictClass,
+  processMCMCChain,
+  processMCMCChains,
+  runMCMCChains,
+  samplePriorLabels,
+  stickBreakingPrior
+)
+
+exportPattern("^[[:alpha:]]+")
