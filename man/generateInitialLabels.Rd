@@ -4,13 +4,17 @@
 \alias{generateInitialLabels}
 \title{Generate initial labels}
 \usage{
-generateInitialLabels(labels, fixed)
+generateInitialLabels(alpha, K, fixed, labels = NULL)
 }
 \arguments{
-\item{labels}{The true classes.}
+\item{alpha}{The mass in the stick breaking prior}
+
+\item{K}{The number of classes available.}
 
 \item{fixed}{The vector of 0s and 1s indicating which labels are to be held 
 fixed.}
+
+\item{labels}{The initial labelling. Defaults to NULL.}
 }
 \value{
 An N vector of labels.
@@ -43,5 +47,5 @@ my_data <- generateBatchData(
   batch_weights
 )
 
-initial_labels <- generateInitialLabels(my_data$group_IDs, my_data$fixed)
+initial_labels <- generateInitialLabels(1, K, my_data$fixed)
 }

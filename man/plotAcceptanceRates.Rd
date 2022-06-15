@@ -14,8 +14,12 @@ A ggplot object of the boxplots of acceptance rates for each
 parameter across chains.
 }
 \description{
-Plot the sampled values for a sampled vector from the output of
-the ``mixtureModel`` function. Not recommended for large B or P.
+Plot the acceptance rates for the parameters sampled in a 
+Metropolis-Hastings step. Aiming for acceptance rates in [0.2, 0.5] for the 
+class means, the batch effect on location and scale is a good rule of thumb. 
+The class covariance should be in [0.35, 0.8] based on the authors' 
+experience. The class degree of freedom appears to be prone to high 
+acceptance rates, but aim to keep this above 0.2 at a minimum.
 }
 \examples{
 # Data in a matrix format
@@ -40,7 +44,10 @@ thin <- 10
 n_chains <- 4
 
 # MCMC samples and BIC vector
-mcmc_lst <- runMCMCChains(X, n_chains, R, thin, labels, fixed, batch_vec, "MVN")
+mcmc_lst <- runMCMCChains(X, n_chains, R, thin, batch_vec, "MVN", 
+  initial_labels = labels, 
+  fixed = fixed
+)
 
 # Plot the acceptance rate of each parameter in the 4 chains
 plotAcceptanceRates(mcmc_lst)

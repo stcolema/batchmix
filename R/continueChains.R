@@ -37,16 +37,16 @@
 #' thin <- 50
 #' n_chains <- 4
 #'
-#' # MCMC samples and BIC vector
+#' # MCMC samples
 #' mcmc_output <- runMCMCChains(
 #'   X,
 #'   n_chains,
 #'   R,
 #'   thin,
-#'   labels,
-#'   fixed,
 #'   batch_vec,
-#'   type
+#'   type,
+#'   initial_labels = labels,
+#'   fixed = fixed
 #' )
 #'
 #' # Given an initial value for the parameters
@@ -76,7 +76,7 @@ continueChains <- function(mcmc_output,
   
   n_chains <- length(mcmc_output)
   
-  # Record chain number 
+  # Record chain number
   for(ii in seq(n_chains)) {
     new_output[[ii]]$Chain <- mcmc_output[[ii]]$Chain
   }

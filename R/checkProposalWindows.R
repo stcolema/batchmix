@@ -17,10 +17,8 @@
 #' for the multivariate t distribution (not used if type is not 'MVT'). The 
 #' proposal density is a Gamma distribution, this argument is the reciprocal of
 #' the rate.
-#' @param phi_proposal_window The proposal window for the shape parameter for
-#' the multivariate skew normal distribution (not used if type is not 'MSN').
-#' The proposal density is a Gamma distribution, this argument is the reciprocal
-#' of the rate.
+#' @param verbose Logical indicating if a warning should be printed if proposal 
+#' windows are outside their expected scale.
 #' @return NULL
 #' @examples
 #' checkProposalWindows(0.1, 0.2, 0.3, 0.1, 0.4, 0.3)
@@ -29,25 +27,22 @@ checkProposalWindows <- function(mu_proposal_window,
                                  m_proposal_window,
                                  S_proposal_window,
                                  t_df_proposal_window,
-                                 phi_proposal_window,
                                  verbose = TRUE) {
   windows <- c(
     mu_proposal_window,
     m_proposal_window,
     cov_proposal_window,
     S_proposal_window,
-    t_df_proposal_window,
-    phi_proposal_window
+    t_df_proposal_window
   )
 
   windows_reciprocals_used <- c(
     cov_proposal_window,
     S_proposal_window,
-    t_df_proposal_window,
-    phi_proposal_window
+    t_df_proposal_window
   )
 
-  all_windows_positive <- any(windows <= 0)
+  all_windows_positive <- all(windows > 0)
   if (!all_windows_positive) {
     stop(paste0(
       "All proposal windowws must be positive numbers. Normally they",

@@ -10,7 +10,6 @@ checkProposalWindows(
   m_proposal_window,
   S_proposal_window,
   t_df_proposal_window,
-  phi_proposal_window,
   verbose = TRUE
 )
 }
@@ -36,10 +35,8 @@ for the multivariate t distribution (not used if type is not 'MVT'). The
 proposal density is a Gamma distribution, this argument is the reciprocal of
 the rate.}
 
-\item{phi_proposal_window}{The proposal window for the shape parameter for
-the multivariate skew normal distribution (not used if type is not 'MSN').
-The proposal density is a Gamma distribution, this argument is the reciprocal
-of the rate.}
+\item{verbose}{Logical indicating if a warning should be printed if proposal 
+windows are outside their expected scale.}
 }
 \description{
 Checks the proposal windows are acceptable.

@@ -42,16 +42,16 @@
 #' thin <- 50
 #' 
 #' # Classification
-#' samples <- batchSemiSupervisedMixtureModel(X, 
+#' samples <- runBatchMix(X, 
 #'   R, 
 #'   thin, 
-#'   labels, 
-#'   fixed, 
 #'   batch_vec, 
-#'   "MVN"
+#'   "MVN",
+#'   initial_labels = labels,
+#'   fixed = fixed,
 #' )
 #' 
 #' # Clustering
-#' samples <- batchUnsupervisedMixtureModel(X, R, thin, batch_vec, "MVT")
+#' samples <- runBatchMix(X, R, thin, batch_vec, "MVT")
 #' 
 NULL

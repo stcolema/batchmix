@@ -1,15 +1,15 @@
 #!/usr/bin/Rscript
-#' @title Stick breaking prior
+#' @title Random Draw From Stick Breaking Prior
 #' @description Draw weights from the stick-breaking prior.
 #' @param alpha The concentration parameter.
 #' @param K The number of weights to generate.
 #' @return A vector of weights.
 #' @export
 #' @examples
-#' weights <- stickBreakingPrior(1, 50)
+#' weights <- rStickBreakingPrior(1, 50)
 #' @importFrom stats rbeta
-stickBreakingPrior <- function(alpha, K) {
-  v <- stats::rbeta(K, alpha, 1)
+ rStickBreakingPrior <- function(alpha, K) {
+  v <- stats::rbeta(K, 1, alpha)
   stick <- 1
   w <- rep(0, K)
   

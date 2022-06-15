@@ -49,8 +49,11 @@ R <- 1000
 thin <- 50
 n_chains <- 4
 
-# MCMC samples and BIC vector
-samples <- runMCMCChains(X, n_chains, R, thin, labels, fixed, batch_vec, "MVN")
+# MCMC samples
+samples <- runMCMCChains(X, n_chains, R, thin, batch_vec, "MVN",
+  initial_labels = labels, 
+  fixed = fixed
+)
 
 p <- plotLikelihoods(samples)
 

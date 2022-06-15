@@ -37,14 +37,14 @@
 #' thin <- 50
 #'
 #' # MCMC samples and BIC vector
-#' mcmc_output <- batchSemiSupervisedMixtureModel(
+#' mcmc_output <-  runBatchMix(
 #'   X,
 #'   R,
 #'   thin,
-#'   labels,
-#'   fixed,
 #'   batch_vec,
-#'   type
+#'   type,
+#'   initial_labels = labels,
+#'   fixed = fixed
 #' )
 #'
 #' # Given an initial value for the parameters
@@ -85,7 +85,6 @@ continueChain <- function(mcmc_output,
   m_proposal_window <- mcmc_output$m_proposal_window
   S_proposal_window <- mcmc_output$S_proposal_window
   t_df_proposal_window <- mcmc_output$t_df_proposal_window
-  phi_proposal_window <- mcmc_output$phi_proposal_window
 
   initial_class_means <- mcmc_output$means[, , last_sample]
 
@@ -124,7 +123,6 @@ continueChain <- function(mcmc_output,
     m_proposal_window = m_proposal_window,
     S_proposal_window = S_proposal_window,
     t_df_proposal_window = t_df_proposal_window,
-    phi_proposal_window = phi_proposal_window,
     m_scale = m_scale,
     rho = rho,
     theta = theta,

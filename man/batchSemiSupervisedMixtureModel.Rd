@@ -13,13 +13,12 @@ batchSemiSupervisedMixtureModel(
   batch_vec,
   type,
   K_max = length(unique(initial_labels)),
-  alpha = NULL,
+  alpha = 1,
   mu_proposal_window = 0.5^2,
-  cov_proposal_window = 1000,
+  cov_proposal_window = 0.002,
   m_proposal_window = 0.3^2,
-  S_proposal_window = 100,
-  t_df_proposal_window = 100,
-  phi_proposal_window = 1.2^2,
+  S_proposal_window = 0.01,
+  t_df_proposal_window = 0.015,
   m_scale = 0.1,
   rho = 11,
   theta = 5,
@@ -76,11 +75,6 @@ argument is the reciprocal of the rate.}
 for the multivariate t distribution (not used if type is not 'MVT'). The 
 proposal density is a Gamma distribution, this argument is the reciprocal of
 the rate.}
-
-\item{phi_proposal_window}{The proposal window for the shape parameter for
-the multivariate skew normal distribution (not used if type is not 'MSN').
-The proposal density is a Gamma distribution, this argument is the reciprocal
-of the rate.}
 
 \item{m_scale}{The scale hyperparameter for the batch shift prior
 distribution. This defines the scale of the batch effect upon the mean and 

@@ -19,13 +19,11 @@ importFrom(stats,
   rnorm
 )
 
-importFrom(tidyr, contains, pivot_longer)
+importFrom(tidyr, contains, pivot_longer, any_of)
 
 importFrom(Rcpp,evalCpp, sourceCpp)
 
-export(batchSemiSupervisedMixtureModel,
-  batchUnsupervisedMixtureModel,
-  calcAllocProb,
+export(calcAllocProb,
   collectAcceptanceRates,
   generateBatchData,
   generateBatchDataMVT,
@@ -44,9 +42,10 @@ export(batchSemiSupervisedMixtureModel,
   predictClass,
   processMCMCChain,
   processMCMCChains,
+  rStickBreakingPrior,
+  runBatchMix,
   runMCMCChains,
-  samplePriorLabels,
-  stickBreakingPrior
+  samplePriorLabels
 )
 
 exportPattern("^[[:alpha:]]+")
