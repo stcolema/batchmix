@@ -9,21 +9,26 @@ runMCMCChains(
   n_chains,
   R,
   thin,
-  initial_labels,
-  fixed,
   batch_vec,
   type,
-  K_max = length(unique(initial_labels)),
-  alpha = NULL,
+  K_max = NULL,
+  initial_labels = NULL,
+  fixed = NULL,
+  alpha = 1,
   mu_proposal_window = 0.5^2,
-  cov_proposal_window = 100,
+  cov_proposal_window = 0.002,
   m_proposal_window = 0.3^2,
-  S_proposal_window = 100,
-  t_df_proposal_window = 100,
-  phi_proposal_window = 1.2^2,
+  S_proposal_window = 0.01,
+  t_df_proposal_window = 0.015,
   m_scale = 0.01,
   rho = 3,
-  theta = 1
+  theta = 1,
+  initial_class_means = NULL,
+  initial_class_covariance = NULL,
+  initial_batch_shift = NULL,
+  initial_batch_scale = NULL,
+  initial_class_df = NULL,
+  verbose = TRUE
 )
 }
 \arguments{
@@ -36,56 +41,77 @@ runMCMCChains(
 \item{thin}{The factor by which the samples generated are thinned, e.g. if
 ``thin=50`` only every 50th sample is kept.}
 
-\item{initial_labels}{Initial clustering.}
-
-\item{fixed}{Which items are fixed in their initial label.}
-
-\item{batch_vec}{Labels identifying which batch each item being clustered is 
+\item{batch_vec}{Labels identifying which batch each item being clustered is
 from.}
 
 \item{type}{Character indicating density type to use. One of 'MVN'
-(multivariate normal distribution), 'MVT' (multivariate t distribution) or
-'MSN' (multivariate skew normal distribution).}
+(multivariate normal distribution) or 'MVT' (multivariate t distribution).}
 
 \item{K_max}{The number of components to include (the upper bound on the
 number of clusters in each sample). Defaults to the number of unique labels
 in ``initial_labels``.}
 
+\item{initial_labels}{Initial clustering, if none given defaults to a random draw.}
+
+\item{fixed}{Which items are fixed in their initial label. If not given, 
+defaults to a vector of 0 meaning the model is run unsupervised.}
+
 \item{alpha}{The concentration parameter for the stick-breaking prior and the
 weights in the model.}
 
 \item{mu_proposal_window}{The proposal window for the cluster mean proposal
-kernel.}
+kernel. The proposal density is a Gaussian distribution, the window is the
+variance.}
 
 \item{cov_proposal_window}{The proposal window for the cluster covariance
-proposal kernel.}
+proposal kernel. The proposal density is a Wishart distribution, this
+argument is the reciprocal of the degree of freedom.}
 
 \item{m_proposal_window}{The proposal window for the batch mean proposal
-kernel.}
+ kernel. The proposal density is a Gaussian distribution, the window is the
+variance.}
 
 \item{S_proposal_window}{The proposal window for the batch standard deviation
-proposal kernel.}
+ proposal kernel. The proposal density is a Gamma distribution, this
+argument is the reciprocal of the rate.}
 
 \item{t_df_proposal_window}{The proposal window for the degrees of freedom
-for the multivariate t distribution (not used if type is not 'MVT').}
-
-\item{phi_proposal_window}{The proposal window for the shape parameter for
-the multivariate skew normal distribution (not used if type is not 'MSN').}
+for the multivariate t distribution (not used if type is not 'MVT'). The
+proposal density is a Gamma distribution, this argument is the reciprocal of
+the rate.}
 
 \item{m_scale}{The scale hyperparameter for the batch shift prior
-distribution.}
+distribution. This defines the scale of the batch effect upon the mean and
+should be in (0, 1].}
 
 \item{rho}{The shape of the prior distribution for the batch scale.}
 
 \item{theta}{The scale of the prior distribution for the batch scale.}
+
+\item{initial_class_means}{A $P x K$ matrix of initial values for the class
+means. Defaults to draws from the prior distribution.}
+
+\item{initial_class_covariance}{A $P x P x K$ array of initial values for
+the class covariance matrices. Defaults to draws from the prior distribution.}
+
+\item{initial_batch_shift}{A $P x B$ matrix of initial values for the batch
+shift effect Defaults to draws from the prior distribution.}
+
+\item{initial_batch_scale}{A $P x B$ matrix of initial values for the batch
+scales Defaults to draws from the prior distribution.}
+
+\item{initial_class_df}{A $K$ vector of initial values for the class degrees
+of freedom. Defaults to draws from the prior distribution.}
+
+\item{verbose}{Logiccal indicating if warning about proposal windows should
+be printed.}
 }
 \value{
 A list of named lists. Each entry is the output of 
 ``batchSemiSupervisedMixtureModel``.
 }
 \description{
-Run multiple chains of the semi-supervised batch mixture model
-of the same type and from the same initial clustering.
+Run multiple chains of the batch mixture model of the same type.
 }
 \examples{
 
@@ -110,7 +136,10 @@ R <- 1000
 thin <- 50
 n_chains <- 4
 
-# MCMC samples and BIC vector
-samples <- runMCMCChains(X, n_chains, R, thin, labels, fixed, batch_vec, "MVN")
+# MCMC samples
+samples <- runMCMCChains(X, n_chains, R, thin, batch_vec, "MVN",
+  initial_labels = labels, 
+  fixed = fixed
+)
 
 }

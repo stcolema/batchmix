@@ -1,7 +1,6 @@
 ---
 title: "batchmix workflow"
 author: "Stephen Coleman"
-date: "12/5/2021"
 output: pdf_document
 %\VignetteEngine{knitr::knitr}
 %\VignetteIndexEntry{Using BatchMixtureModel}
@@ -21,7 +20,7 @@ generate some toy data, apply the model, assess convergence and process outputs.
 
 ## Data generation
 
-There are three functions for generating data included in the package. ``generateBatchData``, ``generateBatchDataMVT`` and ``generateBatchDataVaryingRepresentation``.
+We simulate some data using the ``generateBatchData`` function.
 
 ```{r dataGen}
 library(ggplot2)
@@ -71,7 +70,8 @@ true_labels <- my_data$group_IDs
 fixed <- my_data$fixed
 batch_vec <- my_data$batch_IDs
 
-initial_labels <- generateInitialLabels(true_labels, fixed)
+alpha <- 1
+initial_labels <- generateInitialLabels(alpha, K, fixed, true_labels)
 ```
 
 ## Modelling
@@ -94,10 +94,10 @@ mcmc_output <- runMCMCChains(
   n_chains,
   R,
   thin,
-  initial_labels,
-  fixed,
   batch_vec,
-  type
+  type,
+  initial_labels = initial_labels,
+  fixed = fixed
 )
 ```
 
