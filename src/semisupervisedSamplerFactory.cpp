@@ -20,7 +20,6 @@ std::unique_ptr<semisupervisedSampler> semisupervisedSamplerFactory::createSemis
   double m_proposal_window,
   double S_proposal_window,
   double t_df_proposal_window,
-  double phi_proposal_window,
   arma::uvec labels,
   arma::uvec batch_vec,
   arma::vec concentration,
@@ -58,24 +57,6 @@ std::unique_ptr<semisupervisedSampler> semisupervisedSamplerFactory::createSemis
       m_proposal_window,
       S_proposal_window,
       t_df_proposal_window,
-      labels,
-      batch_vec,
-      concentration,
-      X,
-      fixed,
-      m_scale,
-      rho,
-      theta
-    );
-    
-  case MSN: 
-    return std::make_unique<msnPredictive>(K,
-      B,
-      mu_proposal_window,
-      cov_proposal_window,
-      m_proposal_window,
-      S_proposal_window,
-      phi_proposal_window,
       labels,
       batch_vec,
       concentration,

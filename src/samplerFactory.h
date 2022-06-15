@@ -9,7 +9,6 @@
 # include <RcppArmadillo.h>
 # include <memory>
 # include "mvnSampler.h"
-# include "msnSampler.h"
 # include "mvtSampler.h"
 
 // =============================================================================
@@ -33,8 +32,7 @@ public:
   enum samplerType {
     // G = 0,
     MVN = 1,
-    MVT = 2,
-    MSN = 3
+    MVT = 2
   };
   
   static std::unique_ptr<sampler> createSampler(samplerType type,
@@ -45,7 +43,6 @@ public:
     double m_proposal_window,
     double S_proposal_window,
     double t_df_proposal_window,
-    double phi_proposal_window,
     arma::uvec labels,
     arma::uvec batch_vec,
     arma::vec concentration,
