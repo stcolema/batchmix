@@ -20,7 +20,7 @@
 #' thin <- 5
 #'
 #' # MCMC samples and BIC vector
-#' samples <- batchUnsupervisedMixtureModel(X, R, thin, batch_vec, "MVN")
+#' samples <- runBatchMix(X, R, thin, batch_vec, "MVN")
 #' 
 #' # Plot the sampled value of the batch scales against MCMC iteration 
 #' plotSampledBatchScales(samples)

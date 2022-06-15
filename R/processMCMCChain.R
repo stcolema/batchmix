@@ -66,7 +66,10 @@
 #' thin <- 50
 #'
 #' # MCMC samples
-#' samples <- batchSemiSupervisedMixtureModel(X, R, thin, labels, fixed, batch_vec, "MVN")
+#' samples <- runBatchMix(X, R, thin, batch_vec, "MVN",
+#'   initial_labels = labels, 
+#'   fixed = fixed
+#' )
 #' 
 #' # Process the MCMC samples 
 #' processed_samples <- processMCMCChain(samples, burn)

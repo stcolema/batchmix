@@ -54,14 +54,14 @@ R <- 1000
 thin <- 50
 
 # MCMC samples and BIC vector
-mcmc_output <- batchSemiSupervisedMixtureModel(
+mcmc_output <-  runBatchMix(
   X,
   R,
   thin,
-  labels,
-  fixed,
   batch_vec,
-  type
+  type,
+  initial_labels = labels,
+  fixed = fixed
 )
 
 # Given an initial value for the parameters

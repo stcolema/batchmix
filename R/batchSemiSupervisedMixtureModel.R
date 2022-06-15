@@ -31,10 +31,6 @@
 #' for the multivariate t distribution (not used if type is not 'MVT'). The 
 #' proposal density is a Gamma distribution, this argument is the reciprocal of
 #' the rate.
-#' @param phi_proposal_window The proposal window for the shape parameter for
-#' the multivariate skew normal distribution (not used if type is not 'MSN').
-#' The proposal density is a Gamma distribution, this argument is the reciprocal
-#' of the rate.
 #' @param m_scale The scale hyperparameter for the batch shift prior
 #' distribution. This defines the scale of the batch effect upon the mean and 
 #' should be in (0, 1].
@@ -54,7 +50,6 @@
 #' be printed.
 #' @return A named list containing the sampled partitions, cluster and batch
 #' parameters, model fit measures and some details on the model call.
-#' @export
 #' @examples
 #' 
 #' # Data in a matrix format
@@ -124,13 +119,12 @@ batchSemiSupervisedMixtureModel <- function(X,
                                             batch_vec,
                                             type,
                                             K_max = length(unique(initial_labels)),
-                                            alpha = NULL,
+                                            alpha = 1,
                                             mu_proposal_window = 0.5**2,
-                                            cov_proposal_window = 1000,
+                                            cov_proposal_window = 0.002,
                                             m_proposal_window = 0.3**2,
-                                            S_proposal_window = 100,
-                                            t_df_proposal_window = 100,
-                                            phi_proposal_window = 1.2**2,
+                                            S_proposal_window = 0.01,
+                                            t_df_proposal_window = 0.015,
                                             m_scale = 0.1,
                                             rho = 11.0,
                                             theta = 5.0,
@@ -144,36 +138,36 @@ batchSemiSupervisedMixtureModel <- function(X,
   if (!is.matrix(X)) {
     stop("X is not a matrix. Data should be in matrix format.")
   }
-
+  
   if (length(batch_vec) != nrow(X)) {
     stop("The number of rows in X and the number of batch labels are not equal.")
   }
-
+  
   if (R < thin) {
     warning("Iterations to run less than thinning factor. No samples recorded.")
   }
-
+  
   # Check that the initial labels starts at 0, if not remedy this.
   if (!any(initial_labels == 0)) {
     initial_labels <- as.numeric(as.factor(initial_labels)) - 1
   }
-
+  
   if (max(initial_labels) != (length(unique(initial_labels)) - 1)) {
     stop("initial labels are not all contiguous integers.")
   }
-
+  
   # Check that the batch labels starts at 0, if not remedy this.
   if (!any(batch_vec == 0)) {
     batch_vec <- as.numeric(as.factor(batch_vec)) - 1
   }
-
+  
   if (max(batch_vec) != (length(unique(batch_vec)) - 1)) {
     stop("batch labels are not all contiguous integers.")
   }
-
+  
   # The number of batches present
   B <- length(unique(batch_vec))
-
+  
   # The concentration parameter for the prior Dirichlet distribution of the
   # component weights.
   if (is.null(alpha)) {
@@ -181,15 +175,14 @@ batchSemiSupervisedMixtureModel <- function(X,
   } else {
     concentration <- rep(alpha, K_max)
   }
-
+  
   # Check the proposal windows are all strictly positive
   checkProposalWindows(mu_proposal_window,
-    cov_proposal_window,
-    m_proposal_window,
-    S_proposal_window,
-    t_df_proposal_window,
-    phi_proposal_window,
-    verbose
+                       cov_proposal_window,
+                       m_proposal_window,
+                       S_proposal_window,
+                       t_df_proposal_window,
+                       verbose
   )
   
   # The proposal windows for these objects are narrower for larger quantities,
@@ -211,14 +204,14 @@ batchSemiSupervisedMixtureModel <- function(X,
   class_df_passed <- !is.null(initial_class_df)
   
   initial_parameters <- prepareInitialParameters(initial_class_means,
-    initial_class_covariance,
-    initial_batch_shift,
-    initial_batch_scale,
-    initial_class_df,
-    P,
-    K_max,
-    B,
-    type
+                                                 initial_class_covariance,
+                                                 initial_batch_shift,
+                                                 initial_batch_scale,
+                                                 initial_class_df,
+                                                 P,
+                                                 K_max,
+                                                 B,
+                                                 type
   )
   
   class_means <- initial_parameters$class_means
@@ -226,7 +219,7 @@ batchSemiSupervisedMixtureModel <- function(X,
   batch_shift <- initial_parameters$batch_shift
   batch_scale <- initial_parameters$batch_scale
   class_df <- initial_parameters$class_df
-
+  
   # Pull samples from the mixture model
   if (type == "MVN") {
     mcmc_output <- sampleSemisupervisedMVN(
@@ -256,7 +249,7 @@ batchSemiSupervisedMixtureModel <- function(X,
       batch_scale_passed
     )
   }
-
+  
   if (type == "MVT") {
     mcmc_output <- sampleSemisupervisedMVT(
       X,
@@ -288,11 +281,11 @@ batchSemiSupervisedMixtureModel <- function(X,
       batch_scale_passed
     )
   }
-
+  
   if (!type %in% c("MVN", "MVT")) {
     stop("Type not recognised. Please use one of 'MVN' or 'MVT'.")
   }
-
+  
   # Record details of model run to output
   # MCMC details
   mcmc_output$thin <- thin
@@ -309,7 +302,7 @@ batchSemiSupervisedMixtureModel <- function(X,
   # Number of components and batches modelled
   mcmc_output$K_max <- K_max
   mcmc_output$B <- B
-
+  
   # Record hyperparameter choice
   mcmc_output$alpha <- alpha
   mcmc_output$m_scale <- m_scale
@@ -322,16 +315,15 @@ batchSemiSupervisedMixtureModel <- function(X,
   mcmc_output$m_proposal_window <- m_proposal_window
   mcmc_output$S_proposal_window <- S_proposal_window
   mcmc_output$t_df_proposal_window <- t_df_proposal_window
-  mcmc_output$phi_proposal_window <- phi_proposal_window
   
   # Indicate if the model was semi-supervised or unsupervised
   mcmc_output$Semisupervised <- TRUE
-
+  
   # Correct this if we were effectively unsupervised
   actually_unsupervised <- all(fixed == 0)
   if (actually_unsupervised) {
     mcmc_output$Semisupervised <- FALSE
   }
-
+  
   mcmc_output
 }

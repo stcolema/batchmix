@@ -33,7 +33,7 @@ R <- 100
 thin <- 5
 
 # MCMC samples and BIC vector
-samples <- batchUnsupervisedMixtureModel(X, R, thin, batch_vec, "MVN")
+samples <- runBatchMix(X, R, thin, batch_vec, "MVN")
 
 lkl_df <- getLikelihood(samples)
 
