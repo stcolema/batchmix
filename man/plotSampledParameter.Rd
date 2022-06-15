@@ -30,14 +30,14 @@ the ``mixtureModel`` function. Not recommended for large B or P.
 X <- matrix(c(rnorm(100, 0, 1), rnorm(100, 3, 1)), ncol = 2, byrow = TRUE)
 
 # Observed batches represented by integers
-batch_vec <- sample(1:5, size = 100, replace = TRUE)
+batch_vec <- sample(seq(1, 3), size = 100, replace = TRUE)
 
 # MCMC iterations (this is too low for real use)
 R <- 50
 thin <- 1
 
 # MCMC samples and BIC vector
-samples <- runBatchMix(X, R, thin, batch_vec, "MVN")
+samples <- runBatchMix(X, R, thin, batch_vec, "MVN", K_max = 8)
 
 # Plot the sampled value of the cluster means against MCMC iteration 
 parameter <- "means"
