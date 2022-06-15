@@ -1,7 +1,26 @@
 #!/usr/bin/Rscript
 #' @title Check proposal windows
 #' @description Checks the proposal windows are acceptable.
-#' @param mcmc_lst The output of the ``runMCMCChains`` function.
+#' @param mu_proposal_window The proposal window for the cluster mean proposal
+#' kernel. The proposal density is a Gaussian distribution, the window is the 
+#' variance.
+#' @param cov_proposal_window The proposal window for the cluster covariance
+#' proposal kernel. The proposal density is a Wishart distribution, this 
+#' argument is the reciprocal of the degree of freedom.
+#' @param m_proposal_window The proposal window for the batch mean proposal
+#'  kernel. The proposal density is a Gaussian distribution, the window is the 
+#' variance.
+#' @param S_proposal_window The proposal window for the batch standard deviation
+#'  proposal kernel. The proposal density is a Gamma distribution, this 
+#' argument is the reciprocal of the rate.
+#' @param t_df_proposal_window The proposal window for the degrees of freedom
+#' for the multivariate t distribution (not used if type is not 'MVT'). The 
+#' proposal density is a Gamma distribution, this argument is the reciprocal of
+#' the rate.
+#' @param phi_proposal_window The proposal window for the shape parameter for
+#' the multivariate skew normal distribution (not used if type is not 'MSN').
+#' The proposal density is a Gamma distribution, this argument is the reciprocal
+#' of the rate.
 #' @return NULL
 #' @examples
 #' checkProposalWindows(0.1, 0.2, 0.3, 0.1, 0.4, 0.3)

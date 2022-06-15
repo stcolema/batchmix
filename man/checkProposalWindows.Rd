@@ -15,7 +15,31 @@ checkProposalWindows(
 )
 }
 \arguments{
-\item{mcmc_lst}{The output of the ``runMCMCChains`` function.}
+\item{mu_proposal_window}{The proposal window for the cluster mean proposal
+kernel. The proposal density is a Gaussian distribution, the window is the 
+variance.}
+
+\item{cov_proposal_window}{The proposal window for the cluster covariance
+proposal kernel. The proposal density is a Wishart distribution, this 
+argument is the reciprocal of the degree of freedom.}
+
+\item{m_proposal_window}{The proposal window for the batch mean proposal
+ kernel. The proposal density is a Gaussian distribution, the window is the 
+variance.}
+
+\item{S_proposal_window}{The proposal window for the batch standard deviation
+ proposal kernel. The proposal density is a Gamma distribution, this 
+argument is the reciprocal of the rate.}
+
+\item{t_df_proposal_window}{The proposal window for the degrees of freedom
+for the multivariate t distribution (not used if type is not 'MVT'). The 
+proposal density is a Gamma distribution, this argument is the reciprocal of
+the rate.}
+
+\item{phi_proposal_window}{The proposal window for the shape parameter for
+the multivariate skew normal distribution (not used if type is not 'MSN').
+The proposal density is a Gamma distribution, this argument is the reciprocal
+of the rate.}
 }
 \description{
 Checks the proposal windows are acceptable.
