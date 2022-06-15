@@ -79,7 +79,7 @@ initial_labels <- generateInitialLabels(true_labels, fixed)
 Given some data, we are interested in modelling it. We assume here that the set
 of observed labels includes at least one example of each class in the data. 
 
-```{r runMCMCChains, cache=TRUE}
+```{r runMCMCChains}
 # Sampling parameters
 R <- 1000
 thin <- 50
@@ -101,7 +101,13 @@ mcmc_output <- runMCMCChains(
 )
 ```
 
-We want to asses how well our chains have converged. To do this we plot the ``complete_likelihood`` of each chain. This is the quantity most relevant to a clustering/classification, being dependent on the labels. The ``observed_likelihood`` is independent of labels and more relevant for density estimation.
+We want to assess two things. First, how frequently the proposed parameters in the Metropolis-Hastings step are accepted:
+
+```{r plotAcceptanceRatesEarly}
+plotAcceptanceRates(mcmc_output)
+```
+
+Secondly, we want to asses how well our chains have converged. To do this we plot the ``complete_likelihood`` of each chain. This is the quantity most relevant to a clustering/classification, being dependent on the labels. The ``observed_likelihood`` is independent of labels and more relevant for density estimation.
 
 ```{r likelihood}
 plotLikelihoods(mcmc_output)
@@ -109,7 +115,7 @@ plotLikelihoods(mcmc_output)
 
 We see that our chains disagree. We have to run them for more iterations. We use the ``continueChains`` function for this.
 
-```{r continueChains, cache=TRUE}
+```{r continueChains}
 R_new <- 9000
 
 # Given an initial value for the parameters
@@ -123,10 +129,16 @@ new_output <- continueChains(
 )
 ```
 
-To see if the chains better agree we replot the likelihood.
+To see if the chains better agree we re-plot the likelihood.
 
 ```{r continuedLikelihood}
 plotLikelihoods(new_output)
+```
+
+We also re-check the acceptance rates.
+
+```{r plotAcceptanceRates}
+plotAcceptanceRates(new_output)
 ```
 
 This looks like several of the chains agree by the 5,000th iteration.
