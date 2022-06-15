@@ -16,19 +16,28 @@
 #' @param alpha The concentration parameter for the stick-breaking prior and the
 #' weights in the model.
 #' @param mu_proposal_window The proposal window for the cluster mean proposal
-#' kernel.
+#' kernel. The proposal density is a Gaussian distribution, the window is the 
+#' variance.
 #' @param cov_proposal_window The proposal window for the cluster covariance
-#' proposal kernel.
+#' proposal kernel. The proposal density is a Wishart distribution, this 
+#' argument is the reciprocal of the degree of freedom.
 #' @param m_proposal_window The proposal window for the batch mean proposal
-#'  kernel.
+#'  kernel. The proposal density is a Gaussian distribution, the window is the 
+#' variance.
 #' @param S_proposal_window The proposal window for the batch standard deviation
-#'  proposal kernel.
+#'  proposal kernel. The proposal density is a Gamma distribution, this 
+#' argument is the reciprocal of the rate.
 #' @param t_df_proposal_window The proposal window for the degrees of freedom
-#' for the multivariate t distribution (not used if type is not 'MVT').
+#' for the multivariate t distribution (not used if type is not 'MVT'). The 
+#' proposal density is a Gamma distribution, this argument is the reciprocal of
+#' the rate.
 #' @param phi_proposal_window The proposal window for the shape parameter for
 #' the multivariate skew normal distribution (not used if type is not 'MSN').
+#' The proposal density is a Gamma distribution, this argument is the reciprocal
+#' of the rate.
 #' @param m_scale The scale hyperparameter for the batch shift prior
-#' distribution.
+#' distribution. This defines the scale of the batch effect upon the mean and 
+#' should be in (0, 1].
 #' @param rho The shape of the prior distribution for the batch scale.
 #' @param theta The scale of the prior distribution for the batch scale.
 #' @param initial_class_means A $P x K$ matrix of initial values for the class 
@@ -41,6 +50,8 @@
 #' scales Defaults to draws from the prior distribution.
 #' @param initial_class_df A $K$ vector of initial values for the class degrees
 #' of freedom. Defaults to draws from the prior distribution.
+#' @param verbose Logiccal indicating if warning about proposal windows should 
+#' be printed.
 #' @return A named list containing the sampled partitions, cluster and batch
 #' parameters, model fit measures and some details on the model call.
 #' @export
@@ -115,7 +126,7 @@ batchSemiSupervisedMixtureModel <- function(X,
                                             K_max = length(unique(initial_labels)),
                                             alpha = NULL,
                                             mu_proposal_window = 0.5**2,
-                                            cov_proposal_window = 100,
+                                            cov_proposal_window = 1000,
                                             m_proposal_window = 0.3**2,
                                             S_proposal_window = 100,
                                             t_df_proposal_window = 100,
@@ -127,7 +138,8 @@ batchSemiSupervisedMixtureModel <- function(X,
                                             initial_class_covariance = NULL,
                                             initial_batch_shift = NULL,
                                             initial_batch_scale = NULL,
-                                            initial_class_df = NULL
+                                            initial_class_df = NULL,
+                                            verbose = TRUE
 ) {
   if (!is.matrix(X)) {
     stop("X is not a matrix. Data should be in matrix format.")
@@ -170,6 +182,24 @@ batchSemiSupervisedMixtureModel <- function(X,
     concentration <- rep(alpha, K_max)
   }
 
+  # Check the proposal windows are all strictly positive
+  checkProposalWindows(mu_proposal_window,
+    cov_proposal_window,
+    m_proposal_window,
+    S_proposal_window,
+    t_df_proposal_window,
+    phi_proposal_window,
+    verbose
+  )
+  
+  # The proposal windows for these objects are narrower for larger quantities,
+  # so we use the reciprocal to ensure that the relationship between acceptance
+  # rates is the same for all parameters, namely that smaller windows increases
+  # the acceptance rate
+  actual_cov_proposal_window <- 1.0 / cov_proposal_window
+  actual_S_proposal_window <- 1.0 / S_proposal_window
+  actual_t_df_proposal_window <- 1.0 / t_df_proposal_window
+  
   P <- ncol(X)
   
   # Check if an initial value is passed for any of the parameters. Prepare the
@@ -207,9 +237,9 @@ batchSemiSupervisedMixtureModel <- function(X,
       batch_vec,
       fixed,
       mu_proposal_window,
-      cov_proposal_window,
+      actual_cov_proposal_window,
       m_proposal_window,
-      S_proposal_window,
+      actual_S_proposal_window,
       R,
       thin,
       concentration,
@@ -236,10 +266,10 @@ batchSemiSupervisedMixtureModel <- function(X,
       batch_vec,
       fixed,
       mu_proposal_window,
-      cov_proposal_window,
+      actual_cov_proposal_window,
       m_proposal_window,
-      S_proposal_window,
-      t_df_proposal_window,
+      actual_S_proposal_window,
+      actual_t_df_proposal_window,
       R,
       thin,
       concentration,
