@@ -15,7 +15,7 @@ batchSemiSupervisedMixtureModel(
   K_max = length(unique(initial_labels)),
   alpha = NULL,
   mu_proposal_window = 0.5^2,
-  cov_proposal_window = 100,
+  cov_proposal_window = 1000,
   m_proposal_window = 0.3^2,
   S_proposal_window = 100,
   t_df_proposal_window = 100,
@@ -27,7 +27,8 @@ batchSemiSupervisedMixtureModel(
   initial_class_covariance = NULL,
   initial_batch_shift = NULL,
   initial_batch_scale = NULL,
-  initial_class_df = NULL
+  initial_class_df = NULL,
+  verbose = TRUE
 )
 }
 \arguments{
@@ -56,25 +57,34 @@ in ``initial_labels``.}
 weights in the model.}
 
 \item{mu_proposal_window}{The proposal window for the cluster mean proposal
-kernel.}
+kernel. The proposal density is a Gaussian distribution, the window is the 
+variance.}
 
 \item{cov_proposal_window}{The proposal window for the cluster covariance
-proposal kernel.}
+proposal kernel. The proposal density is a Wishart distribution, this 
+argument is the reciprocal of the degree of freedom.}
 
 \item{m_proposal_window}{The proposal window for the batch mean proposal
-kernel.}
+ kernel. The proposal density is a Gaussian distribution, the window is the 
+variance.}
 
 \item{S_proposal_window}{The proposal window for the batch standard deviation
-proposal kernel.}
+ proposal kernel. The proposal density is a Gamma distribution, this 
+argument is the reciprocal of the rate.}
 
 \item{t_df_proposal_window}{The proposal window for the degrees of freedom
-for the multivariate t distribution (not used if type is not 'MVT').}
+for the multivariate t distribution (not used if type is not 'MVT'). The 
+proposal density is a Gamma distribution, this argument is the reciprocal of
+the rate.}
 
 \item{phi_proposal_window}{The proposal window for the shape parameter for
-the multivariate skew normal distribution (not used if type is not 'MSN').}
+the multivariate skew normal distribution (not used if type is not 'MSN').
+The proposal density is a Gamma distribution, this argument is the reciprocal
+of the rate.}
 
 \item{m_scale}{The scale hyperparameter for the batch shift prior
-distribution.}
+distribution. This defines the scale of the batch effect upon the mean and 
+should be in (0, 1].}
 
 \item{rho}{The shape of the prior distribution for the batch scale.}
 
@@ -94,6 +104,9 @@ scales Defaults to draws from the prior distribution.}
 
 \item{initial_class_df}{A $K$ vector of initial values for the class degrees
 of freedom. Defaults to draws from the prior distribution.}
+
+\item{verbose}{Logiccal indicating if warning about proposal windows should 
+be printed.}
 }
 \value{
 A named list containing the sampled partitions, cluster and batch
