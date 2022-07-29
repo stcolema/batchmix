@@ -9,4 +9,4 @@ of the model.
 
 The main functions a user should be aware of are ``runMCMCChains``, ``plotLikelihoods``, ``continueChains`` and ``processChains``. For an example of a workflow please see the short vignette.
 
-https://cranlogs.r-pkg.org/badges/batchmix
+[![](https://cranlogs.r-pkg.org/badges/batchmix)](https://cran.r-project.org/package=batchmix)
