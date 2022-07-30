@@ -24,9 +24,9 @@ rates between 0.1 and 0.5 for the class and batch means and batch
 scales ($\mu_k$, $m_b$ and $S_b$ respectively). In our testing, an 
 acceptance rate of at least 0.4 for the class covariance matrices
 tended to suggest the sampler is exploring well, but smaller values 
-were frequently associated with poor behaviour in the sampler. The 
-degrees of freedom tend to have very high acceptance rates in our testing 
-regardless of the sampling window.
+were frequently associated with poor behaviour. The degrees of freedom tend 
+to have very high acceptance rates in our testing regardless of the 
+sampling window.
 
 We recommend running a small number of chains for a small number of 
 iterations to assess the acceptance rates before committing the 
