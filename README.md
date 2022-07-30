@@ -21,10 +21,10 @@ The main functions a user should be aware of are ``runMCMCChains``,
 Parameters are sampled using Metropolis-Hastings so checking that the 
 acceptance rate is important. We recommend aiming for acceptance
 rates between 0.1 and 0.5 for the class and batch means and batch 
-scales($\mu_k$, $m_b$ and $S_b$ respectively). In our testing, an 
+scales ($\mu_k$, $m_b$ and $S_b$ respectively). In our testing, an 
 acceptance rate of at least 0.4 for the class covariance matrices
 tended to suggest the sampler is exploring well, but smaller values 
-were frequently associated with poor behaviour inn the sampler. The 
+were frequently associated with poor behaviour in the sampler. The 
 degrees of freedom tend to have very high acceptance rates in our testing 
 regardless of the sampling window.
 
