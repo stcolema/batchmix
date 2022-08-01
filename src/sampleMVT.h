@@ -62,8 +62,7 @@
 //' @param S_initialised Bool indicating if the batch scales are initialised by 
 //' the user. If ``false`` then initial values are drawn from the prior 
 //' distribution.
-//' @return Named list of the matrix of MCMC samples generated (each row 
-//' corresponds to a different sample) and BIC for each saved iteration.
+//' @return Named list of the different quantities drawn by the sampler.
 // [[Rcpp::export]]
 Rcpp::List sampleMVT (
     arma::mat X,
