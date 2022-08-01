@@ -38,6 +38,9 @@ the rate.}
 \item{verbose}{Logical indicating if a warning should be printed if proposal 
 windows are outside their expected scale.}
 }
+\value{
+No return value, called for side effects
+}
 \description{
 Checks the proposal windows are acceptable.
 }

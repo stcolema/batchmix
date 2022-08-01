@@ -3,7 +3,7 @@
 #' @description Draw weights from the stick-breaking prior.
 #' @param alpha The concentration parameter.
 #' @param K The number of weights to generate.
-#' @return A vector of weights.
+#' @return A vector of component weights.
 #' @export
 #' @examples
 #' weights <- rStickBreakingPrior(1, 50)

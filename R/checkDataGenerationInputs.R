@@ -19,7 +19,7 @@
 #' standard deviations should be permuted in each column or not.
 #' @param scale_data Logical indicating if data should be mean centred and 
 #' standardised.
-#' @return NULL
+#' @return No return value, called for side effects.
 #' @examples
 #' N <- 500
 #' P <- 2
