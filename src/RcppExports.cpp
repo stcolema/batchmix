@@ -11,6 +11,17 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
+// createSimilarityMat
+arma::mat createSimilarityMat(arma::umat allocations);
+RcppExport SEXP _batchmix_createSimilarityMat(SEXP allocationsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::umat >::type allocations(allocationsSEXP);
+    rcpp_result_gen = Rcpp::wrap(createSimilarityMat(allocations));
+    return rcpp_result_gen;
+END_RCPP
+}
 // gammaLogLikelihood
 double gammaLogLikelihood(double x, double shape, double rate);
 RcppExport SEXP _batchmix_gammaLogLikelihood(SEXP xSEXP, SEXP shapeSEXP, SEXP rateSEXP) {
@@ -207,6 +218,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_batchmix_createSimilarityMat", (DL_FUNC) &_batchmix_createSimilarityMat, 1},
     {"_batchmix_gammaLogLikelihood", (DL_FUNC) &_batchmix_gammaLogLikelihood, 3},
     {"_batchmix_invGammaLogLikelihood", (DL_FUNC) &_batchmix_invGammaLogLikelihood, 3},
     {"_batchmix_wishartLogLikelihood", (DL_FUNC) &_batchmix_wishartLogLikelihood, 4},
