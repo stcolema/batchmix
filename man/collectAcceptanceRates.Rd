@@ -4,14 +4,10 @@
 \alias{collectAcceptanceRates}
 \title{Collect acceptance rate}
 \usage{
-collectAcceptanceRates(samples, type)
+collectAcceptanceRates(samples)
 }
 \arguments{
-\item{samples}{The output of either the ``batchMixtureModel`` or 
-``batchSemiSupervisedMixtureModel`` function.}
-
-\item{type}{The type of mixture model used; this changes which parameters
-the function expects to find.}
+\item{samples}{The output of ``runBatchMix``.}
 }
 \value{
 A wide data.frame of all the sampled parameters and the iteration.
@@ -40,8 +36,11 @@ batch_vec <- sample(seq(1, 5), replace = TRUE, size = 100)
 R <- 1000
 thin <- 50
 
-# MCMC samples and BIC vector
-samples <- batchSemiSupervisedMixtureModel(X, R, thin, labels, fixed, batch_vec, "MVN")
+# MCMC samples
+samples <- runBatchMix(X, R, thin, batch_vec, "MVN", 
+  initial_labels = labels,
+  fixed = fixed
+)
 
 # Acceptance rates
 collectAcceptanceRates(samples, "MVN")
