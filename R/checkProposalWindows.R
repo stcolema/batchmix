@@ -19,7 +19,7 @@
 #' the rate.
 #' @param verbose Logical indicating if a warning should be printed if proposal 
 #' windows are outside their expected scale.
-#' @return NULL
+#' @return No return value, called for side effects
 #' @examples
 #' checkProposalWindows(0.1, 0.2, 0.3, 0.1, 0.4, 0.3)
 checkProposalWindows <- function(mu_proposal_window,
