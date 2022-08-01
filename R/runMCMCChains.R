@@ -52,7 +52,7 @@
 #' @param verbose Logiccal indicating if warning about proposal windows should
 #' be printed.
 #' @returns A list of named lists. Each entry is the output of 
-#' ``batchSemiSupervisedMixtureModel``.
+#' ``runBatchMix``.
 #' @export
 #' @examples
 #' 
