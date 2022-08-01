@@ -14,34 +14,35 @@
 // mvtSampler class
 
 
-//' @name mvtSampler
-//' @title Multivariate t mixture sampler
-//' @description The sampler for the Multivariate t mixture
-//' model for batch effects.
-//' @field new Constructor \itemize{
-//' \item Parameter: K - the number of components to model.
-//' \item Parameter: B - the number of batches present.
-//' \item Parameter: labels - N-vector of unsigned integers denoting initial 
-//' clustering of the data .
-//' \item Parameter: batch_vec - N-vector of unsigned integers denoting 
-//' the observed grouping variable.
-//' \item Parameter: concentration - K- vector of the prior hyperparameter for 
-//' the class weights
-//' \item Parameter: X - an N x P matrix of the observed data to model.
-//' }
-//' @field updateWeights Update the weights of each component based on current 
-//' clustering.
-//' @field updateAllocation Sample a new clustering. 
-//' @field sampleFromPrior Sample values for the batch and class parameters from
-//' their prior distributions.
-//' @field calcBIC Calculate the BIC of the model.
-//' @field logLikelihood Calculate the log-likelihood of a given data point in each
-//' component. \itemize{
-//' \item Parameter: x - a data point.
-//' \item Parameter: b - the associated batch label.
-//' }
-//' @field updateBatchCorrectedData Transform the observed dataset based on 
-//' sampled parameter values to a batch-corrected dataset.
+// //' @name mvtSampler
+// //' @title Multivariate t mixture sampler
+// //' @description The sampler for the Multivariate t mixture
+// //' model for batch effects.
+// //' @field new Constructor \itemize{
+// //' \item Parameter: K - the number of components to model.
+// //' \item Parameter: B - the number of batches present.
+// //' \item Parameter: labels - N-vector of unsigned integers denoting initial 
+// //' clustering of the data .
+// //' \item Parameter: batch_vec - N-vector of unsigned integers denoting 
+// //' the observed grouping variable.
+// //' \item Parameter: concentration - K- vector of the prior hyperparameter for 
+// //' the class weights
+// //' \item Parameter: X - an N x P matrix of the observed data to model.
+// //' }
+// //' @field updateWeights Update the weights of each component based on current 
+// //' clustering.
+// //' @field updateAllocation Sample a new clustering. 
+// //' @field sampleFromPrior Sample values for the batch and class parameters from
+// //' their prior distributions.
+// //' @field calcBIC Calculate the BIC of the model.
+// //' @field logLikelihood Calculate the log-likelihood of a given data point in each
+// //' component. \itemize{
+// //' \item Parameter: x - a data point.
+// //' \item Parameter: b - the associated batch label.
+// //' }
+// //' @field updateBatchCorrectedData Transform the observed dataset based on 
+// //' sampled parameter values to a batch-corrected dataset.
+// //' @return mvtsampler class.
 class mvtSampler: virtual public mvnSampler {
   
 public:
