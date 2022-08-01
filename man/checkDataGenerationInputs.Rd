@@ -50,6 +50,9 @@ standard deviations should be permuted in each column or not.}
 \item{scale_data}{Logical indicating if data should be mean centred and 
 standardised.}
 }
+\value{
+No return value, called for side effects.
+}
 \description{
 Checks that the inputs for the ``generateBatchData`` function 
 are correct. For internal use only.
