@@ -1,10 +1,7 @@
 #!/usr/bin/Rscript
 #' @title Collect acceptance rate
 #' @description Collects the acceptance rates for each parameter into a data.frame
-#' @param samples The output of either the ``batchMixtureModel`` or 
-#' ``batchSemiSupervisedMixtureModel`` function.
-#' @param type The type of mixture model used; this changes which parameters
-#' the function expects to find.
+#' @param samples The output of ``runBatchMix``.
 #' @return A wide data.frame of all the sampled parameters and the iteration.
 #' @export
 #' @examples
@@ -28,19 +25,23 @@
 #' R <- 1000
 #' thin <- 50
 #'
-#' # MCMC samples and BIC vector
-#' samples <- batchSemiSupervisedMixtureModel(X, R, thin, labels, fixed, batch_vec, "MVN")
+#' # MCMC samples
+#' samples <- runBatchMix(X, R, thin, batch_vec, "MVN", 
+#'   initial_labels = labels,
+#'   fixed = fixed
+#' )
 #' 
 #' # Acceptance rates
 #' collectAcceptanceRates(samples, "MVN")
 #' 
-collectAcceptanceRates <- function(samples, type) {
+collectAcceptanceRates <- function(samples) {
   
   # Number of classes and batches
-  K <- ncol(samples$means[, , 1])
-  B <- ncol(samples$batch_shift[, , 1])
-  P <- nrow(samples$means[, , 1])
-  N <- ncol(samples$samples)
+  K <- samples$K_max  # ncol(samples$means[, , 1])
+  B <- samples$B      # ncol(samples$batch_shift[, , 1])
+  P <- samples$P      # nrow(samples$means[, , 1])
+  N <- samples$N      # ncol(samples$samples)
+  type <- samples$type
   
   # Stack the sampled matrices on top of each other
   mean_rate <- t(samples$mu_acceptance_rate)
