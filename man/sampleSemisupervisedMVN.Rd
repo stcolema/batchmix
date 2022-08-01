@@ -99,8 +99,7 @@ the user. If ``false`` then initial values are drawn from the prior
 distribution.}
 }
 \value{
-Named list of the matrix of MCMC samples generated (each row 
-corresponds to a different sample) and BIC for each saved iteration.
+Named list of the different quantities drawn by the sampler.
 }
 \description{
 Performs MCMC sampling for a mixture model.

@@ -12,7 +12,7 @@ rStickBreakingPrior(alpha, K)
 \item{K}{The number of weights to generate.}
 }
 \value{
-A vector of weights.
+A vector of component weights.
 }
 \description{
 Draw weights from the stick-breaking prior.

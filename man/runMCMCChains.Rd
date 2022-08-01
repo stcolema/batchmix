@@ -108,7 +108,7 @@ be printed.}
 }
 \value{
 A list of named lists. Each entry is the output of 
-``batchSemiSupervisedMixtureModel``.
+``runBatchMix``.
 }
 \description{
 Run multiple chains of the batch mixture model of the same type.
