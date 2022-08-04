@@ -10,6 +10,9 @@
 #' ``thin=50`` only every 50th sample is kept.
 #' @param type Character indicating density type to use. One of 'MVN'
 #' (multivariate normal distribution) or 'MVT' (multivariate t distribution).
+#' @param batch_specific_weights Allow each batch to have unique class weights.
+#' If FALSE class weights are common across batches, if TRUE the class weights
+#' are nested within batch and share a common hyperparameter. Defaults to TRUE.
 #' @param K_max The number of components to include (the upper bound on the
 #' number of clusters in each sample). Defaults to the number of unique labels
 #' in ``initial_labels``.
@@ -118,8 +121,10 @@ batchSemiSupervisedMixtureModel <- function(X,
                                             fixed,
                                             batch_vec,
                                             type,
+                                            batch_specific_weights = TRUE,
                                             K_max = length(unique(initial_labels)),
-                                            alpha = 1,
+                                            alpha = NULL,
+                                            concentration = NULL,
                                             mu_proposal_window = 0.5**2,
                                             cov_proposal_window = 0.002,
                                             m_proposal_window = 0.3**2,
@@ -170,19 +175,29 @@ batchSemiSupervisedMixtureModel <- function(X,
   
   # The concentration parameter for the prior Dirichlet distribution of the
   # component weights.
-  if (is.null(alpha)) {
-    concentration <- table(initial_labels[fixed == 1]) / sum(fixed)
-  } else {
+  alpha_not_passed <- is.null(alpha)
+  concentration_not_passed <- is.null(concentration)
+  if(! concentration_not_passed & ! concentration_not_passed) {
+    stop("Only one of ``concentration`` or ``alpha`` should be passed.")
+  }
+  if(concentration_not_passed) {
+    if (alpha_not_passed) {
+      alpha = 1.0
+    }
     concentration <- rep(alpha, K_max)
   }
+  #   concentration <- table(initial_labels[fixed == 1]) / sum(fixed)
+  # } else {
+  #   concentration <- rep(1, K_max)
+  # }
   
   # Check the proposal windows are all strictly positive
   checkProposalWindows(mu_proposal_window,
-                       cov_proposal_window,
-                       m_proposal_window,
-                       S_proposal_window,
-                       t_df_proposal_window,
-                       verbose
+    cov_proposal_window,
+    m_proposal_window,
+    S_proposal_window,
+    t_df_proposal_window,
+    verbose
   )
   
   # The proposal windows for these objects are narrower for larger quantities,
@@ -221,6 +236,71 @@ batchSemiSupervisedMixtureModel <- function(X,
   class_df <- initial_parameters$class_df
   
   # Pull samples from the mixture model
+  if(batch_specific_weights) {
+    if (type == "MVN") {
+      mcmc_output <- sampleSemisupervisedMVNVaryingWeights(
+        X,
+        K_max,
+        B,
+        initial_labels,
+        batch_vec,
+        fixed,
+        mu_proposal_window,
+        actual_cov_proposal_window,
+        m_proposal_window,
+        actual_S_proposal_window,
+        R,
+        thin,
+        concentration,
+        m_scale,
+        rho,
+        theta,
+        class_means,
+        class_cov,
+        batch_shift,
+        batch_scale,
+        class_mean_passed,
+        class_covariance_passed,
+        batch_shift_passed,
+        batch_scale_passed
+      )
+    }
+    
+    if (type == "MVT") {
+      mcmc_output <- sampleSemisupervisedMVTVaryingWeights(
+        X,
+        K_max,
+        B,
+        initial_labels,
+        batch_vec,
+        fixed,
+        mu_proposal_window,
+        actual_cov_proposal_window,
+        m_proposal_window,
+        actual_S_proposal_window,
+        actual_t_df_proposal_window,
+        R,
+        thin,
+        concentration,
+        m_scale,
+        rho,
+        theta,
+        class_means,
+        class_cov,
+        class_df,
+        batch_shift,
+        batch_scale,
+        class_mean_passed,
+        class_covariance_passed,
+        class_df_passed,
+        batch_shift_passed,
+        batch_scale_passed
+      )
+    }
+    
+    mcmc_output$weights <- t(apply(mcmc_output$weights, 3, function(x) c(x)))
+    
+  } else {
   if (type == "MVN") {
     mcmc_output <- sampleSemisupervisedMVN(
       X,
@@ -281,6 +361,9 @@ batchSemiSupervisedMixtureModel <- function(X,
       batch_scale_passed
     )
   }
+    
+    mcmc_output$concentration <- matrix(concentration, nrow = 1)
+  }
   
   if (!type %in% c("MVN", "MVT")) {
     stop("Type not recognised. Please use one of 'MVN' or 'MVT'.")
@@ -324,6 +407,9 @@ batchSemiSupervisedMixtureModel <- function(X,
   if (actually_unsupervised) {
     mcmc_output$Semisupervised <- FALSE
   }
+  
+  # Record if component weights vary across batches
+  mcmc_output$batch_specific_weights <- batch_specific_weights
   
   mcmc_output
 }
