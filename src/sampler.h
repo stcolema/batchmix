@@ -53,9 +53,9 @@ public:
     complete_likelihood = 0.0;
   
   arma::uvec labels, N_k, batch_vec, N_b, KB_inds, B_inds;
-  arma::vec concentration, w, ll, likelihood;
+  arma::vec concentration, ll, likelihood;
   arma::umat members;
-  arma::mat X, X_t; //, alloc;
+  arma::mat X, X_t, w; //, alloc;
   arma::field<arma::uvec> batch_ind;
 
   // Parametrised class

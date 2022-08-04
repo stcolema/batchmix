@@ -101,11 +101,15 @@ continueChain <- function(mcmc_output,
 
   is_mvt <- type == "MVT"
   is_semisupervised <- mcmc_output$Semisupervised
-
+  batch_specific_weights <- mcmc_output$batch_specific_weights
   if (is_mvt) {
     initial_class_df <- mcmc_output$t_df[last_sample, ]
   }
-
+  
+  initial_concentration <- mcmc_output$concentration
+  if( batch_specific_weights ) {
+    initial_concentration <- mcmc_output$concentration[last_sample, ]
+  }
 
   labels <- mcmc_output$samples[last_sample, ]
 
@@ -117,7 +121,7 @@ continueChain <- function(mcmc_output,
     batch_vec,
     type,
     K_max = K_max,
-    alpha = alpha,
+    concentration = initial_concentration,
     mu_proposal_window = mu_proposal_window,
     cov_proposal_window = cov_proposal_window,
     m_proposal_window = m_proposal_window,
@@ -256,9 +260,7 @@ continueChain <- function(mcmc_output,
     ),
     dim = c(N, P, R_comb_eff)
     )
-
-    R_comb
-
+    
     new_samples$R <- R_comb
 
     new_samples$means <- combined_means
@@ -285,6 +287,11 @@ continueChain <- function(mcmc_output,
     if (is_mvt) {
       new_samples$t_df <- comb_t_df
       new_samples$t_df_acceptance_rate <- comb_t_df_acceptance_rate
+    }
+    
+    if( batch_specific_weights ) {
+      comb_concentration <- rbind(mcmc_output$concentration, new_samples$concentration)
+      new_samples$concentration <- comb_concentration
     }
   }
 

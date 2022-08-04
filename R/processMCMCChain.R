@@ -139,6 +139,10 @@ processMCMCChain <- function(mcmc_output, burn, point_estimate_method = "median"
   
   new_output$weights <- mcmc_output$weights[-dropped_indices, ]
   
+  if(new_output$batch_specific_weights) {
+    new_output$concentration <- new_output$concentration[-dropped_indices, ]
+  }
+  
   # The mean of the posterior samples for the parameters
   if(use_mean) {
     mean_est <- rowMeans(new_output$means, dims = 2L)
