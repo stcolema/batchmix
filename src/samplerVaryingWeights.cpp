@@ -133,7 +133,7 @@ void samplerVaryingWeights::sampleConcentrationK(uword k) {
     
     vec current_weights(B), concentration_doppel = concentration;
     
-    current_weights = w.col(k);
+    current_weights = w.row(k).t();
     current_mass = concentration(k);
     
     for(uword b = 0; b < B; b++) {
