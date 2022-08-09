@@ -43,7 +43,7 @@ group_weights <- rep(1 / K, K)
 batch_weights <- rep(1 / B, B)
 dfs <- c(4, 7, 15, 60, 120)
 
-my_data <- generateBatchDataMVT(
+my_data <- generateBatchData(
   N,
   P,
   group_means,
@@ -52,7 +52,8 @@ my_data <- generateBatchDataMVT(
   batch_var,
   group_weights,
   batch_weights,
-  dfs
+  type = "MVT",
+  group_dfs = dfs
 )
 ```
 
@@ -97,7 +98,8 @@ mcmc_output <- runMCMCChains(
   batch_vec,
   type,
   initial_labels = initial_labels,
-  fixed = fixed
+  fixed = fixed,
+  batch_specific_weights = TRUE
 )
 ```
 
