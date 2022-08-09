@@ -36,26 +36,21 @@ samplerVaryingWeights::samplerVaryingWeights(
 // Functions required of all mixture models
 // Function to update class / mixture weights
 void samplerVaryingWeights::updateWeights(){
-  
-  
   uword N_bk = 0;
-  
   // Used locally as the posterior concentration
   double alpha = 0.0;
-  
   for (uword b = 0; b < B; b++) {
     for (uword k = 0; k < K; k++) {
-      
       // Find how many labels have the value
       members.col(k) = labels == k;
       N_k(k) = sum(members.col(k));
+      
       N_bk = accu((labels == k) && (batch_vec == b));
       
       // Update weights by sampling from a Gamma distribution
       alpha  = concentration(k) + N_bk;
       w(k, b) = randg( distr_param(alpha, 1.0) );
     }
-  
     // Convert the cluster weights (previously gamma distributed) to Dirichlet
     // distributed by normalising (if K = 2 this is a Beta)
     w.col(b) = w.col(b) / accu(w.col(b));
@@ -137,29 +132,32 @@ void samplerVaryingWeights::sampleConcentrationK(uword k) {
     current_mass = concentration(k);
     
     for(uword b = 0; b < B; b++) {
-      curr_score += lgamma(current_mass) + (current_mass - 1) * log(current_weights(b)) + (a - 1) * log(current_mass) - b * current_mass;
+      curr_score += lgamma(current_mass) 
+        + (current_mass - 1) * log(current_weights(b)) 
+        + (a - 1) * log(current_mass) 
+        - b * current_mass;
     }
     curr_score += accu(lgamma(concentration));
     
-    proposed_mass = proposeNewNonNegativeValue(current_mass,
-                                               mass_proposal_window, 
-                                               use_log_norm_proposal
-    ); // current_mass + randn() * mass_proposal_window;
+    proposed_mass = proposeNewNonNegativeValue(
+      current_mass,
+      mass_proposal_window, 
+      use_log_norm_proposal
+    );
+    // current_mass + randn() * mass_proposal_window;
     if(proposed_mass <= 0.0) {
       acceptance_ratio = 0.0;
     } else {
-      
       concentration_doppel(k) = proposed_mass;
       for(uword b = 0; b < B; b++) {
-        new_score += lgamma(current_mass) + (current_mass - 1) * log(current_weights(b)) + (a - 1) * log(current_mass) - b * current_mass;
+        new_score += lgamma(proposed_mass) 
+          + (proposed_mass - 1) * log(current_weights(b)) 
+          + (a - 1) * log(proposed_mass) - b * proposed_mass;
       }
       new_score += accu(lgamma(concentration_doppel));
-      
       acceptance_ratio = exp(new_score - curr_score);
     }
-    
     accepted = metropolisAcceptanceStep(acceptance_ratio);
-    
     if(accepted) {
       concentration(k) = proposed_mass;
     }

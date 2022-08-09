@@ -85,7 +85,7 @@ void sampler::updateWeights(){
 
     // Update weights by sampling from a Gamma distribution
     a  = concentration(k) + N_k(k);
-    w(k, 0) = randg( distr_param(a, 1.0) );
+    w(k) = randg( distr_param(a, 1.0) );
   }
 
   // Convert the cluster weights (previously gamma distributed) to Dirichlet
@@ -110,7 +110,7 @@ void sampler::updateAllocation() {
     ll = itemLogLikelihood(X_t.col(n), batch_vec(n));
 
     // Update with weights
-    comp_prob = ll + log(w.col(0));
+    comp_prob = ll + log(w);
 
     // Record the likelihood - this is used to calculate the observed likelihood
     // likelihood(n) = accu(comp_prob);

@@ -55,7 +55,7 @@ void semisupervisedSampler::updateAllocation() {
     ll = itemLogLikelihood(X_t.col(n), batch_vec(n));
     
     // Update with weights
-    comp_prob = ll + log(w.col(0));
+    comp_prob = ll + log(w);
     
     // Record the likelihood - this is used to calculate the observed likelihood
     // likelihood(n) = accu(comp_prob);
