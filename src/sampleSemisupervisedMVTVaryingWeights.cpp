@@ -151,7 +151,7 @@ Rcpp::List sampleSemisupervisedMVTVaryingWeights (
       mean_sum_saved.slice( save_int ) = my_sampler.mean_sum;
       t_df_saved.row( save_int ) = my_sampler.t_df.t();
       
-      weights_saved.slice( save_int ) = my_sampler.w;
+      weights_saved.slice( save_int ) = my_sampler.normalised_weights;
       
       cov_saved.slice ( save_int ) = reshape(mat(my_sampler.cov.memptr(), my_sampler.cov.n_elem, 1, false), P, P * K);
       cov_comb_saved.slice( save_int) = reshape(mat(my_sampler.cov_comb.memptr(), my_sampler.cov_comb.n_elem, 1, false), P, P * K * B); 

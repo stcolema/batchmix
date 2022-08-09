@@ -22,7 +22,9 @@ private:
 public:
   
   bool use_log_norm_proposal = true;
-  double a = 1.0, b = 1.0, mass_proposal_window = 0.02;
+  double concentraion_shape_hyper = 2.0, concentraion_rate_hyper = 0.1, mass_proposal_window = 0.02,
+    beta = 1.0, gamma_proposal_window = 125;
+  mat normalised_weights;
   
   using semisupervisedSampler::semisupervisedSampler;
   
@@ -41,10 +43,23 @@ public:
   // Functions required of all mixture models
   // Generic functions
   void updateWeights() override;
+  double weightLogPosteriorKernel(
+      uword N_kb,
+      double weight,
+      double mass,
+      vec weights
+  );
+  void sampleWeight(uword k, uword b);
+    
   void updateAllocation() override;
   
   virtual void sampleConcentration();
   virtual void sampleConcentrationK(arma::uword k);
+  double concentrationLogPosteriorKernel(
+      double mass, 
+      vec concentration_vec,
+      vec weights
+  );
   
 };
 
