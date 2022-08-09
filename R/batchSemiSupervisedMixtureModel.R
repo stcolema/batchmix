@@ -177,7 +177,7 @@ batchSemiSupervisedMixtureModel <- function(X,
   # component weights.
   alpha_not_passed <- is.null(alpha)
   concentration_not_passed <- is.null(concentration)
-  if(! concentration_not_passed & ! concentration_not_passed) {
+  if((! alpha_not_passed) && (! concentration_not_passed)) {
     stop("Only one of ``concentration`` or ``alpha`` should be passed.")
   }
   if(concentration_not_passed) {

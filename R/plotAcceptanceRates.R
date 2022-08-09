@@ -47,7 +47,7 @@ plotAcceptanceRates <- function(mcmc_lst) {
   type <- mcmc_lst[[1]]$type
   
   acceptance_rates <- do.call(rbind,
-    lapply(mcmc_lst, collectAcceptanceRates, type)
+    lapply(mcmc_lst, collectAcceptanceRates)
   )
   
   acceptance_rates$Chain <- seq(1, length(mcmc_lst))
