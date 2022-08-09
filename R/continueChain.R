@@ -112,7 +112,7 @@ continueChain <- function(mcmc_output,
   }
 
   labels <- mcmc_output$samples[last_sample, ]
-
+  
   new_samples <- batchSemiSupervisedMixtureModel(X,
     R,
     thin,
@@ -120,6 +120,7 @@ continueChain <- function(mcmc_output,
     fixed,
     batch_vec,
     type,
+    batch_specific_weights = batch_specific_weights,
     K_max = K_max,
     concentration = initial_concentration,
     mu_proposal_window = mu_proposal_window,
