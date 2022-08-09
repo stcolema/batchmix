@@ -12,7 +12,7 @@
 #' (multivariate normal distribution) or 'MVT' (multivariate t distribution).
 #' @param batch_specific_weights Allow each batch to have unique class weights.
 #' If FALSE class weights are common across batches, if TRUE the class weights
-#' are nested within batch and share a common hyperparameter. Defaults to TRUE.
+#' are nested within batch and share a common hyperparameter. Defaults to FALSE.
 #' @param K_max The number of components to include (the upper bound on the
 #' number of clusters in each sample). Defaults to the number of unique labels
 #' in ``initial_labels``.
@@ -121,7 +121,7 @@ batchSemiSupervisedMixtureModel <- function(X,
                                             fixed,
                                             batch_vec,
                                             type,
-                                            batch_specific_weights = TRUE,
+                                            batch_specific_weights = FALSE,
                                             K_max = length(unique(initial_labels)),
                                             alpha = NULL,
                                             concentration = NULL,

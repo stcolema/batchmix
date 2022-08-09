@@ -12,7 +12,7 @@
 #' (multivariate normal distribution) or 'MVT' (multivariate t distribution).
 #' @param batch_specific_weights Allow each batch to have unique class weights.
 #' If FALSE class weights are common across batches, if TRUE the class weights
-#' are nested within batch and share a common hyperparameter. Defaults to TRUE.
+#' are nested within batch and share a common hyperparameter. Defaults to FALSE.
 #' If batch-specific weights are used then the returned object contains a member
 #' ``weights`` which is a matrix with K x B columns. The columns are ordered by 
 #' batch, i.e. the first K columns contain the class weights in the first batch,
@@ -136,7 +136,7 @@ runBatchMix <- function(X,
                         thin,
                         batch_vec,
                         type,
-                        batch_specific_weights = TRUE,
+                        batch_specific_weights = FALSE,
                         K_max = NULL,
                         initial_labels = NULL,
                         fixed = NULL,
