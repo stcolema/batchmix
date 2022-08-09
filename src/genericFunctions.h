@@ -20,7 +20,7 @@ using namespace arma ;
 //' @return new double
 double proposeNewNonNegativeValue(double x, double window, 
                                   bool use_log_norm = false,
-                                  double tolerance = 1e-6
+                                  double tolerance = 1e-12
 );
 
 //' @title The Inverse Gamma Distribution
