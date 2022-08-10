@@ -21,9 +21,9 @@ private:
   
 public:
   
-  bool use_log_norm_proposal = true;
-  double concentraion_shape_hyper = 2.0, concentraion_rate_hyper = 0.1, mass_proposal_window = 0.02,
-    beta = 1.0, gamma_proposal_window = 125;
+  bool use_log_norm_proposal = false;
+  double concentraion_shape_hyper = 1.0, concentraion_rate_hyper = 1.0, mass_proposal_window = 125,
+    beta = 0.1, gamma_proposal_window = 125;
   mat normalised_weights;
   
   using semisupervisedSampler::semisupervisedSampler;
