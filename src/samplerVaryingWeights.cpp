@@ -27,20 +27,27 @@ samplerVaryingWeights::samplerVaryingWeights(
   ),
   sampler(_K, _B, _labels, _batch_vec, _concentration, _X)
 {
-  
+  uword N_kb = 0;
   w.reset();
   w.set_size(K, B);
   w.zeros();
   normalised_weights.set_size(K, B);
   
   for(uword b = 0; b < B; b++) {
+    
     for(uword k = 0; k < K; k++) {
-      concentration(k) = rGamma(
-        concentraion_shape_hyper, 
-        concentraion_rate_hyper
-      );
-      w(k, b) = rGamma(concentration(k), beta);
+      N_kb = accu((labels == k) && (batch_vec == b));
+      N_k(k) = accu(labels == k);
+      
+      concentration(k) =  (double) N_k(k); //rGamma(
+      //   concentraion_shape_hyper, 
+      //   concentraion_rate_hyper
+      // );
+      w(k, b) = (double) N_kb; // / (double) N_b(b);
+      // w(k, b) = rGamma(concentration(k), beta);
     }
+    // w.fill(10);
+    // concentration.fill(10);
     normalised_weights.col(b) = w.col(b) / accu(w.col(b));
   }
 };
@@ -65,7 +72,7 @@ void samplerVaryingWeights::updateWeights(){
       // N_bk = accu((labels == k) && (batch_vec == b));
       // 
       // // Update weights by sampling from a Gamma distribution
-      // alpha  = concentration(k) + N_bk;
+      // alpha  = (concentration(k) / (double) B) + N_bk;
       // w(k, b) = randg( distr_param(alpha, 1.0) );
     }
     // Convert the cluster weights (previously gamma distributed) to Dirichlet
@@ -75,7 +82,7 @@ void samplerVaryingWeights::updateWeights(){
     // Rcpp::Rcout << "\nNormalising weights.";
     normalised_weights.col(b) = w.col(b) / accu(w.col(b));
   }
-  
+  // normalised_weights = w;
   // Rcpp::Rcout << "\nWeights updated.";
 };
 
@@ -148,19 +155,18 @@ double samplerVaryingWeights::concentrationLogPosteriorKernel(
   ) {
   double score = 0.0;
   
-  score = (double) B * alpha * log(beta) 
-    + (concentraion_shape_hyper - 1.0) * log(alpha) 
-    - (double) B * lgamma(alpha)
+  score = (concentraion_shape_hyper - 1.0) * log(alpha)
+    + alpha * log(beta)
+    - (double) B * lgamma(alpha / (double) B)
     - concentraion_rate_hyper * alpha
-    + (alpha - 1.0) * accu(log(weights));
+    + ((alpha / (double) B) - 1.0) * accu(log(weights));
   
-  // for(uword b = 0; b < B; b++) {
-  //   score += lgamma(alpha) 
-  //   + (alpha - 1) * log(weights(b)) 
-  //   + (concentraion_shape_hyper - 1) * log(alpha) 
-  //   - concentraion_rate_hyper * alpha;
-  // }
-  // score += accu(lgamma(concentration_vec));
+  // score = (concentraion_shape_hyper - 1) * log(alpha)
+  //   - concentraion_rate_hyper * alpha 
+  //   - (double) B * lgamma(accu(concentration_vec) / (double) B)
+  //   + (double) B * lgamma(alpha / (double) B)
+  //   + ((alpha / (double) B) - 1) * accu(log(weights));
+  
   return score;
 }
 
@@ -235,9 +241,9 @@ double samplerVaryingWeights::weightLogPosteriorKernel(
     vec weights
 ) {
   double score = 0.0;
-  score += ((double) N_kb + mass - 1.0) * log(weight) 
+  score += ((double) N_kb + (mass / (double) B) - 1.0) * log(weight) 
     - beta * weight
-    - log(N_kb * accu(weights));
+    - (double) N_kb * log(accu(weights));
     
     return score;
 }
@@ -269,7 +275,7 @@ void samplerVaryingWeights::sampleWeight(uword k, uword b) {
   proposed_weight = proposeNewNonNegativeValue(
     current_weight,
     gamma_proposal_window, 
-    false
+    use_log_norm_proposal
   );
   
   // Rcpp::Rcout << "\nNew value proposed.";
