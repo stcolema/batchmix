@@ -18,6 +18,7 @@
 #' in ``initial_labels``.
 #' @param alpha The concentration parameter for the stick-breaking prior and the
 #' weights in the model.
+#' @param concentration Initial concentration vector for component weights.
 #' @param mu_proposal_window The proposal window for the cluster mean proposal
 #' kernel. The proposal density is a Gaussian distribution, the window is the 
 #' variance.
