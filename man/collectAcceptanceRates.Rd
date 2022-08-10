@@ -43,6 +43,6 @@ samples <- runBatchMix(X, R, thin, batch_vec, "MVN",
 )
 
 # Acceptance rates
-collectAcceptanceRates(samples, "MVN")
+collectAcceptanceRates(samples)
 
 }

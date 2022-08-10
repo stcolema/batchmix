@@ -61,6 +61,8 @@ in ``initial_labels``.}
 \item{alpha}{The concentration parameter for the stick-breaking prior and the
 weights in the model.}
 
+\item{concentration}{Initial concentration vector for component weights.}
+
 \item{mu_proposal_window}{The proposal window for the cluster mean proposal
 kernel. The proposal density is a Gaussian distribution, the window is the 
 variance.}

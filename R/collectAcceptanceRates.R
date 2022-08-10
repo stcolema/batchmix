@@ -32,7 +32,7 @@
 #' )
 #' 
 #' # Acceptance rates
-#' collectAcceptanceRates(samples, "MVN")
+#' collectAcceptanceRates(samples)
 #' 
 collectAcceptanceRates <- function(samples) {
   
