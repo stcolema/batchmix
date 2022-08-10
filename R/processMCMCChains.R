@@ -4,6 +4,8 @@
 #' chains outputted from ``runMCMCChains``. 
 #' @param mcmc_lst Output from ``runMCMCChains``
 #' @param burn The number of MCMC samples to drop as part of a burn in.
+#' @param point_estimate_method Summary statistic used to define the point 
+#' estimate. Must be ``'mean'`` or ``'median'``. ``'median'`` is the default.
 #' @returns A named list similar to the output of 
 #' ``batchSemiSupervisedMixtureModel`` with some additional entries:
 #' 
@@ -73,9 +75,9 @@
 #' # Process the MCMC samples 
 #' processed_samples <- processMCMCChains(samples, burn)
 #' 
-processMCMCChains <- function(mcmc_lst, burn) {
+processMCMCChains <- function(mcmc_lst, burn, point_estimate_method = "median") {
   
-  new_output <- lapply(mcmc_lst, processMCMCChain, burn)
+  new_output <- lapply(mcmc_lst, processMCMCChain, burn, point_estimate_method)
   
   # Return the MCMC object with burn in applied and point estimates found
   new_output
