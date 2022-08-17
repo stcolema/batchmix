@@ -116,19 +116,18 @@ generateBatchData <- function(N,
   # The data matrices
   observed_data <- true_data <- matrix(nrow = N, ncol = P)
 
+  
+  # If not permuting variables across features, set them outside of the loop
+  reordered_group_means <- group_means
+  reordered_group_std_devs <- group_std_devs
+  
+  reordered_batch_shift <- batch_shift
+  reordered_batch_scale <- batch_scale
+  
   # Iterate over each of the columns permuting the means associated with each
   # label.
   for (p in seq(1, P))
   {
-
-    # To provide different information in each column, randomly sample the
-    # parameters with each group and batch
-    reordered_group_means <- group_means
-    reordered_group_std_devs <- group_std_devs
-
-    reordered_batch_shift <- batch_shift
-    reordered_batch_scale <- batch_scale
-
     if (permute_variables) {
       # To provide different information in each column, randomly sample the
       # parameters with each group and batch
