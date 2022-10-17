@@ -84,7 +84,7 @@ void sampler::updateWeights(){
     N_k(k) = sum(members.col(k));
 
     // Update weights by sampling from a Gamma distribution
-    a  = concentration(k) + N_k(k);
+    a  = concentration(k) + (double) N_k(k);
     w(k) = randg( distr_param(a, 1.0) );
   }
 

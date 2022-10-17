@@ -155,18 +155,19 @@ double samplerVaryingWeights::concentrationLogPosteriorKernel(
   ) {
   double score = 0.0;
   
-  score = (concentraion_shape_hyper - 1.0) * log(alpha)
-    + alpha * log(beta)
-    - (double) B * lgamma(alpha / (double) B)
-    - concentraion_rate_hyper * alpha
-    + ((alpha / (double) B) - 1.0) * accu(log(weights));
-  
-  // score = (concentraion_shape_hyper - 1) * log(alpha)
-  //   - concentraion_rate_hyper * alpha 
-  //   - (double) B * lgamma(accu(concentration_vec) / (double) B)
-  //   + (double) B * lgamma(alpha / (double) B)
-  //   + ((alpha / (double) B) - 1) * accu(log(weights));
-  
+  if(model_1_used) {
+    score = (concentraion_shape_hyper - 1.0) * log(alpha)
+      - concentraion_rate_hyper * alpha
+      - (double) B * lgamma(accu(concentration_vec) / (double) B)
+      + (double) B * lgamma(alpha / (double) B)
+      + ((alpha / (double) B) - 1.0) * accu(log(weights));
+  } else {
+    score = (concentraion_shape_hyper - 1.0) * log(alpha)
+      + alpha * log(beta)
+      - (double) B * lgamma(alpha / (double) B)
+      - concentraion_rate_hyper * alpha
+      + ((alpha / (double) B) - 1.0) * accu(log(weights));
+  }
   return score;
 }
 
@@ -263,40 +264,45 @@ void samplerVaryingWeights::sampleWeight(uword k, uword b) {
   
   vec current_weights = w.row(k).t(), proposed_weights = w.row(k).t();
   
-  // Rcpp::Rcout << "\nCurrent score.";
-  curr_score = weightLogPosteriorKernel(
-    N_kb,
-    current_weight,
-    concentration(k),
-    current_weights
-  );
-  
-  // Rcpp::Rcout << "\nPropose new value.";
-  proposed_weight = proposeNewNonNegativeValue(
-    current_weight,
-    gamma_proposal_window, 
-    use_log_norm_proposal
-  );
-  
-  // Rcpp::Rcout << "\nNew value proposed.";
-  // current_mass + randn() * mass_proposal_window;
-  if(proposed_weight <= 0.0) {
-    acceptance_ratio = 0.0;
-  } else {
-    proposed_weights(b) = proposed_weight;
-    
-    // Rcpp::Rcout << "\nProposed value's score.";
-    new_score = weightLogPosteriorKernel(
+  if(model_1_used) {
+    proposed_weight = rGamma((concentration(k) / (double) B) + N_kb, 1.0);
+    accepted = true;
+    } else {
+    // Rcpp::Rcout << "\nCurrent score.";
+    curr_score = weightLogPosteriorKernel(
       N_kb,
-      proposed_weight,
+      current_weight,
       concentration(k),
-      proposed_weights
+      current_weights
     );
     
-    acceptance_ratio = exp(new_score - curr_score);
+    // Rcpp::Rcout << "\nPropose new value.";
+    proposed_weight = proposeNewNonNegativeValue(
+      current_weight,
+      gamma_proposal_window, 
+      use_log_norm_proposal
+    );
+    
+    // Rcpp::Rcout << "\nNew value proposed.";
+    // current_mass + randn() * mass_proposal_window;
+    if(proposed_weight <= 0.0) {
+      acceptance_ratio = 0.0;
+    } else {
+      proposed_weights(b) = proposed_weight;
+      
+      // Rcpp::Rcout << "\nProposed value's score.";
+      new_score = weightLogPosteriorKernel(
+        N_kb,
+        proposed_weight,
+        concentration(k),
+        proposed_weights
+      );
+      
+      acceptance_ratio = exp(new_score - curr_score);
+    }
+    // Rcpp::Rcout << "\nCheck acceptance.";
+    accepted = metropolisAcceptanceStep(acceptance_ratio);
   }
-  // Rcpp::Rcout << "\nCheck acceptance.";
-  accepted = metropolisAcceptanceStep(acceptance_ratio);
   if(accepted) {
     w(k, b) = proposed_weight;
   }
