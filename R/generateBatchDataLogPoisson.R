@@ -65,13 +65,13 @@ generateBatchDataLogPoisson <- function(N,
   batches <- unique(batch_IDs)
   observed_data <- true_data <- matrix(nrow = N, ncol = P)
   
-  lambdas_pk <- lambdas_k
-  lambdas_pb <- lambdas_b
+  lambdas_pk <- group_rates
+  lambdas_pb <- batch_rates
   
   for(p in seq(1, P)) {
     if(permute_variables) {
-      lambdas_pk <- sample(lambdas_k)
-      lambdas_pb <- sample(lambdas_b)
+      lambdas_pk <- sample(group_rates)
+      lambdas_pb <- sample(batch_rates)
     }
     for(b in batches) {
       batch_inds <- which(batch_IDs == b)
