@@ -39,12 +39,12 @@ samplerVaryingWeights::samplerVaryingWeights(
       N_kb = accu((labels == k) && (batch_vec == b));
       N_k(k) = accu(labels == k);
       
-      concentration(k) =  (double) N_k(k); //rGamma(
-      //   concentraion_shape_hyper, 
-      //   concentraion_rate_hyper
-      // );
-      w(k, b) = (double) N_kb; // / (double) N_b(b);
-      // w(k, b) = rGamma(concentration(k), beta);
+      concentration(k) =  rGamma(
+        concentraion_shape_hyper,
+        concentraion_rate_hyper
+      );
+      // w(k, b) = (double) N_kb; // / (double) N_b(b);
+      w(k, b) = rGamma(concentration(k), beta);
     }
     // w.fill(10);
     // concentration.fill(10);
@@ -208,7 +208,7 @@ void samplerVaryingWeights::sampleConcentrationK(uword k) {
     );
     // current_mass + randn() * mass_proposal_window;
     if(proposed_mass <= 0.0) {
-      acceptance_ratio = 0.0;
+      accepted = false;
     } else {
       concentration_doppel(k) = proposed_mass;
       
@@ -226,8 +226,9 @@ void samplerVaryingWeights::sampleConcentrationK(uword k) {
       // new_score += accu(lgamma(concentration_doppel));
       
       acceptance_ratio = exp(new_score - curr_score);
+      accepted = metropolisAcceptanceStep(acceptance_ratio);
     }
-    accepted = metropolisAcceptanceStep(acceptance_ratio);
+    
     if(accepted) {
       concentration(k) = proposed_mass;
     }
@@ -265,7 +266,12 @@ void samplerVaryingWeights::sampleWeight(uword k, uword b) {
   vec current_weights = w.row(k).t(), proposed_weights = w.row(k).t();
   
   if(model_1_used) {
-    proposed_weight = rGamma((concentration(k) / (double) B) + N_kb, 1.0);
+    if((concentration(k) / (double) B) + N_kb <= 0.0) {
+      Rcpp::Rcout <<  "\n\nConcentration: " << concentration(k);
+      Rcpp::Rcout <<  "\nConcentration: " << (concentration(k) / (double) B);
+      Rcpp::Rcout << "\nN_kb: " << N_kb;
+    }
+    proposed_weight = rGamma((concentration(k) / (double) B) + (double) N_kb, 1.0);
     accepted = true;
     } else {
     // Rcpp::Rcout << "\nCurrent score.";

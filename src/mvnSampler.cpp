@@ -370,7 +370,12 @@ void mvnSampler::batchScaleMetropolis() {
     proposed_cov_comb.zeros();
     
     for(uword p = 0; p < P; p++) {
-      
+      if((S(p, b) - S_loc) * S_proposal_window < 0.0){ 
+        Rcpp::stop("\n\nCurent batch scale equals S_loc");
+      }
+      if( (1.0 / S_proposal_window) < 0.0) {
+        Rcpp::stop("\n\nCurent batch scale proposal window is some how negative?");
+      }
       S_proposed(p) = S_loc + randg( distr_param( (S(p, b) - S_loc) * S_proposal_window, 1.0 / S_proposal_window) );
       
       if(S_proposed(p) <= S_loc) {
