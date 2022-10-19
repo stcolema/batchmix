@@ -266,11 +266,11 @@ void samplerVaryingWeights::sampleWeight(uword k, uword b) {
   vec current_weights = w.row(k).t(), proposed_weights = w.row(k).t();
   
   if(model_1_used) {
-    if(((concentration(k) / (double) B) + N_kb) <= 0.0) {
-      Rcpp::Rcout <<  "\n\nConcentration: " << concentration(k);
-      Rcpp::Rcout <<  "\nConcentration: " << (concentration(k) / (double) B);
-      Rcpp::Rcout << "\nN_kb: " << N_kb;
-    }
+    // if(((concentration(k) / (double) B) + N_kb) <= 0.0) {
+    //   Rcpp::Rcout <<  "\n\nConcentration: " << concentration(k);
+    //   Rcpp::Rcout <<  "\nConcentration: " << (concentration(k) / (double) B);
+    //   Rcpp::Rcout << "\nN_kb: " << N_kb;
+    // }
     proposed_weight = rGamma((concentration(k) / (double) B) + (double) N_kb, 1.0);
     accepted = true;
     } else {
@@ -282,10 +282,10 @@ void samplerVaryingWeights::sampleWeight(uword k, uword b) {
       current_weights
     );
     
-    Rcpp::Rcout <<  "\ncurrent_weight: " << current_weight;
-    Rcpp::Rcout <<  "\ngamma_proposal_window: " << gamma_proposal_window;
-    Rcpp::Rcout << "\nuse_log_norm_proposal: " << use_log_norm_proposal;
-    
+    // Rcpp::Rcout <<  "\ncurrent_weight: " << current_weight;
+    // Rcpp::Rcout <<  "\ngamma_proposal_window: " << gamma_proposal_window;
+    // Rcpp::Rcout << "\nuse_log_norm_proposal: " << use_log_norm_proposal;
+
     
     // Rcpp::Rcout << "\nPropose new value.";
     proposed_weight = proposeNewNonNegativeValue(
