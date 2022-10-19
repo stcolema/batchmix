@@ -119,6 +119,8 @@ Rcpp::List sampleSemisupervisedMVTVaryingWeights (
   // Iterate over MCMC moves
   for(uword r = 0; r < R; r++){
     
+    Rcpp::checkUserInterrupt();
+    
     // Rcpp::Rcout << "\n\nUpdate weights.";
     my_sampler.updateWeights();
     

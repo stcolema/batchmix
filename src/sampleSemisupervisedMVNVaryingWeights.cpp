@@ -112,20 +112,22 @@ Rcpp::List sampleSemisupervisedMVNVaryingWeights (
   // Iterate over MCMC moves
   for(uword r = 0; r < R; r++){
     
-    // Rcpp::Rcout << "\n\nUpdate weights.";
+    Rcpp::checkUserInterrupt();
+    
+    Rcpp::Rcout << "\n\nUpdate weights.";
     my_sampler.updateWeights();
     
-    // Rcpp::Rcout << "\nSample concentration.";
+    Rcpp::Rcout << "\nSample concentration.";
     my_sampler.sampleConcentration();
     
-    // Rcpp::Rcout << "\nSample parameters.";
+    Rcpp::Rcout << "\nSample parameters.";
     // Metropolis step for batch parameters
     my_sampler.metropolisStep(); 
     
-    // Rcpp::Rcout << "\nUpdate allocation parameters.";
+    Rcpp::Rcout << "\nUpdate allocation parameters.";
     my_sampler.updateAllocation();
     
-    // Rcpp::Rcout << "\nSave parameters.";
+    Rcpp::Rcout << "\nSave parameters.";
     // Record results
     if((r + 1) % thin == 0){
       
