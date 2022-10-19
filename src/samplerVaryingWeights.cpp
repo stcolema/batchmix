@@ -206,7 +206,7 @@ void samplerVaryingWeights::sampleConcentrationK(uword k) {
       mass_proposal_window, 
       use_log_norm_proposal
     );
-    // current_mass + randn() * mass_proposal_window;
+
     if(proposed_mass <= 0.0) {
       accepted = false;
     } else {
@@ -266,7 +266,7 @@ void samplerVaryingWeights::sampleWeight(uword k, uword b) {
   vec current_weights = w.row(k).t(), proposed_weights = w.row(k).t();
   
   if(model_1_used) {
-    if((concentration(k) / (double) B) + N_kb <= 0.0) {
+    if(((concentration(k) / (double) B) + N_kb) <= 0.0) {
       Rcpp::Rcout <<  "\n\nConcentration: " << concentration(k);
       Rcpp::Rcout <<  "\nConcentration: " << (concentration(k) / (double) B);
       Rcpp::Rcout << "\nN_kb: " << N_kb;
@@ -293,6 +293,7 @@ void samplerVaryingWeights::sampleWeight(uword k, uword b) {
     // current_mass + randn() * mass_proposal_window;
     if(proposed_weight <= 0.0) {
       acceptance_ratio = 0.0;
+      accepted = false;
     } else {
       proposed_weights(b) = proposed_weight;
       
@@ -305,9 +306,8 @@ void samplerVaryingWeights::sampleWeight(uword k, uword b) {
       );
       
       acceptance_ratio = exp(new_score - curr_score);
+      accepted = metropolisAcceptanceStep(acceptance_ratio);
     }
-    // Rcpp::Rcout << "\nCheck acceptance.";
-    accepted = metropolisAcceptanceStep(acceptance_ratio);
   }
   if(accepted) {
     w(k, b) = proposed_weight;
