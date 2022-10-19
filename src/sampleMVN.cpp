@@ -107,6 +107,8 @@ Rcpp::List sampleMVN (
   // Iterate over MCMC moves
   for(arma::uword r = 0; r < R; r++){
     
+    Rcpp::checkUserInterrupt();
+    
     // Sample component weights
     my_sampler.updateWeights();
     

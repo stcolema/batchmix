@@ -118,6 +118,8 @@ Rcpp::List sampleSemisupervisedMVT (
   // Iterate over MCMC moves
   for(uword r = 0; r < R; r++){
     
+    Rcpp::checkUserInterrupt();
+    
     my_sampler.updateWeights();
 
     // Metropolis step for batch parameters
