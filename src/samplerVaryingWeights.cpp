@@ -44,7 +44,7 @@ samplerVaryingWeights::samplerVaryingWeights(
         concentraion_rate_hyper
       );
       // w(k, b) = (double) N_kb; // / (double) N_b(b);
-      w(k, b) = rGamma(concentration(k), beta);
+      w(k, b) = 1.0 + rGamma(concentration(k), beta);
     }
     // w.fill(10);
     // concentration.fill(10);
@@ -281,6 +281,11 @@ void samplerVaryingWeights::sampleWeight(uword k, uword b) {
       concentration(k),
       current_weights
     );
+    
+    Rcpp::Rcout <<  "\ncurrent_weight: " << current_weight;
+    Rcpp::Rcout <<  "\ngamma_proposal_window: " << gamma_proposal_window;
+    Rcpp::Rcout << "\nuse_log_norm_proposal: " << use_log_norm_proposal;
+    
     
     // Rcpp::Rcout << "\nPropose new value.";
     proposed_weight = proposeNewNonNegativeValue(
