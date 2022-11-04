@@ -130,17 +130,17 @@ processMCMCChain <- function(mcmc_output, burn, point_estimate_method = "median"
     new_output$alloc <- mcmc_output$alloc[, , -dropped_indices]
   
   # The sampled parameters
-  new_output$means <- mcmc_output$means[, , -dropped_indices]
-  new_output$covariance <- mcmc_output$covariance[ , , -dropped_indices]
-  new_output$batch_shift <- mcmc_output$batch_shift[ , , -dropped_indices]
-  new_output$batch_scale <- mcmc_output$batch_scale[ , , -dropped_indices]
-  new_output$mean_sum <- mcmc_output$mean_sum[ , , -dropped_indices]
-  new_output$cov_comb <- mcmc_output$cov_comb[ , , -dropped_indices]
+  new_output$means <- mcmc_output$means[, , -dropped_indices, drop = FALSE]
+  new_output$covariance <- mcmc_output$covariance[ , , -dropped_indices, drop = FALSE]
+  new_output$batch_shift <- mcmc_output$batch_shift[ , , -dropped_indices, drop = FALSE]
+  new_output$batch_scale <- mcmc_output$batch_scale[ , , -dropped_indices, drop = FALSE]
+  new_output$mean_sum <- mcmc_output$mean_sum[ , , -dropped_indices, drop = FALSE]
+  new_output$cov_comb <- mcmc_output$cov_comb[ , , -dropped_indices, drop = FALSE]
   
-  new_output$weights <- mcmc_output$weights[-dropped_indices, ]
+  new_output$weights <- mcmc_output$weights[-dropped_indices, , drop = FALSE]
   
   if(new_output$batch_specific_weights) {
-    new_output$concentration <- new_output$concentration[-dropped_indices, ]
+    new_output$concentration <- new_output$concentration[-dropped_indices, , drop = FALSE]
   }
   
   # The mean of the posterior samples for the parameters
@@ -157,7 +157,7 @@ processMCMCChain <- function(mcmc_output, burn, point_estimate_method = "median"
   }
   
   if(type == "MVT") {
-    new_output$t_df <- mcmc_output$t_df[-dropped_indices, ]
+    new_output$t_df <- mcmc_output$t_df[-dropped_indices, , drop = FALSE]
     if(use_mean) 
       new_output$t_df_est <- colMeans(new_output$t_df)
     if(use_median) 
