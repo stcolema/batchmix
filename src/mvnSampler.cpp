@@ -79,6 +79,8 @@ _X) {
   diag_entries.fill(scale_entry);
   scale = diagmat( diag_entries );
   
+  scale = global_cov / std::pow(K, 2.0 / (double) P);
+  
   // The mean of the prior distribution for the batch shift, m, parameter
   delta = 0.0;
   m_scale = _m_scale;
