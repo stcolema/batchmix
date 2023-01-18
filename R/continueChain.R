@@ -102,6 +102,7 @@ continueChain <- function(mcmc_output,
   is_mvt <- type == "MVT"
   is_semisupervised <- mcmc_output$Semisupervised
   batch_specific_weights <- mcmc_output$batch_specific_weights
+  initial_class_df <- NULL
   if (is_mvt) {
     initial_class_df <- mcmc_output$t_df[last_sample, ]
   }
