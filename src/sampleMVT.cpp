@@ -57,33 +57,34 @@ Rcpp::List sampleMVT (
   );
   
   // We use this enough that declaring it is worthwhile
-  arma::uword P = X.n_cols;
+  arma::uword P = X.n_cols, n_saved = std::floor(R / thin);
   
   // The output matrix
-  arma::umat class_record(std::floor(R / thin), X.n_rows);
+  arma::umat class_record(n_saved, X.n_rows);
   class_record.zeros();
   
   // We save the BIC at each iteration
-  arma::vec BIC_record = arma::zeros<arma::vec>(std::floor(R / thin)),
-    observed_likelihood = arma::zeros<arma::vec>(std::floor(R / thin)),
-    complete_likelihood = arma::zeros<arma::vec>(std::floor(R / thin));
+  arma::vec BIC_record = arma::zeros<arma::vec>(n_saved),
+    observed_likelihood = arma::zeros<arma::vec>(n_saved),
+    complete_likelihood = arma::zeros<arma::vec>(n_saved),
+    lambda_2_saved = zeros<vec>(n_saved);
   
-  arma::uvec acceptance_vec = arma::zeros<arma::uvec>(std::floor(R / thin));
+  arma::uvec acceptance_vec = arma::zeros<arma::uvec>(n_saved);
   
   arma::mat 
-    weights_saved(std::floor(R / thin), K), 
-    t_df_saved(std::floor(R / thin), K);
+    weights_saved(n_saved, K), 
+    t_df_saved(n_saved, K);
   
   weights_saved.zeros();
   t_df_saved.zeros();
   
-  arma::cube mean_sum_saved(my_sampler.P, K * B, std::floor(R / thin)), 
-    mu_saved(my_sampler.P, K, std::floor(R / thin)), 
-    m_saved(my_sampler.P, B, std::floor(R / thin)), 
-    cov_saved(P, K * P, std::floor(R / thin)), 
-    S_saved(P, B, std::floor(R / thin)), 
-    cov_comb_saved(P, P * K * B, std::floor(R / thin)),
-    batch_corrected_data(my_sampler.N, P, std::floor(R / thin));
+  arma::cube mean_sum_saved(my_sampler.P, K * B, n_saved), 
+    mu_saved(my_sampler.P, K, n_saved), 
+    m_saved(my_sampler.P, B, n_saved), 
+    cov_saved(P, K * P, n_saved), 
+    S_saved(P, B, n_saved), 
+    cov_comb_saved(P, P * K * B, n_saved),
+    batch_corrected_data(my_sampler.N, P, n_saved);
   
   mu_saved.zeros();
   cov_saved.zeros();
@@ -147,6 +148,8 @@ Rcpp::List sampleMVT (
       mean_sum_saved.slice( save_int ) = my_sampler.mean_sum;
       t_df_saved.row( save_int ) = my_sampler.t_df.t();
       
+      lambda_2_saved( save_int ) = my_sampler.lambda_2;
+      
       cov_saved.slice ( save_int ) = arma::reshape(arma::mat(my_sampler.cov.memptr(), my_sampler.cov.n_elem, 1, false), P, P * K);
       cov_comb_saved.slice( save_int) = arma::reshape(arma::mat(my_sampler.cov_comb.memptr(), my_sampler.cov_comb.n_elem, 1, false), P, P * K * B); 
       
@@ -177,7 +180,8 @@ Rcpp::List sampleMVT (
       Named("t_df_acceptance_rate") = arma::conv_to< arma::vec >::from(my_sampler.t_df_count) / R,
       Named("complete_likelihood") = complete_likelihood,
       Named("observed_likelihood") = observed_likelihood,
-      Named("BIC") = BIC_record
+      Named("BIC") = BIC_record,
+      Named("lambda_2") = lambda_2_saved
     )
   );
 };
