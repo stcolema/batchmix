@@ -64,7 +64,8 @@ Rcpp::List sampleSemisupervisedMVNVaryingWeights (
   // We save the BIC at each iteration
   vec BIC_record = zeros<vec>(n_samples),
     observed_likelihood = zeros<vec>(n_samples),
-    complete_likelihood = zeros<vec>(n_samples);
+    complete_likelihood = zeros<vec>(n_samples),
+    lambda_2_saved = zeros<vec>(n_samples);
   
   mat mass_saved(n_samples, K);
   mass_saved.zeros();
@@ -145,6 +146,8 @@ Rcpp::List sampleSemisupervisedMVNVaryingWeights (
       S_saved.slice( save_int ) = my_sampler.S;
       mean_sum_saved.slice( save_int ) = my_sampler.mean_sum;
 
+      lambda_2_saved( save_int ) = my_sampler.lambda_2;
+      
       weights_saved.slice( save_int ) = my_sampler.normalised_weights;
       
       cov_saved.slice ( save_int ) = reshape(mat(my_sampler.cov.memptr(), my_sampler.cov.n_elem, 1, false), P, P * K);
@@ -160,7 +163,7 @@ Rcpp::List sampleSemisupervisedMVNVaryingWeights (
   }
   
   return(
-    List::create(Named("samples") = class_record, 
+    Rcpp::List::create(Named("samples") = class_record, 
                  Named("means") = mu_saved,
                  Named("covariance") = cov_saved,
                  Named("batch_shift") = m_saved,
@@ -177,7 +180,8 @@ Rcpp::List sampleSemisupervisedMVNVaryingWeights (
                  Named("observed_likelihood") = observed_likelihood,
                  Named("complete_likelihood") = complete_likelihood,
                  Named("BIC") = BIC_record,
-                 Named("batch_corrected_data") = batch_corrected_data
+                 Named("batch_corrected_data") = batch_corrected_data,
+                 Named("lambda_2") = lambda_2_saved
     )
   );
 };
