@@ -8,11 +8,11 @@
 #' @examples
 #' weights <- rStickBreakingPrior(1, 50)
 #' @importFrom stats rbeta
- rStickBreakingPrior <- function(alpha, K) {
+rStickBreakingPrior <- function(alpha, K) {
   v <- stats::rbeta(K, 1, alpha)
   stick <- 1
   w <- rep(0, K)
-  
+
   for (i in seq(1, K)) {
     w[i] <- v[i] * stick
     stick <- stick - w[i]

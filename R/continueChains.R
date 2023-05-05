@@ -73,14 +73,14 @@ continueChains <- function(mcmc_output,
     R,
     keep_old_samples
   )
-  
+
   n_chains <- length(mcmc_output)
-  
+
   # Record chain number
-  for(ii in seq(n_chains)) {
+  for (ii in seq(n_chains)) {
     new_output[[ii]]$Chain <- mcmc_output[[ii]]$Chain
   }
-  
+
 
   new_output
 }

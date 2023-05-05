@@ -3,7 +3,7 @@
 #' @description For simulated data, generates an initial labelling for sampling.
 #' @param alpha The mass in the stick breaking prior
 #' @param K The number of classes available.
-#' @param fixed The vector of 0s and 1s indicating which labels are to be held 
+#' @param fixed The vector of 0s and 1s indicating which labels are to be held
 #' fixed.
 #' @param labels The initial labelling. Defaults to NULL.
 #' @return An N vector of labels.
@@ -32,26 +32,25 @@
 #'   cluster_weights,
 #'   batch_weights
 #' )
-#' 
+#'
 #' initial_labels <- generateInitialLabels(1, K, my_data$fixed)
 generateInitialLabels <- function(alpha, K, fixed, labels = NULL) {
-  
   N <- length(fixed)
-  if(is.null(labels)) {
+  if (is.null(labels)) {
     labels <- rep(0, N)
   }
-  
+
   N_fixed <- sum(fixed)
   N_unfixed <- N - N_fixed
   labels_available <- seq(1, K)
-  
+
   # Draw prior weights from the stick breaking prior
   w <- rStickBreakingPrior(alpha, K)
-  
-  labels[fixed == 0] <- sample(labels_available, N_unfixed, 
-    replace = TRUE, 
+
+  labels[fixed == 0] <- sample(labels_available, N_unfixed,
+    replace = TRUE,
     prob = w
   )
-  
+
   labels
 }

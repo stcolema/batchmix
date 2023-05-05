@@ -9,51 +9,51 @@
 #' @return A ggplot object of the values in each sampled batch mean per iteration.
 #' @export
 #' @examples
-#' 
+#'
 #' # Data in matrix format
 #' X <- matrix(c(rnorm(100, 0, 1), rnorm(100, 3, 1)), ncol = 2, byrow = TRUE)
-#' 
+#'
 #' # Observed batches represented by integers
 #' batch_vec <- sample(seq(1, 5), size = 100, replace = TRUE)
-#' 
+#'
 #' # MCMC iterations (this is too low for real use)
 #' R <- 100
 #' thin <- 5
 #'
 #' # MCMC samples and BIC vector
 #' samples <- runBatchMix(X, R, thin, batch_vec, "MVN")
-#' 
-#' # Plot the sampled value of the batch mean shift against MCMC iteration 
+#'
+#' # Plot the sampled value of the batch mean shift against MCMC iteration
 #' plotSampledBatchMeans(samples)
-#' 
+#'
 #' @importFrom ggplot2 ggplot aes_string geom_point facet_grid labs labeller label_both
 plotSampledBatchMeans <- function(samples, burn_in = 0) {
-  
   B <- samples$B
   P <- samples$P
-  
+
   R <- samples$R
   thin <- samples$thin
-  
+
   # Check that the values of R and thin make sense
   if (floor(R / thin) != nrow(samples$samples)) {
     stop("The ratio of R to thin does not match the number of samples present.")
   }
 
-  sampled_batch_shift <- getSampledBatchShift(samples$batch_shift, B, P, 
-    R = R, 
+  sampled_batch_shift <- getSampledBatchShift(samples$batch_shift, B, P,
+    R = R,
     thin = thin
   )
 
   # Remove the warm-up samples
   sampled_batch_shift <- sampled_batch_shift[
-    sampled_batch_shift$Iteration > burn_in, 
+    sampled_batch_shift$Iteration > burn_in,
   ]
 
   # Make a ggplot2 object
-  p <- ggplot2::ggplot(sampled_batch_shift, 
-      ggplot2::aes_string(x = "Iteration", y = "value")
-    ) +
+  p <- ggplot2::ggplot(
+    sampled_batch_shift,
+    ggplot2::aes_string(x = "Iteration", y = "value")
+  ) +
     ggplot2::geom_point() +
     ggplot2::facet_grid(Batch ~ Dimension,
       labeller = ggplot2::labeller(

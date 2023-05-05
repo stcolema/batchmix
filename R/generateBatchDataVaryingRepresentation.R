@@ -28,11 +28,12 @@
 #' batch_shift <- rnorm(B, mean = batch_dist, sd = batch_dist)
 #' std_dev <- rep(2, K)
 #' batch_var <- rep(1.2, B)
-#' group_weights <- matrix(c(
-#'   0.8, 0.6, 0.4, 0.2, 0.2,
-#'   0.2, 0.4, 0.6, 0.8, 0.8
-#' ),
-#' nrow = K, ncol = B, byrow = TRUE
+#' group_weights <- matrix(
+#'   c(
+#'     0.8, 0.6, 0.4, 0.2, 0.2,
+#'     0.2, 0.4, 0.6, 0.8, 0.8
+#'   ),
+#'   nrow = K, ncol = B, byrow = TRUE
 #' )
 #' batch_weights <- rep(1 / B, B)
 #'
@@ -56,7 +57,6 @@ generateBatchDataVaryingRepresentation <- function(N,
                                                    group_weights,
                                                    batch_weights,
                                                    frac_known = 0.2) {
-
   # The number of groups to generate
   K <- length(group_means)
 
@@ -78,8 +78,8 @@ generateBatchDataVaryingRepresentation <- function(N,
   batches <- sample(seq(1, B), N, replace = TRUE, prob = batch_weights)
 
   # The fixed labels for the semi-supervised case
-  fixed <- sample(seq(0, 1), N, 
-    replace = TRUE, 
+  fixed <- sample(seq(0, 1), N,
+    replace = TRUE,
     prob = c(1 - frac_known, frac_known)
   )
 
@@ -90,17 +90,15 @@ generateBatchDataVaryingRepresentation <- function(N,
   for (b in seq(1, B)) {
     batch_ind <- which(batches == b)
     N_b <- length(batch_ind)
-    
-    labels[batch_ind] <- sample(seq(1, K), N_b, 
-      replace = TRUE, 
+
+    labels[batch_ind] <- sample(seq(1, K), N_b,
+      replace = TRUE,
       prob = group_weights[, b]
     )
-    
   }
 
   # Generate the data
   for (p in seq(1, P)) {
-
     # To provide different information in each column, randomly sample the
     # parameters with each group and batch
     reordered_group_means <- sample(group_means)
@@ -110,7 +108,6 @@ generateBatchDataVaryingRepresentation <- function(N,
     reordered_batch_scale <- sample(batch_scale)
 
     for (n in seq(1, N)) {
-
       # Find the group and batch
       b <- batches[n]
       k <- labels[n]
@@ -123,7 +120,7 @@ generateBatchDataVaryingRepresentation <- function(N,
       .sd <- reordered_group_std_devs[k]
       .m <- reordered_batch_shift[b]
       .s <- reordered_batch_scale[b]
-      
+
       # Corrected and observed data point
       true_data[n, p] <- x * .sd + .mu
       observed_data[n, p] <- x * .sd * .s + .mu + .m
