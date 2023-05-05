@@ -10,11 +10,19 @@
 #' ``thin=50`` only every 50th sample is kept.
 #' @param type Character indicating density type to use. One of 'MVN'
 #' (multivariate normal distribution) or 'MVT' (multivariate t distribution).
+#' @param batch_specific_weights Allow each batch to have unique class weights.
+#' If FALSE class weights are common across batches, if TRUE the class weights
+#' are nested within batch and share a common hyperparameter. Defaults to FALSE.
+#' If batch-specific weights are used then the returned object contains a member
+#' ``weights`` which is a matrix with K x B columns. The columns are ordered by
+#' batch, i.e. the first K columns contain the class weights in the first batch,
+#' the second K are the class weights in the second batch, etc. If generic
+#' weights are used then this matrix has K columns, one for each component weight.
 #' @param K_max The number of components to include (the upper bound on the
 #' number of clusters in each sample). Defaults to the number of unique labels
 #' in ``initial_labels``.
 #' @param initial_labels Initial clustering, if none given defaults to a random draw.
-#' @param fixed Which items are fixed in their initial label. If not given, 
+#' @param fixed Which items are fixed in their initial label. If not given,
 #' defaults to a vector of 0 meaning the model is run unsupervised.
 #' @param alpha The concentration parameter for the stick-breaking prior and the
 #' weights in the model.
@@ -51,11 +59,11 @@
 #' of freedom. Defaults to draws from the prior distribution.
 #' @param verbose Logiccal indicating if warning about proposal windows should
 #' be printed.
-#' @returns A list of named lists. Each entry is the output of 
+#' @returns A list of named lists. Each entry is the output of
 #' ``runBatchMix``.
 #' @export
 #' @examples
-#' 
+#'
 #' # Data in a matrix format
 #' X <- matrix(c(rnorm(100, 0, 1), rnorm(100, 3, 1)), ncol = 2, byrow = TRUE)
 #'
@@ -79,16 +87,17 @@
 #'
 #' # MCMC samples
 #' samples <- runMCMCChains(X, n_chains, R, thin, batch_vec, "MVN",
-#'   initial_labels = labels, 
+#'   initial_labels = labels,
 #'   fixed = fixed
 #' )
-#' 
+#'
 runMCMCChains <- function(X,
                           n_chains,
                           R,
                           thin,
                           batch_vec,
                           type,
+                          batch_specific_weights = FALSE,
                           K_max = NULL,
                           initial_labels = NULL,
                           fixed = NULL,
@@ -119,6 +128,7 @@ runMCMCChains <- function(X,
       initial_labels = initial_labels,
       fixed = fixed,
       alpha = alpha,
+      batch_specific_weights = batch_specific_weights,
       mu_proposal_window = mu_proposal_window,
       cov_proposal_window = cov_proposal_window,
       m_proposal_window = m_proposal_window,
@@ -135,11 +145,11 @@ runMCMCChains <- function(X,
       verbose = verbose
     )
   })
-  
-  # Record chain number 
-  for(ii in seq(n_chains)) {
+
+  # Record chain number
+  for (ii in seq(n_chains)) {
     mcmc_lst[[ii]]$Chain <- ii
   }
-  
+
   mcmc_lst
 }

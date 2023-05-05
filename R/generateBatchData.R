@@ -11,7 +11,7 @@
 #' @param group_std_devs A vector of group standard deviations for a column.
 #' @param batch_shift A vector of batch means in a column.
 #' @param batch_scale A vector of batch standard deviations within a column.
-#' @param group_weights One of either a K x B matrix of the expected proportion 
+#' @param group_weights One of either a K x B matrix of the expected proportion
 #' of each batch in each group or a K-vector of the expected proportion of the
 #' entire dataset in each group.
 #' @param batch_weights A vector of the expected proportion of N in each batch.
@@ -23,7 +23,7 @@
 #' @param permute_variables Logical indicating if group and batch means and
 #' standard deviations should be permuted in each column or not (defaults to
 #' ``TRUE``).
-#' @param scale_data Logical indicating if data should be mean centred and 
+#' @param scale_data Logical indicating if data should be mean centred and
 #' standardised (defaults to ``FALSE``).
 #' @return A list of 5 objects; the data generated from the groups with and
 #' without batch effects, the label indicating the generating group, the
@@ -99,14 +99,15 @@ generateBatchData <- function(N,
   batch_IDs <- sample(seq(1, B), N, replace = TRUE, prob = batch_weights)
 
   # Generate group membership, potentially allowing imbalance across batches
-  group_IDs <- generateGroupIDsInSimulator(N,
+  group_IDs <- generateGroupIDsInSimulator(
+    N,
     K,
     B,
     batch_IDs,
     group_weights,
     varying_group_within_batch
   )
-  
+
   # Fixed labels
   fixed <- sample(seq(0, 1), N,
     replace = TRUE,
@@ -116,19 +117,18 @@ generateBatchData <- function(N,
   # The data matrices
   observed_data <- true_data <- matrix(nrow = N, ncol = P)
 
+
+  # If not permuting variables across features, set them outside of the loop
+  reordered_group_means <- group_means
+  reordered_group_std_devs <- group_std_devs
+
+  reordered_batch_shift <- batch_shift
+  reordered_batch_scale <- batch_scale
+
   # Iterate over each of the columns permuting the means associated with each
   # label.
   for (p in seq(1, P))
   {
-
-    # To provide different information in each column, randomly sample the
-    # parameters with each group and batch
-    reordered_group_means <- group_means
-    reordered_group_std_devs <- group_std_devs
-
-    reordered_batch_shift <- batch_shift
-    reordered_batch_scale <- batch_scale
-
     if (permute_variables) {
       # To provide different information in each column, randomly sample the
       # parameters with each group and batch
@@ -141,7 +141,6 @@ generateBatchData <- function(N,
 
     # Draw n points from the K univariate Gaussians defined by the permuted means.
     for (n in seq(1, N)) {
-
       # Draw a point from a standard normal
       x <- stats::rnorm(1)
       k <- group_IDs[n]
@@ -174,11 +173,11 @@ generateBatchData <- function(N,
   }
 
   row.names(observed_data) <- row.names(true_data) <- paste0("Item_", seq(1, N))
-  if(scale_data) {
+  if (scale_data) {
     observed_data <- scale(observed_data)
     true_data <- scale(true_data)
   }
-  
+
   # Return the data, the data without batch effects, the allocation labels and
   # the batch labels.
   list(

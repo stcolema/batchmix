@@ -4,12 +4,15 @@
 \alias{processMCMCChains}
 \title{Process MCMC chains}
 \usage{
-processMCMCChains(mcmc_lst, burn)
+processMCMCChains(mcmc_lst, burn, point_estimate_method = "median")
 }
 \arguments{
 \item{mcmc_lst}{Output from ``runMCMCChains``}
 
 \item{burn}{The number of MCMC samples to drop as part of a burn in.}
+
+\item{point_estimate_method}{Summary statistic used to define the point 
+estimate. Must be ``'mean'`` or ``'median'``. ``'median'`` is the default.}
 }
 \value{
 A named list similar to the output of 

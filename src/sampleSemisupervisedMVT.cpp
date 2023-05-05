@@ -59,29 +59,30 @@ Rcpp::List sampleSemisupervisedMVT (
     theta
   );
   
-  uword P = X.n_cols, N = X.n_rows;
+  uword P = X.n_cols, N = X.n_rows, n_saved = std::floor(R / thin);
   
   // The output matrix
-  umat class_record(std::floor(R / thin), X.n_rows);
+  umat class_record(n_saved, X.n_rows);
   class_record.zeros();
   
   // We save the BIC at each iteration
-  vec BIC_record = zeros<vec>(std::floor(R / thin)),
-    observed_likelihood = zeros<vec>(std::floor(R / thin)),
-    complete_likelihood = zeros<vec>(std::floor(R / thin));
+  vec BIC_record = zeros<vec>(n_saved),
+    observed_likelihood = zeros<vec>(n_saved),
+    complete_likelihood = zeros<vec>(n_saved),
+    lambda_2_saved = zeros<vec>(n_saved);
   
-  mat weights_saved(std::floor(R / thin), K), t_df_saved(std::floor(R / thin), K);
+  mat weights_saved(n_saved, K), t_df_saved(n_saved, K);
   weights_saved.zeros();
   t_df_saved.zeros();
   
-  cube mean_sum_saved(P, K * B, std::floor(R / thin)), 
-    mu_saved(P, K, std::floor(R / thin)),
-    m_saved(P, B, std::floor(R / thin)), 
-    cov_saved(P, K * P, std::floor(R / thin)),
-    S_saved(P, B, std::floor(R / thin)), 
-    cov_comb_saved(P, P * K * B, std::floor(R / thin)),
-    alloc(N, K, std::floor(R / thin)),
-    batch_corrected_data(N, P, std::floor(R / thin));
+  cube mean_sum_saved(P, K * B, n_saved), 
+    mu_saved(P, K, n_saved),
+    m_saved(P, B, n_saved), 
+    cov_saved(P, K * P, n_saved),
+    S_saved(P, B, n_saved), 
+    cov_comb_saved(P, P * K * B, n_saved),
+    alloc(N, K, n_saved),
+    batch_corrected_data(N, P, n_saved);
   
   mu_saved.zeros();
   cov_saved.zeros();
@@ -118,6 +119,8 @@ Rcpp::List sampleSemisupervisedMVT (
   // Iterate over MCMC moves
   for(uword r = 0; r < R; r++){
     
+    Rcpp::checkUserInterrupt();
+    
     my_sampler.updateWeights();
 
     // Metropolis step for batch parameters
@@ -143,6 +146,8 @@ Rcpp::List sampleSemisupervisedMVT (
       S_saved.slice( save_int ) = my_sampler.S;
       mean_sum_saved.slice( save_int ) = my_sampler.mean_sum;
       t_df_saved.row( save_int ) = my_sampler.t_df.t();
+      
+      lambda_2_saved( save_int ) = my_sampler.lambda_2;
       
       cov_saved.slice ( save_int ) = reshape(mat(my_sampler.cov.memptr(), my_sampler.cov.n_elem, 1, false), P, P * K);
       cov_comb_saved.slice( save_int) = reshape(mat(my_sampler.cov_comb.memptr(), my_sampler.cov_comb.n_elem, 1, false), P, P * K * B); 
@@ -173,7 +178,8 @@ Rcpp::List sampleSemisupervisedMVT (
       Named("observed_likelihood") = observed_likelihood,
       Named("complete_likelihood") = complete_likelihood,
       Named("BIC") = BIC_record,
-      Named("batch_corrected_data") = batch_corrected_data
+      Named("batch_corrected_data") = batch_corrected_data,
+      Named("lambda_2") = lambda_2_saved
     )
   );
 };
