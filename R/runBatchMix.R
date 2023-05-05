@@ -14,9 +14,9 @@
 #' If FALSE class weights are common across batches, if TRUE the class weights
 #' are nested within batch and share a common hyperparameter. Defaults to FALSE.
 #' If batch-specific weights are used then the returned object contains a member
-#' ``weights`` which is a matrix with K x B columns. The columns are ordered by 
+#' ``weights`` which is a matrix with K x B columns. The columns are ordered by
 #' batch, i.e. the first K columns contain the class weights in the first batch,
-#' the second K are the class weights in the second batch, etc. If generic 
+#' the second K are the class weights in the second batch, etc. If generic
 #' weights are used then this matrix has K columns, one for each component weight.
 #' @param K_max The number of components to include (the upper bound on the
 #' number of clusters in each sample). Defaults to the number of unique labels
@@ -26,14 +26,14 @@
 #' @param alpha The concentration parameter for the stick-breaking prior and the
 #' weights in the model.
 #' @param mu_proposal_window The proposal window for the cluster mean proposal
-#' kernel. Making this smaller will normally increase the acceptance rate for 
-#' the proposed values in the Metropolis-Hastings sampler. The proposal density 
+#' kernel. Making this smaller will normally increase the acceptance rate for
+#' the proposed values in the Metropolis-Hastings sampler. The proposal density
 #' is a Gaussian distribution, the window is the variance.
 #' @param cov_proposal_window The proposal window for the cluster covariance
 #' proposal kernel. The proposal density is a Wishart distribution, this
-#' argument is the reciprocal of the degree of freedom. It is recommended to 
-#' set this aiming for accpetance rates of greater than 0.5 for the covariance 
-#' matrices (e.g., between 2e-03 and 1e-04 is a good range to consider 
+#' argument is the reciprocal of the degree of freedom. It is recommended to
+#' set this aiming for accpetance rates of greater than 0.5 for the covariance
+#' matrices (e.g., between 2e-03 and 1e-04 is a good range to consider
 #' initially). As the entire covariance matrix is sampled at once exploration is
 #' difficult.
 #' @param m_proposal_window The proposal window for the batch mean proposal
@@ -41,14 +41,14 @@
 #' variance.
 #' @param S_proposal_window The proposal window for the batch standard deviation
 #'  proposal kernel. The proposal density is a Gamma distribution, this
-#' argument is the reciprocal of the rate. Recommended range to initially 
+#' argument is the reciprocal of the rate. Recommended range to initially
 #' consider is 0.015 to 2e-03, though smaller values might be necessary
-#' particularly in higher dimensional data. 
+#' particularly in higher dimensional data.
 #' @param t_df_proposal_window The proposal window for the degrees of freedom
 #' for the multivariate t distribution (not used if type is not 'MVT'). The
 #' proposal density is a Gamma distribution, this argument is the reciprocal of
 #' the rate. If the data is more Gaussian than the degrees of freedom might have
-#' high acceptance rates regardless of the value chosen. 
+#' high acceptance rates regardless of the value chosen.
 #' @param m_scale The scale hyperparameter for the batch shift prior
 #' distribution. This defines the scale of the batch effect upon the mean and
 #' should be in (0, 1].

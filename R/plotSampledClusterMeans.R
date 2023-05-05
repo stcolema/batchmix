@@ -9,7 +9,7 @@
 #' @return A ggplot object of the values in each sampled cluster mean per iteration.
 #' @export
 #' @examples
-#' 
+#'
 #' # Data in matrix format
 #' X <- matrix(c(rnorm(100, 0, 1), rnorm(100, 3, 1)), ncol = 2, byrow = TRUE)
 #'
@@ -25,13 +25,12 @@
 #'
 #' # Plot the sampled value of the cluster means against MCMC iteration
 #' plotSampledClusterMeans(samples)
-#' 
+#'
 #' @importFrom ggplot2 ggplot aes_string geom_point facet_grid labs labeller label_both
 plotSampledClusterMeans <- function(samples, burn_in = 0) {
-  
   K <- samples$K_max
   P <- samples$P
-  
+
   R <- samples$R
   thin <- samples$thin
 

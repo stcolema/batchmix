@@ -1,7 +1,7 @@
 #!/usr/bin/Rscript
 #
 #' @title Generate batch data from a multivariate t distribution
-#' @description Generate data from K multivariate t distributions with 
+#' @description Generate data from K multivariate t distributions with
 #' additional noise from batches. Assumes independence across columns. In each
 #' column the parameters are randomly permuted for both the groups and batches.
 #' @param N The number of items (rows) to generate.
@@ -25,7 +25,7 @@
 #' B <- 5
 #' mean_dist <- 4
 #' batch_dist <- 0.3
-#' group_means <- seq(1, K)* mean_dist
+#' group_means <- seq(1, K) * mean_dist
 #' batch_shift <- rnorm(B, mean = batch_dist, sd = batch_dist)
 #' std_dev <- rep(2, K)
 #' batch_var <- rep(1.2, B)
@@ -54,60 +54,57 @@ generateBatchDataMVT <- function(N,
                                  batch_weights,
                                  dfs,
                                  frac_known = 0.2) {
-  
   # The number of groups to generate
   K <- length(group_means)
-  
+
   # The number of batches to generate
   B <- length(batch_shift)
-  
+
   # The membership vector for the N points
   group_IDs <- sample(seq(1, K), N, replace = TRUE, prob = group_weights)
-  
+
   # The batch labels for the N points
   batch_IDs <- sample(seq(1, B), N, replace = TRUE, prob = batch_weights)
-  
+
   # Fixed labels
-  fixed <- sample(seq(0, 1), N, 
-    replace = TRUE, 
+  fixed <- sample(seq(0, 1), N,
+    replace = TRUE,
     prob = c(1 - frac_known, frac_known)
   )
-  
+
   # The data matrices
   observed_data <- true_data <- matrix(nrow = N, ncol = P)
-  
+
   # Iterate over each of the columns permuting the means associated with each
   # label.
   for (p in seq(1, P))
   {
-    
-    # To provide different information in each column, randomly sample the 
+    # To provide different information in each column, randomly sample the
     # parameters with each group and batch
     reordered_group_means <- sample(group_means)
     reordered_group_std_devs <- sample(group_std_devs)
-    
+
     reordered_batch_shift <- sample(batch_shift)
     reordered_batch_scale <- sample(batch_scale)
-    
+
     # Draw n points from the K univariate Gaussians defined by the permuted means.
     for (n in seq(1, N)) {
-      
       # Draw a point from a standard normal
       x <- stats::rnorm(1)
       k <- group_IDs[n]
       b <- batch_IDs[n]
-      
+
       chi_draw <- stats::rchisq(1, dfs[k])
-      
+
       # For ease of reading the following lines, create group and batch parameters
       .mu <- reordered_group_means[k]
       .sd <- reordered_group_std_devs[k]
       .m <- reordered_batch_shift[b]
       .s <- reordered_batch_scale[b]
-      
+
       # Adjust to the group distribution
       true_data[n, p] <- x * .sd * sqrt(dfs[k] / chi_draw) + .mu
-      
+
       # Adjust to the batched group distribution
       observed_data[n, p] <- x * .sd * .s * sqrt(dfs[k] / chi_draw) + .mu + .m
     }
@@ -123,4 +120,3 @@ generateBatchDataMVT <- function(N,
     fixed = fixed
   )
 }
-

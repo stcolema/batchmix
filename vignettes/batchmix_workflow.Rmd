@@ -162,7 +162,6 @@ processed_samples <- processMCMCChains(new_output, burn)
 For multidimensional data we use a PCA plot.
 
 ```{r pca}
-
 chain_used <- processed_samples[[1]]
 
 pc <- prcomp(X, scale = T)
@@ -179,7 +178,7 @@ plot_df <- data.frame(
   batch = factor(batch_vec)
 )
 
-plot_df |> 
+plot_df |>
   ggplot(aes(
     x = PC1,
     y = PC2,
@@ -188,7 +187,7 @@ plot_df |>
   )) +
   geom_point()
 
-plot_df |> 
+plot_df |>
   ggplot(aes(
     x = PC1_bf,
     y = PC2_bf,
@@ -199,6 +198,5 @@ plot_df |>
 
 test_inds <- which(fixed == 0)
 
-sum(true_labels[test_inds] == chain_used$pred[test_inds])/length(test_inds)
-
+sum(true_labels[test_inds] == chain_used$pred[test_inds]) / length(test_inds)
 ```

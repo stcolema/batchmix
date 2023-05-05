@@ -9,7 +9,7 @@
 #' iteration.
 #' @export
 #' @examples
-#' 
+#'
 #' # Data in a matrix format
 #' X <- matrix(c(rnorm(100, 0, 1), rnorm(100, 3, 1)), ncol = 2, byrow = TRUE)
 #'
@@ -24,7 +24,7 @@
 #' samples <- runBatchMix(X, R, thin, batch_vec, "MVN")
 #'
 #' lkl_df <- getLikelihood(samples)
-#' 
+#'
 getLikelihood <- function(mcmc_output, choice = "complete_likelihood") {
   R <- mcmc_output$R
   thin <- mcmc_output$thin

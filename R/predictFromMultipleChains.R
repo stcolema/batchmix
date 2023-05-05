@@ -5,11 +5,11 @@
 #' @param burn The number of MCMC samples to drop as part of a burn in.
 #' @param point_estimate_method Summary statistic used to define the point
 #' estimate. Must be ``'mean'`` or ``'median'``. ``'median'`` is the default.
-#' @param chains_already_processed Logical indicating if the chains have already 
+#' @param chains_already_processed Logical indicating if the chains have already
 #' had a burn-in applied.
 #' @returns A named list of quantities related to prediction/clustering:
 #'
-#'  * ``allocation_probability``: List with an $(N x K)$ matrix if the model is 
+#'  * ``allocation_probability``: List with an $(N x K)$ matrix if the model is
 #'    semi-supervised. The point estimate of the allocation probabilities for
 #'    each data point to each class.
 #'
@@ -17,19 +17,19 @@
 #'    allocated to the class with the highest probability.
 #'
 #'  * ``pred``: $N$ vector of the predicted class for each sample. If the model
-#'    is unsupervised then the ``salso`` function from Dahl et al. (2021) is 
+#'    is unsupervised then the ``salso`` function from Dahl et al. (2021) is
 #'    used on the sampled partitions using the default settings.
 #'
 #'  * ``samples``: List of sampled allocations for each view. Columns
 #'    correspond to items being clustered, rows to MCMC samples.
-#' @examples 
-#' 
+#' @examples
+#'
 #' # Data dimensions
 #' N <- 600
 #' P <- 4
 #' K <- 5
 #' B <- 7
-#' 
+#'
 #' # Generating model parameters
 #' mean_dist <- 2.25
 #' batch_dist <- 0.3
@@ -40,7 +40,7 @@
 #' group_weights <- rep(1 / K, K)
 #' batch_weights <- rep(1 / B, B)
 #' dfs <- c(4, 7, 15, 60, 120)
-#' 
+#'
 #' my_data <- generateBatchData(
 #'   N,
 #'   P,
@@ -50,29 +50,29 @@
 #'   batch_var,
 #'   group_weights,
 #'   batch_weights,
-#'   type = "MVT", 
+#'   type = "MVT",
 #'   group_dfs = dfs
 #' )
-#' 
-#' 
+#'
+#'
 #' X <- my_data$observed_data
-#' 
+#'
 #' true_labels <- my_data$group_IDs
 #' fixed <- my_data$fixed
 #' batch_vec <- my_data$batch_IDs
-#' 
+#'
 #' alpha <- 1
 #' initial_labels <- generateInitialLabels(alpha, K, fixed, true_labels)
-#' 
+#'
 #' # Sampling parameters
 #' R <- 1000
 #' thin <- 25
 #' burn <- 100
 #' n_chains <- 2
-#' 
+#'
 #' # Density choice
 #' type <- "MVT"
-#' 
+#'
 #' # MCMC samples and BIC vector
 #' mcmc_outputs <- runMCMCChains(
 #'   X,
@@ -82,11 +82,11 @@
 #'   batch_vec,
 #'   type,
 #'   initial_labels = initial_labels,
-#'   fixed = fixed, 
+#'   fixed = fixed,
 #'   batch_specific_weights = TRUE
 #' )
 #' ensemble_mod <- predictFromMultipleChains(mcmc_outputs, burn)
-#' 
+#'
 #' @importFrom salso salso
 #' @export
 predictFromMultipleChains <- function(mcmc_outputs,
@@ -183,7 +183,6 @@ predictFromMultipleChains <- function(mcmc_outputs,
   }
 
   if (is_semisupervised) {
-
     # Normalise the probabilities
     .alloc_prob <- .alloc_prob / n_chains
 
