@@ -11,10 +11,7 @@ Authors@R: c(person(given = "Stephen", family = "Coleman",
                     role = "aut"),
              person(given = "Chris", family ="Wallace",
                     email = "cew54@cam.ac.uk",
-                    role = "aut"),
-             person(given = "Rory", family = "Nolan",
-                    email = "rorynoolan@gmail.com",
-                    role = "dnc"))
+                    role = "aut"))
 Description: Semi-supervised and unsupervised Bayesian mixture models that
   simultaneously infer the cluster/class structure and a batch correction.
   Densities available are the multivariate normal and the multivariate t.
