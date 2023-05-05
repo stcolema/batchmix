@@ -6,10 +6,10 @@
 #' @param K The number of groups to genetare.
 #' @param B The number of batches present in ``batch_IDs``.
 #' @param batch_IDs The batch membership of each item.
-#' @param group_weights One of either a K x B matrix of the expected proportion 
+#' @param group_weights One of either a K x B matrix of the expected proportion
 #' of each batch in each group or a K-vector of the expected proportion of the
 #' entire dataset in each group.
-#' @param varying_group_within_batch Flag indicating if the groups are vvarying 
+#' @param varying_group_within_batch Flag indicating if the groups are vvarying
 #' across batches.
 #' @return A N-vector of group membership.
 #' @examples
@@ -24,15 +24,15 @@
 #'   N,
 #'   K,
 #'   B,
-#'   batch_IDs, 
-#'   group_weights, 
+#'   batch_IDs,
+#'   group_weights,
 #'   varying_group_within_batch
 #' )
 generateGroupIDsInSimulator <- function(N,
-                                        K, 
-                                        B, 
-                                        batch_IDs, 
-                                        group_weights, 
+                                        K,
+                                        B,
+                                        batch_IDs,
+                                        group_weights,
                                         varying_group_within_batch) {
   # Generate group membership, potentially allowing imbalance across batches
   group_IDs <- rep(0, N)
@@ -41,7 +41,7 @@ generateGroupIDsInSimulator <- function(N,
     for (b in seq(1, B)) {
       batch_ind <- which(batch_IDs == b)
       N_b <- length(batch_ind)
-      
+
       group_IDs[batch_ind] <- sample(seq(1, K), N_b,
         replace = TRUE,
         prob = group_weights[, b]

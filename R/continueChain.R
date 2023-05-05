@@ -4,9 +4,9 @@
 #' @param X Data to cluster as a matrix with the items to cluster held in rows.
 #' @param fixed The indicator vector for which labels are observed.
 #' @param batch_vec The vector of the batch labels for the data.
-#' @param R The number of iterations to run in this continuation (thinning 
+#' @param R The number of iterations to run in this continuation (thinning
 #' factor is the same as initial chain).
-#' @param keep_old_samples Logical indicating if the original samples should be 
+#' @param keep_old_samples Logical indicating if the original samples should be
 #' kept or only the new samples returned. Defaults to TRUE.
 #' @return A named list containing the sampled partitions, cluster and batch
 #' parameters, model fit measures and some details on the model call.
@@ -37,7 +37,7 @@
 #' thin <- 50
 #'
 #' # MCMC samples and BIC vector
-#' mcmc_output <-  runBatchMix(
+#' mcmc_output <- runBatchMix(
 #'   X,
 #'   R,
 #'   thin,
@@ -55,14 +55,13 @@
 #'   batch_vec,
 #'   R,
 #' )
-#' 
+#'
 continueChain <- function(mcmc_output,
                           X,
                           fixed,
                           batch_vec,
                           R,
                           keep_old_samples = TRUE) {
-
   # The relevant aspects of the previous chain
   R_old <- mcmc_output$R
   thin <- mcmc_output$thin
@@ -101,11 +100,16 @@ continueChain <- function(mcmc_output,
 
   is_mvt <- type == "MVT"
   is_semisupervised <- mcmc_output$Semisupervised
-
+  batch_specific_weights <- mcmc_output$batch_specific_weights
+  initial_class_df <- NULL
   if (is_mvt) {
     initial_class_df <- mcmc_output$t_df[last_sample, ]
   }
 
+  initial_concentration <- mcmc_output$concentration
+  if (batch_specific_weights) {
+    initial_concentration <- mcmc_output$concentration[last_sample, ]
+  }
 
   labels <- mcmc_output$samples[last_sample, ]
 
@@ -116,8 +120,9 @@ continueChain <- function(mcmc_output,
     fixed,
     batch_vec,
     type,
+    batch_specific_weights = batch_specific_weights,
     K_max = K_max,
-    alpha = alpha,
+    concentration = initial_concentration,
     mu_proposal_window = mu_proposal_window,
     cov_proposal_window = cov_proposal_window,
     m_proposal_window = m_proposal_window,
@@ -178,11 +183,12 @@ continueChain <- function(mcmc_output,
       dim = c(P, K_max * B, R_comb_eff)
     )
 
-    combined_covariances <- array(c(
-      mcmc_output$covariance,
-      new_samples$covariance
-    ),
-    dim = c(P, P * K_max, R_comb_eff)
+    combined_covariances <- array(
+      c(
+        mcmc_output$covariance,
+        new_samples$covariance
+      ),
+      dim = c(P, P * K_max, R_comb_eff)
     )
 
     combined_covariance_comb <- array(
@@ -225,11 +231,12 @@ continueChain <- function(mcmc_output,
     }
 
     # if(is_semisupervised) {
-    comb_allocation_probs <- array(c(
-      mcmc_output$alloc,
-      new_samples$alloc
-    ),
-    dim = c(N, K_max, R_comb_eff)
+    comb_allocation_probs <- array(
+      c(
+        mcmc_output$alloc,
+        new_samples$alloc
+      ),
+      dim = c(N, K_max, R_comb_eff)
     )
 
     # }
@@ -250,14 +257,13 @@ continueChain <- function(mcmc_output,
     )
 
 
-    comb_inferred_data <- array(c(
-      mcmc_output$batch_corrected_data,
-      new_samples$batch_corrected_data
-    ),
-    dim = c(N, P, R_comb_eff)
+    comb_inferred_data <- array(
+      c(
+        mcmc_output$batch_corrected_data,
+        new_samples$batch_corrected_data
+      ),
+      dim = c(N, P, R_comb_eff)
     )
-
-    R_comb
 
     new_samples$R <- R_comb
 
@@ -285,6 +291,11 @@ continueChain <- function(mcmc_output,
     if (is_mvt) {
       new_samples$t_df <- comb_t_df
       new_samples$t_df_acceptance_rate <- comb_t_df_acceptance_rate
+    }
+
+    if (batch_specific_weights) {
+      comb_concentration <- rbind(mcmc_output$concentration, new_samples$concentration)
+      new_samples$concentration <- comb_concentration
     }
   }
 

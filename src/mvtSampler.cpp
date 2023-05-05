@@ -84,7 +84,7 @@ void mvtSampler::sampleDFPrior() {
 };
 
 void mvtSampler::sampleFromPriors() {
-  
+  sampleMScalePrior();
   sampleCovPrior();
   sampleMuPrior();
   sampleDFPrior();
@@ -216,7 +216,7 @@ double mvtSampler::mLogKernel(arma::uword b, arma::vec m_b, arma::mat mean_sum) 
   );
   
   for(arma::uword p = 0; p < P; p++) {
-    score += -0.5 * t * std::pow(m_b(p) - delta, 2.0);
+    score += -0.5 * batch_shift_prior_precision * std::pow(m_b(p) - batch_shift_prior_mean, 2.0);
   }
   return score;
 };
@@ -359,6 +359,7 @@ void mvtSampler::metropolisStep() {
   clusterDFMetropolis();
   
   // Metropolis step for batch parameters
+  sampleMScalePosterior();
   batchScaleMetropolis();
   batchShiftMetorpolis();
 };

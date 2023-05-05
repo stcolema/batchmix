@@ -11,7 +11,7 @@
 #' @importFrom ggplot2 ggplot aes_string geom_line
 #' @export
 #' @examples
-#' 
+#'
 #' # Data in a matrix format
 #' X <- matrix(c(rnorm(100, 0, 1), rnorm(100, 3, 1)), ncol = 2, byrow = TRUE)
 #'
@@ -35,28 +35,26 @@
 #'
 #' # MCMC samples
 #' samples <- runMCMCChains(X, n_chains, R, thin, batch_vec, "MVN",
-#'   initial_labels = labels, 
+#'   initial_labels = labels,
 #'   fixed = fixed
 #' )
 #'
 #' p <- plotLikelihoods(samples)
-#' 
-plotLikelihoods <- function(mcmc_outputs, 
+#'
+plotLikelihoods <- function(mcmc_outputs,
                             choice = "complete_likelihood",
-                            colour_by_chain = TRUE
-                            ) {
+                            colour_by_chain = TRUE) {
   lkl_lst <- lapply(mcmc_outputs, getLikelihood, choice)
 
   n_chains <- length(lkl_lst)
-  for(ii in seq(1, n_chains)) {
+  for (ii in seq(1, n_chains)) {
     lkl_lst[[ii]]$Chain <- mcmc_outputs[[ii]]$Chain
   }
 
   lkl_df <- do.call(rbind, lkl_lst)
   lkl_df$Chain <- factor(lkl_df$Chain)
 
-  if(colour_by_chain) {
-    
+  if (colour_by_chain) {
     p <- ggplot2::ggplot(
       data = lkl_df,
       mapping = ggplot2::aes_string(
@@ -67,15 +65,15 @@ plotLikelihoods <- function(mcmc_outputs,
     ) +
       ggplot2::geom_line()
   } else {
-  p <- ggplot2::ggplot(
-    data = lkl_df,
-    mapping = ggplot2::aes_string(
-      x = "iteration",
-      y = choice,
-      group = "Chain"
-    )
-  ) +
-    ggplot2::geom_line()
-}
+    p <- ggplot2::ggplot(
+      data = lkl_df,
+      mapping = ggplot2::aes_string(
+        x = "iteration",
+        y = choice,
+        group = "Chain"
+      )
+    ) +
+      ggplot2::geom_line()
+  }
   p
 }

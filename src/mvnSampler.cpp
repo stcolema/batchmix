@@ -46,7 +46,7 @@ _X) {
   // nu = P + 2; 
   // 
   // // Hyperparameters for the batch mean
-  // delta = 0.0;
+  // batch_shift_prior_mean = 0.0;
   // 
   // // Hyperparameters for the batch scale. These choices give > 99% of sampled
   // // values in the range of 1.2 to 2.0 which seems a sensible prior belief.
@@ -69,7 +69,7 @@ _X) {
   mat mean_mat = mean(_X, 0).t();
   xi = mean_mat.col(0);
   
-  // Empirical Bayes for a diagonal covariance matrix
+  // Empirical Bayes fora diagonal covariance matrix
   mat scale_param = _X.each_row() - xi.t();
   vec diag_entries(P);
   // double scale_entry = accu(scale_param % scale_param, 0) / (N * std::pow(K, 1.0 / (double) P));
@@ -79,13 +79,18 @@ _X) {
   diag_entries.fill(scale_entry);
   scale = diagmat( diag_entries );
   
+  scale = global_cov / std::pow(K, 2.0 / (double) P);
+  
   // The mean of the prior distribution for the batch shift, m, parameter
-  delta = 0.0;
+  delta_2 = 0.0;
+  lambda_2 = _m_scale;
   m_scale = _m_scale;
   
   // Prior precision is the inverse of something on the scale of 1/10 the global 
   // covariance
-  // t = 1.0 / ((accu(global_cov.diag()) / P ) * 0.01);
+  delta_2 = accu(global_cov.diag()) / (double) P ;
+  batch_shift_prior_precision = 1.0 / (delta_2 * lambda_2);
+  
   t = 1.0 / ((accu(global_cov.diag()) / P ) * m_scale);
   
   // Hyperparameters for the batch scale
@@ -172,17 +177,31 @@ void mvnSampler::sampleSPrior() {
 void mvnSampler::sampleMPrior() {
   for(uword b = 0; b < B; b++){
     for(uword p = 0; p < P; p++){
-      m(p, b) = randn<double>() / t + delta;
+      m(p, b) = randn<double>() * batch_shift_prior_precision + batch_shift_prior_mean;
     }
   }
 };
 
 void mvnSampler::sampleFromPriors() {
+  sampleMScalePrior();
   sampleCovPrior();
   sampleMuPrior();
   sampleSPrior();
   sampleMPrior();
 };
+
+void mvnSampler::sampleMScalePrior() {
+  lambda_2 = rInvGamma(a, b);
+  batch_shift_prior_precision = 1.0 / (delta_2 * lambda_2);
+}
+
+void mvnSampler::sampleMScalePosterior() {
+  double a_pos = 0.0, b_pos = 0.0;
+  a_pos = a + 0.5 * P * B;
+  b_pos = 0.5 * accu(pow(m, 2.0)) / (2.0 * delta_2) + b;
+  lambda_2 = rInvGamma(a_pos, b_pos);
+  batch_shift_prior_precision = 1.0 / (delta_2 * lambda_2);
+}
 
 // Update the common matrix manipulations to avoid recalculating N times
 void mvnSampler::matrixCombinations() {
@@ -281,7 +300,7 @@ double mvnSampler::mLogKernel(arma::uword b, arma::vec m_b, arma::mat mean_sum) 
   );
   
   for(uword p = 0; p < P; p++) {
-    score += -0.5 * (t * std::pow(m_b(p) - delta, 2.0) );
+    score += -0.5 * (batch_shift_prior_precision * std::pow(m_b(p) - batch_shift_prior_mean, 2.0) );
   }
 
   return score;
@@ -370,7 +389,12 @@ void mvnSampler::batchScaleMetropolis() {
     proposed_cov_comb.zeros();
     
     for(uword p = 0; p < P; p++) {
-      
+      if((S(p, b) - S_loc) * S_proposal_window < 0.0){ 
+        Rcpp::stop("\n\nCurent batch scale equals S_loc");
+      }
+      if( (1.0 / S_proposal_window) < 0.0) {
+        Rcpp::stop("\n\nCurent batch scale proposal window is some how negative?");
+      }
       S_proposed(p) = S_loc + randg( distr_param( (S(p, b) - S_loc) * S_proposal_window, 1.0 / S_proposal_window) );
       
       if(S_proposed(p) <= S_loc) {
@@ -625,6 +649,7 @@ void mvnSampler::metropolisStep() {
   clusterMeanMetropolis();
   
   // Metropolis step for batch parameters
+  sampleMScalePosterior();
   batchScaleMetropolis();
   batchShiftMetorpolis();
 };

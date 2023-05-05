@@ -12,8 +12,10 @@ batchSemiSupervisedMixtureModel(
   fixed,
   batch_vec,
   type,
+  batch_specific_weights = FALSE,
   K_max = length(unique(initial_labels)),
-  alpha = 1,
+  alpha = NULL,
+  concentration = NULL,
   mu_proposal_window = 0.5^2,
   cov_proposal_window = 0.002,
   m_proposal_window = 0.3^2,
@@ -48,12 +50,18 @@ from.}
 \item{type}{Character indicating density type to use. One of 'MVN'
 (multivariate normal distribution) or 'MVT' (multivariate t distribution).}
 
+\item{batch_specific_weights}{Allow each batch to have unique class weights.
+If FALSE class weights are common across batches, if TRUE the class weights
+are nested within batch and share a common hyperparameter. Defaults to FALSE.}
+
 \item{K_max}{The number of components to include (the upper bound on the
 number of clusters in each sample). Defaults to the number of unique labels
 in ``initial_labels``.}
 
 \item{alpha}{The concentration parameter for the stick-breaking prior and the
 weights in the model.}
+
+\item{concentration}{Initial concentration vector for component weights.}
 
 \item{mu_proposal_window}{The proposal window for the cluster mean proposal
 kernel. The proposal density is a Gaussian distribution, the window is the 

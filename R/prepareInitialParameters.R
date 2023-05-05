@@ -26,13 +26,12 @@ prepareInitialParameters <- function(initial_class_means,
                                      K,
                                      B,
                                      type) {
-
   # Define placeholders. These will be used to pass to C++ if no initial values
   # are given. C++ isn't great for optional arguments, so this bypasses the
   # problem
   class_means <- matrix(-Inf, nrow = P, ncol = K)
   class_cov <- array(-Inf, dim = c(P, P, K))
-  batch_shift <- matrix(-Inf, nrow = P, ncol = B)
+  batch_shift <- matrix(0, nrow = P, ncol = B)
   batch_scale <- matrix(-Inf, nrow = P, ncol = B)
   class_df <- rep(-Inf, K)
 

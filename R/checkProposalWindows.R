@@ -2,22 +2,22 @@
 #' @title Check proposal windows
 #' @description Checks the proposal windows are acceptable.
 #' @param mu_proposal_window The proposal window for the cluster mean proposal
-#' kernel. The proposal density is a Gaussian distribution, the window is the 
+#' kernel. The proposal density is a Gaussian distribution, the window is the
 #' variance.
 #' @param cov_proposal_window The proposal window for the cluster covariance
-#' proposal kernel. The proposal density is a Wishart distribution, this 
+#' proposal kernel. The proposal density is a Wishart distribution, this
 #' argument is the reciprocal of the degree of freedom.
 #' @param m_proposal_window The proposal window for the batch mean proposal
-#'  kernel. The proposal density is a Gaussian distribution, the window is the 
+#'  kernel. The proposal density is a Gaussian distribution, the window is the
 #' variance.
 #' @param S_proposal_window The proposal window for the batch standard deviation
-#'  proposal kernel. The proposal density is a Gamma distribution, this 
+#'  proposal kernel. The proposal density is a Gamma distribution, this
 #' argument is the reciprocal of the rate.
 #' @param t_df_proposal_window The proposal window for the degrees of freedom
-#' for the multivariate t distribution (not used if type is not 'MVT'). The 
+#' for the multivariate t distribution (not used if type is not 'MVT'). The
 #' proposal density is a Gamma distribution, this argument is the reciprocal of
 #' the rate.
-#' @param verbose Logical indicating if a warning should be printed if proposal 
+#' @param verbose Logical indicating if a warning should be printed if proposal
 #' windows are outside their expected scale.
 #' @return No return value, called for side effects
 #' @examples

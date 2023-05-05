@@ -1,7 +1,7 @@
 #!/usr/bin/Rscript
 #
 #' @title Check data generation inputs
-#' @description Checks that the inputs for the ``generateBatchData`` function 
+#' @description Checks that the inputs for the ``generateBatchData`` function
 #' are correct. For internal use only.
 #' @param N The number of items (rows) to generate.
 #' @param P The number of columns in the generated dataset.
@@ -17,7 +17,7 @@
 #' @param frac_known The number of items with known labels.
 #' @param permute_variables Logical indicating if group and batch means and
 #' standard deviations should be permuted in each column or not.
-#' @param scale_data Logical indicating if data should be mean centred and 
+#' @param scale_data Logical indicating if data should be mean centred and
 #' standardised.
 #' @return No return value, called for side effects.
 #' @examples
@@ -38,8 +38,9 @@
 #' frac_known <- 0.3
 #' permute_variables <- TRUE
 #' scale_data <- FALSE
-#' 
-#' checkDataGenerationInputs(N,
+#'
+#' checkDataGenerationInputs(
+#'   N,
 #'   P,
 #'   group_means,
 #'   group_std_devs,
@@ -66,27 +67,26 @@ checkDataGenerationInputs <- function(N,
                                       frac_known,
                                       permute_variables,
                                       scale_data) {
-  
   N_not_positive <- (N <= 0)
   N_not_whole_number <- (N %% 1) != 0
-  if(N_not_positive || N_not_whole_number) {
+  if (N_not_positive || N_not_whole_number) {
     stop("N must be a positive whole number.")
   }
-  
+
   P_not_positive <- (P <= 0)
   P_not_whole_number <- (P %% 1) != 0
-  if(P_not_positive || P_not_whole_number) {
+  if (P_not_positive || P_not_whole_number) {
     stop("P must be a positive whole number.")
   }
-  
+
   valid_density_passed <- (type == "MVN" || type == "MVT")
   if (!valid_density_passed) {
     stop("``type`` must be one of 'MVN' or 'MVT'.")
   }
-  
+
   mvn_generated <- type == "MVN"
   mvt_generated <- type == "MVT"
-  
+
   if (mvt_generated) {
     dfs_not_passed <- is.null(group_dfs)
     if (dfs_not_passed) {
@@ -101,13 +101,13 @@ checkDataGenerationInputs <- function(N,
       stop("Group degrees of freedom must be greater than or equal to 1.")
     }
   }
-  
+
   # The number of batches to generate
   B <- length(batch_weights)
-  
+
   wrong_length_batch_shift <- length(batch_shift) != B
   wrong_length_batch_scale <- length(batch_scale) != B
-  
+
   # Allow for varying groups within batches and then record the number of groups
   # to generate
   varying_group_within_batch <- is.matrix(group_weights)
@@ -119,11 +119,11 @@ checkDataGenerationInputs <- function(N,
   } else {
     K <- length(group_weights)
   }
-  
+
   wrong_length_group_means <- length(group_means) != K
   wrong_length_group_std_devs <- length(group_std_devs) != K
-  
-  
+
+
   if (any(
     wrong_length_group_means,
     wrong_length_group_std_devs,
@@ -137,12 +137,12 @@ checkDataGenerationInputs <- function(N,
     )
     stop(.err)
   }
-  
+
   frac_known_not_in_0_1 <- (frac_known < 0.0 || frac_known > 1.0)
   if (frac_known_not_in_0_1) {
     stop("``frac_known`` must be a value between 0 and 1 (inclusive).")
   }
-  
+
   batch_scale_too_small <- any(batch_scale < 1.0)
   if (batch_scale_too_small) {
     stop("All entries in ``batch_scale`` must be greater than or equal to 1.0.")
@@ -151,14 +151,14 @@ checkDataGenerationInputs <- function(N,
   if (non_positive_std_devs) {
     stop("All entries of ``group_std_devs`` must be strictly positive.")
   }
-  
-  permute_variables_not_logical <- ! is.logical(permute_variables)
-  if(permute_variables_not_logical) {
+
+  permute_variables_not_logical <- !is.logical(permute_variables)
+  if (permute_variables_not_logical) {
     stop("``permute_variable`` must be logical.")
   }
-  
-  scale_data_not_logical <- ! is.logical(scale_data)
-  if(scale_data_not_logical) {
+
+  scale_data_not_logical <- !is.logical(scale_data)
+  if (scale_data_not_logical) {
     stop("``scale_data`` must be logical.")
   }
 }

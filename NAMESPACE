@@ -21,13 +21,14 @@ importFrom(stats,
 
 importFrom(tidyr, contains, pivot_longer, any_of)
 
-importFrom(Rcpp,evalCpp, sourceCpp)
+importFrom(Rcpp, evalCpp, sourceCpp)
+
+importFrom(salso, salso)
+
 
 export(calcAllocProb,
   collectAcceptanceRates,
   generateBatchData,
-  generateBatchDataMVT,
-  generateBatchDataVaryingRepresentation,
   generateInitialLabels,
   getLikelihood,
   getSampledBatchScale,
@@ -40,6 +41,7 @@ export(calcAllocProb,
   plotSampledParameter,
   plotAcceptanceRates,
   predictClass,
+  predictFromMultipleChains,
   processMCMCChain,
   processMCMCChains,
   rStickBreakingPrior,

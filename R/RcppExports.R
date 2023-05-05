@@ -14,6 +14,89 @@ createSimilarityMat <- function(allocations) {
     .Call('_batchmix_createSimilarityMat', PACKAGE = 'batchmix', allocations)
 }
 
+#' title Propose new non-negative value
+#' description Propose new non-negative for sampling.
+#' param x Current value to be proposed
+#' param window The proposal window
+#' return new double
+NULL
+
+#' title The Inverse Gamma Distribution
+#' description Random generation from the inverse Gamma distribution.
+#' param shape Shape parameter.
+#' param rate Rate parameter.
+#' return Sample from invGamma(shape, rate).
+NULL
+
+#' title The Inverse Gamma Distribution
+#' description Random generation from the inverse Gamma distribution.
+#' param N Number of samples to draw.
+#' param shape Shape parameter.
+#' param rate Rate parameter.
+#' return Sample from invGamma(shape, rate).
+NULL
+
+#' title The Gamma Distribution
+#' description Random generation from the Gamma distribution.
+#' param shape Shape parameter.
+#' param rate Rate parameter.
+#' return Sample from Gamma(shape, rate).
+NULL
+
+#' title The Gamma Distribution
+#' description Random generation from the Gamma distribution.
+#' param N Number of samples to draw.
+#' param shape Shape parameter.
+#' param rate Rate parameter.
+#' return N samples from Gamma(shape, rate).
+NULL
+
+#' title The Beta Distribution
+#' description Random generation from the Beta distribution.
+#' See https://en.wikipedia.org/wiki/Beta_distribution#Related_distributions.
+#' Samples from a Beta distribution based using two independent gamma
+#' distributions.
+#' param a Shape parameter.
+#' param b Shape parameter.
+#' return Sample from Beta(a, b).
+NULL
+
+#' title The Beta Distribution
+#' description Random generation from the Beta distribution.
+#' See https://en.wikipedia.org/wiki/Beta_distribution#Related_distributions.
+#' Samples from a Beta distribution based using two independent gamma
+#' distributions.
+#' param n The number of samples to draw.
+#' param a Shape parameter.
+#' param b Shape parameter.
+#' return Sample from Beta(a, b).
+NULL
+
+#' title Metropolis acceptance step
+#' description Given a probaility, randomly accepts by sampling from a uniform 
+#' distribution.
+#' param acceptance_prob Double between 0 and 1.
+#' return Boolean indicating acceptance.
+NULL
+
+#' title Sample mean
+#' description calculate the sample mean of a matrix X.
+#' param X Matrix
+#' return Vector of the column means of X.
+NULL
+
+#' title Calculate sample covariance
+#' description Returns the unnormalised sample covariance. Required as
+#' arma::cov() does not work for singletons.
+#' param data Data in matrix format
+#' param sample_mean Sample mean for data
+#' param n The number of samples in data
+#' param n_col The number of columns in data
+#' return One of the parameters required to calculate the posterior of the
+#'  Multivariate normal with uknown mean and covariance (the unnormalised
+#'  sample covariance).
+NULL
+
 #' @title Gamma log-likelihood
 #' @description Used in calculating model probability in Metropolis-Hastings 
 #' algorithm when proposals are from the Gamma distribution.
@@ -214,6 +297,48 @@ sampleSemisupervisedMVN <- function(X, K, B, labels, batch_vec, fixed, mu_propos
     .Call('_batchmix_sampleSemisupervisedMVN', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised)
 }
 
+#' @title Sample semi-supervised MVN Mixture model with batch specific class weights
+#' @description Performs MCMC sampling for a mixture model.
+#' @param X The data matrix to perform clustering upon (items to cluster in rows).
+#' @param K The number of components to model (upper limit on the number of clusters found).
+#' @param B The number of batches to model.
+#' @param labels Vector item labels to initialise from.
+#' @param batch_vec Observed batch labels.
+#' @param fixed Binary vector of the items that are fixed in their initial label.
+#' @param mu_proposal_window The standard deviation for the Gaussian proposal density of the cluster means.
+#' @param cov_proposal_window The degrees of freedom for the Wishart proposal density of the cluster covariances.
+#' @param m_proposal_window The standard deviation for the Gaussian proposal density of the batch mean effects.
+#' @param S_proposal_window The rate for the Gamma proposal density of the batch scale.
+#' @param R The number of iterations to run for.
+#' @param thin thinning factor for samples recorded.
+#' @param concentration Vector of concentrations for mixture weights (recommended to be symmetric).
+#' @param m_scale The scale hyperparameter for the batch shift prior 
+#' distribution.
+#' @param rho The shape of the prior distribution for the batch scale.
+#' @param theta The scale of the prior distribution for the batch scale.
+#' @param initial_mu A P x K matrix of initial values for the class means.
+#' @param initial_cov A P x P x K cube of initial values for the class 
+#' covariance matrices.
+#' @param initial_m A P x B matrix of initial values for the batch shift 
+#' effects.
+#' @param initial_S A P x B matrix of initial values for the batch scales.
+#' @param mu_initialised Bool indicating if the class means are initialised by
+#' the user. If ``false`` then initial values are drawn from the prior 
+#' distribution.
+#' @param cov_initialised Bool indicating if the class covariance matrices are 
+#' initialised by the user. If ``false`` then initial values are drawn from the
+#' prior distribution.
+#' @param m_initialised Bool indicating if the batch shift effects are 
+#' initialised by the user. If ``false`` then initial values are drawn from the
+#' prior distribution.
+#' @param S_initialised Bool indicating if the batch scales are initialised by 
+#' the user. If ``false`` then initial values are drawn from the prior 
+#' distribution.
+#' @return Named list of the different quantities drawn by the sampler.
+sampleSemisupervisedMVNVaryingWeights <- function(X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised) {
+    .Call('_batchmix_sampleSemisupervisedMVNVaryingWeights', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised)
+}
+
 #' @title Sample semi-supervised MVT Mixture model
 #' @description Performs MCMC sampling for a mixture model.
 #' @param X The data matrix to perform clustering upon (items to cluster in rows).
@@ -260,5 +385,53 @@ sampleSemisupervisedMVN <- function(X, K, B, labels, batch_vec, fixed, mu_propos
 #' @return Named list of the different quantities drawn by the sampler.
 sampleSemisupervisedMVT <- function(X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_df, initial_m, initial_S, mu_initialised, cov_initialised, df_initialised, m_initialised, S_initialised) {
     .Call('_batchmix_sampleSemisupervisedMVT', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_df, initial_m, initial_S, mu_initialised, cov_initialised, df_initialised, m_initialised, S_initialised)
+}
+
+#' @title Sample semi-supervised MVT Mixture model with batch specific class weights
+#' @description Performs MCMC sampling for a mixture model.
+#' @param X The data matrix to perform clustering upon (items to cluster in rows).
+#' @param K The number of components to model (upper limit on the number of clusters found).
+#' @param B The number of batches to model.
+#' @param labels Vector item labels to initialise from.
+#' @param batch_vec Observed batch labels.
+#' @param fixed Binary vector of the items that are fixed in their initial label.
+#' @param mu_proposal_window The standard deviation for the Gaussian proposal density of the cluster means.
+#' @param cov_proposal_window The degrees of freedom for the Wishart proposal density of the cluster covariances.
+#' @param m_proposal_window The standard deviation for the Gaussian proposal density of the batch mean effects.
+#' @param S_proposal_window The rate for the Gamma proposal density of the batch scale.
+#' @param t_df_proposal_window The rate for the Gamma proposal density of the cluster degrees of freedom.
+#' @param R The number of iterations to run for.
+#' @param thin thinning factor for samples recorded.
+#' @param concentration Vector of concentrations for mixture weights (recommended to be symmetric).
+#' @param m_scale The scale hyperparameter for the batch shift prior 
+#' distribution.
+#' @param rho The shape of the prior distribution for the batch scale.
+#' @param theta The scale of the prior distribution for the batch scale.
+#' @param initial_mu A P x K matrix of initial values for the class means.
+#' @param initial_cov A P x P x K cube of initial values for the class 
+#' covariance matrices.
+#' @param initial_df A K vector of initial values for the class degrees of
+#' freedom.
+#' @param initial_m A P x B matrix of initial values for the batch shift 
+#' effects.
+#' @param initial_S A P x B matrix of initial values for the batch scales.
+#' @param mu_initialised Bool indicating if the class means are initialised by
+#' the user. If ``false`` then initial values are drawn from the prior 
+#' distribution.
+#' @param cov_initialised Bool indicating if the class covariance matrices are 
+#' initialised by the user. If ``false`` then initial values are drawn from the
+#' prior distribution.
+#' @param df_initialised Bool indicating if the class degrees of freedom are 
+#' initialised by the user. If ``false`` then initial values are drawn from the 
+#' prior distribution.
+#' @param m_initialised Bool indicating if the batch shift effects are 
+#' initialised by the user. If ``false`` then initial values are drawn from the
+#' prior distribution.
+#' @param S_initialised Bool indicating if the batch scales are initialised by 
+#' the user. If ``false`` then initial values are drawn from the prior 
+#' distribution.
+#' @return Named list of the different quantities drawn by the sampler.
+sampleSemisupervisedMVTVaryingWeights <- function(X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_df, initial_m, initial_S, mu_initialised, cov_initialised, df_initialised, m_initialised, S_initialised) {
+    .Call('_batchmix_sampleSemisupervisedMVTVaryingWeights', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_df, initial_m, initial_S, mu_initialised, cov_initialised, df_initialised, m_initialised, S_initialised)
 }
 
