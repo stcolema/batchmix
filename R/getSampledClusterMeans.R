@@ -13,7 +13,7 @@
 #' @return A data.frame of three columns; the parameter, the sampled value and the iteration.
 #' @export
 #' @examples
-#' 
+#'
 #' # Data in matrix format
 #' X <- matrix(c(rnorm(100, 0, 1), rnorm(100, 3, 1)), ncol = 2, byrow = TRUE)
 #'
@@ -28,14 +28,13 @@
 #' samples <- runBatchMix(X, R, thin, batch_vec, "MVN")
 #'
 #' batch_shift_df <- getSampledClusterMeans(samples$means, R = R, thin = thin)
-#' 
+#'
 #' @importFrom tidyr pivot_longer contains
 getSampledClusterMeans <- function(sampled_cluster_means,
                                    K = dim(sampled_cluster_means)[2],
                                    P = dim(sampled_cluster_means)[1],
                                    R = dim(sampled_cluster_means)[3],
                                    thin = 1) {
-
   # Check that the values of R and thin make sense
   if (floor(R / thin) != dim(sampled_cluster_means)[3]) {
     stop("The ratio of R to thin does not match the number of samples present.")
@@ -49,11 +48,9 @@ getSampledClusterMeans <- function(sampled_cluster_means,
   group_inds <- seq(1, K)
 
   # Give sensible column names
-  colnames(mean_df) <- suppressWarnings(
-    paste0(
-      "Mu_",
-      sort(as.numeric(levels(interaction(group_inds, col_inds, sep = ""))))
-    )
+  colnames(mean_df) <- paste0(
+    "Mu_",
+    sort(as.numeric(levels(interaction(group_inds, col_inds, sep = ""))))
   )
 
   # Add a variable for the iteration the sample comes from
