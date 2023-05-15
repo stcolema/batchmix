@@ -4,7 +4,7 @@ Title: Semi-Supervised Bayesian Mixture Models Incorporating Batch Correction
 License: GPL-3
 Version: 2.0.0
 Authors@R: c(person(given = "Stephen", family = "Coleman",
-                    email = "stephen.coleman@mrc-bsu.cam.ac.uk",
+                    email = "stcolema@tcd.ie",
                     role = c("aut","cre")),
              person(given = "Paul", family ="Kirk",
                     email = "paul.kirk@mrc-bsu.cam.ac.uk",
