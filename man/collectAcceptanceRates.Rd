@@ -21,10 +21,11 @@ Collects the acceptance rates for each parameter into a data.frame
 X <- matrix(c(rnorm(100, 0, 1), rnorm(100, 3, 1)), ncol = 2, byrow = TRUE)
 
 # Initial labelling
-labels <- c(rep(1, 10), 
-  sample(c(1,2), size = 40, replace = TRUE), 
-  rep(2, 10), 
-  sample(c(1,2), size = 40, replace = TRUE)
+labels <- c(
+  rep(1, 10),
+  sample(c(1, 2), size = 40, replace = TRUE),
+  rep(2, 10),
+  sample(c(1, 2), size = 40, replace = TRUE)
 )
 
 fixed <- c(rep(1, 10), rep(0, 40), rep(1, 10), rep(0, 40))
@@ -37,7 +38,7 @@ R <- 1000
 thin <- 50
 
 # MCMC samples
-samples <- runBatchMix(X, R, thin, batch_vec, "MVN", 
+samples <- runBatchMix(X, R, thin, batch_vec, "MVN",
   initial_labels = labels,
   fixed = fixed
 )

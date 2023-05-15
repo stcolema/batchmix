@@ -27,10 +27,11 @@ based on the sampled allocation probabilities.
 X <- matrix(c(rnorm(100, 0, 1), rnorm(100, 3, 1)), ncol = 2, byrow = TRUE)
 
 # Initial labelling
-labels <- c(rep(1, 10), 
-  sample(c(1,2), size = 40, replace = TRUE), 
-  rep(2, 10), 
-  sample(c(1,2), size = 40, replace = TRUE)
+labels <- c(
+  rep(1, 10),
+  sample(c(1, 2), size = 40, replace = TRUE),
+  rep(2, 10),
+  sample(c(1, 2), size = 40, replace = TRUE)
 )
 
 fixed <- c(rep(1, 10), rep(0, 40), rep(1, 10), rep(0, 40))

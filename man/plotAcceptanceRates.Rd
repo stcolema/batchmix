@@ -10,15 +10,15 @@ plotAcceptanceRates(mcmc_lst)
 \item{mcmc_lst}{The output of the ``runMCMCChains`` function.}
 }
 \value{
-A ggplot object of the boxplots of acceptance rates for each 
+A ggplot object of the boxplots of acceptance rates for each
 parameter across chains.
 }
 \description{
-Plot the acceptance rates for the parameters sampled in a 
-Metropolis-Hastings step. Aiming for acceptance rates in [0.2, 0.5] for the 
-class means, the batch effect on location and scale is a good rule of thumb. 
-The class covariance should be in [0.35, 0.8] based on the authors' 
-experience. The class degree of freedom appears to be prone to high 
+Plot the acceptance rates for the parameters sampled in a
+Metropolis-Hastings step. Aiming for acceptance rates in [0.2, 0.5] for the
+class means, the batch effect on location and scale is a good rule of thumb.
+The class covariance should be in [0.35, 0.8] based on the authors'
+experience. The class degree of freedom appears to be prone to high
 acceptance rates, but aim to keep this above 0.2 at a minimum.
 }
 \examples{
@@ -44,8 +44,8 @@ thin <- 10
 n_chains <- 4
 
 # MCMC samples and BIC vector
-mcmc_lst <- runMCMCChains(X, n_chains, R, thin, batch_vec, "MVN", 
-  initial_labels = labels, 
+mcmc_lst <- runMCMCChains(X, n_chains, R, thin, batch_vec, "MVN",
+  initial_labels = labels,
   fixed = fixed
 )
 

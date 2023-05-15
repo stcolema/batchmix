@@ -21,6 +21,7 @@ bool compareDoubles2(double x, double y, double epsilon = 1e-6) {
 
 context("Unit test for MVN posterior kernels.") {
 
+  bool sample_m_scale = false;
   uword K = 2, B = 3;
   double
     mu_proposal_window = 0.5,
@@ -65,7 +66,8 @@ context("Unit test for MVN posterior kernels.") {
       X,
       m_scale,
       rho,
-      theta
+      theta,
+      sample_m_scale
   );
 
   double val1 = 0.0,

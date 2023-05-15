@@ -22,11 +22,11 @@ generateGroupIDsInSimulator(
 
 \item{batch_IDs}{The batch membership of each item.}
 
-\item{group_weights}{One of either a K x B matrix of the expected proportion 
+\item{group_weights}{One of either a K x B matrix of the expected proportion
 of each batch in each group or a K-vector of the expected proportion of the
 entire dataset in each group.}
 
-\item{varying_group_within_batch}{Flag indicating if the groups are vvarying 
+\item{varying_group_within_batch}{Flag indicating if the groups are vvarying
 across batches.}
 }
 \value{
@@ -47,8 +47,8 @@ group_IDs <- generateGroupIDsInSimulator(
   N,
   K,
   B,
-  batch_IDs, 
-  group_weights, 
+  batch_IDs,
+  group_weights,
   varying_group_within_batch
 )
 }

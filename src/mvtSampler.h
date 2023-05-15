@@ -84,7 +84,8 @@ public:
     arma::mat _X,
     double _m_scale,
     double _rho,
-    double _theta
+    double _theta,
+    bool _sample_m_scale
   ) ;
   
   // Destructor
