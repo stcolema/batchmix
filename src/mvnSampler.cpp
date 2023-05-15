@@ -27,7 +27,8 @@ mvnSampler::mvnSampler(
   arma::mat _X,
   double _m_scale,
   double _rho,
-  double _theta
+  double _theta,
+  bool _sample_m_scale
 ) : sampler(_K,
 _B,
 _labels,
@@ -152,6 +153,8 @@ _X) {
   m_proposal_window = _m_proposal_window;
   S_proposal_window = _S_proposal_window;
   
+  // flag indicating if the hyperparameter on the batch shift is sampled or not
+  sample_m_scale = _sample_m_scale;
 };
 
 void mvnSampler::sampleCovPrior() {
@@ -183,7 +186,9 @@ void mvnSampler::sampleMPrior() {
 };
 
 void mvnSampler::sampleFromPriors() {
-  sampleMScalePrior();
+  if(sample_m_scale) {
+    sampleMScalePrior();
+  }
   sampleCovPrior();
   sampleMuPrior();
   sampleSPrior();
@@ -649,7 +654,9 @@ void mvnSampler::metropolisStep() {
   clusterMeanMetropolis();
   
   // Metropolis step for batch parameters
-  sampleMScalePosterior();
+  if(sample_m_scale) {
+    sampleMScalePosterior();
+  }
   batchScaleMetropolis();
   batchShiftMetorpolis();
 };

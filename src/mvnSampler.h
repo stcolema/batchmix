@@ -45,6 +45,8 @@ class mvnSampler: virtual public sampler {
   
 public:
   
+  bool sample_m_scale = true;
+  
   arma::uword n_param_cluster = 1 + P + P * (P + 1) * 0.5, 
     n_param_batch = 2 * P;
   
@@ -94,9 +96,10 @@ public:
     arma::uvec _batch_vec,
     arma::vec _concentration,
     arma::mat _X,
-    double m_scale,
-    double rho,
-    double theta
+    double _m_scale,
+    double _rho,
+    double _theta,
+    bool _sample_m_scale
   );
   
   // Destructor

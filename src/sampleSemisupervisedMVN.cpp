@@ -36,7 +36,8 @@ Rcpp::List sampleSemisupervisedMVN (
     bool mu_initialised,
     bool cov_initialised,
     bool m_initialised,
-    bool S_initialised
+    bool S_initialised,
+    bool sample_m_scale
 ) {
   
   mvnPredictive my_sampler(K,
@@ -52,7 +53,8 @@ Rcpp::List sampleSemisupervisedMVN (
     fixed,
     m_scale,
     rho,
-    theta
+    theta,
+    sample_m_scale
   );
   
   uword P = X.n_cols, N = X.n_rows, n_saved = std::floor(R / thin);

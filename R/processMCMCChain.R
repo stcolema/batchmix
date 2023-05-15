@@ -123,7 +123,7 @@ processMCMCChain <- function(mcmc_output, burn, point_estimate_method = "median"
   new_output$observed_likelihood <- mcmc_output$observed_likelihood[-dropped_indices, ]
   new_output$complete_likelihood <- mcmc_output$complete_likelihood[-dropped_indices, ]
   new_output$BIC <- mcmc_output$BIC[-dropped_indices, ]
-
+  
   # The allocations and allocation probabilities
   new_output$samples <- mcmc_output$samples[-dropped_indices, ]
 
@@ -141,10 +141,9 @@ processMCMCChain <- function(mcmc_output, burn, point_estimate_method = "median"
 
   new_output$weights <- mcmc_output$weights[-dropped_indices, , drop = FALSE]
 
-  new_output$lambda_2 <- mcmc_output$lambda_2[-dropped_indices]
-
-  if (new_output$batch_specific_weights) {
-    new_output$concentration <- new_output$concentration[-dropped_indices, , drop = FALSE]
+  m_scale_sampled <- mcmc_output$sample_m_scale
+  if(m_scale_sampled) {
+    new_output$lambda_2 <- mcmc_output$lambda_2[-dropped_indices]
   }
 
   # The mean of the posterior samples for the parameters

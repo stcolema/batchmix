@@ -56,6 +56,8 @@
 //' @param S_initialised Bool indicating if the batch scales are initialised by 
 //' the user. If ``false`` then initial values are drawn from the prior 
 //' distribution.
+//' @param sample_m_scale Bool indicating if the hyperparameter on the batch 
+//' shift effect is sampled or given as fixed.
 //' @return Named list of the different quantities drawn by the sampler.
 // [[Rcpp::export]]
 Rcpp::List sampleSemisupervisedMVN (
@@ -82,7 +84,8 @@ Rcpp::List sampleSemisupervisedMVN (
     bool mu_initialised,
     bool cov_initialised,
     bool m_initialised,
-    bool S_initialised
+    bool S_initialised,
+    bool sample_m_scale
 ) ;
 
 #endif /* SAMPLESEMISUPERVISEDMVN_H */

@@ -12,7 +12,6 @@ batchSemiSupervisedMixtureModel(
   fixed,
   batch_vec,
   type,
-  batch_specific_weights = FALSE,
   K_max = length(unique(initial_labels)),
   alpha = NULL,
   concentration = NULL,
@@ -21,9 +20,9 @@ batchSemiSupervisedMixtureModel(
   m_proposal_window = 0.3^2,
   S_proposal_window = 0.01,
   t_df_proposal_window = 0.015,
-  m_scale = 0.1,
-  rho = 11,
-  theta = 5,
+  m_scale = NULL,
+  rho = 3,
+  theta = 1,
   initial_class_means = NULL,
   initial_class_covariance = NULL,
   initial_batch_shift = NULL,
@@ -44,15 +43,11 @@ batchSemiSupervisedMixtureModel(
 
 \item{fixed}{Which items are fixed in their initial label.}
 
-\item{batch_vec}{Labels identifying which batch each item being clustered is 
+\item{batch_vec}{Labels identifying which batch each item being clustered is
 from.}
 
 \item{type}{Character indicating density type to use. One of 'MVN'
 (multivariate normal distribution) or 'MVT' (multivariate t distribution).}
-
-\item{batch_specific_weights}{Allow each batch to have unique class weights.
-If FALSE class weights are common across batches, if TRUE the class weights
-are nested within batch and share a common hyperparameter. Defaults to FALSE.}
 
 \item{K_max}{The number of components to include (the upper bound on the
 number of clusters in each sample). Defaults to the number of unique labels
@@ -64,41 +59,41 @@ weights in the model.}
 \item{concentration}{Initial concentration vector for component weights.}
 
 \item{mu_proposal_window}{The proposal window for the cluster mean proposal
-kernel. The proposal density is a Gaussian distribution, the window is the 
+kernel. The proposal density is a Gaussian distribution, the window is the
 variance.}
 
 \item{cov_proposal_window}{The proposal window for the cluster covariance
-proposal kernel. The proposal density is a Wishart distribution, this 
+proposal kernel. The proposal density is a Wishart distribution, this
 argument is the reciprocal of the degree of freedom.}
 
 \item{m_proposal_window}{The proposal window for the batch mean proposal
- kernel. The proposal density is a Gaussian distribution, the window is the 
+ kernel. The proposal density is a Gaussian distribution, the window is the
 variance.}
 
 \item{S_proposal_window}{The proposal window for the batch standard deviation
- proposal kernel. The proposal density is a Gamma distribution, this 
+ proposal kernel. The proposal density is a Gamma distribution, this
 argument is the reciprocal of the rate.}
 
 \item{t_df_proposal_window}{The proposal window for the degrees of freedom
-for the multivariate t distribution (not used if type is not 'MVT'). The 
+for the multivariate t distribution (not used if type is not 'MVT'). The
 proposal density is a Gamma distribution, this argument is the reciprocal of
 the rate.}
 
 \item{m_scale}{The scale hyperparameter for the batch shift prior
-distribution. This defines the scale of the batch effect upon the mean and 
+distribution. This defines the scale of the batch effect upon the mean and
 should be in (0, 1].}
 
 \item{rho}{The shape of the prior distribution for the batch scale.}
 
 \item{theta}{The scale of the prior distribution for the batch scale.}
 
-\item{initial_class_means}{A $P x K$ matrix of initial values for the class 
+\item{initial_class_means}{A $P x K$ matrix of initial values for the class
 means. Defaults to draws from the prior distribution.}
 
-\item{initial_class_covariance}{A $P x P x K$ array of initial values for 
+\item{initial_class_covariance}{A $P x P x K$ array of initial values for
 the class covariance matrices. Defaults to draws from the prior distribution.}
 
-\item{initial_batch_shift}{A $P x B$ matrix of initial values for the batch 
+\item{initial_batch_shift}{A $P x B$ matrix of initial values for the batch
 shift effect Defaults to draws from the prior distribution.}
 
 \item{initial_batch_scale}{A $P x B$ matrix of initial values for the batch
@@ -107,7 +102,7 @@ scales Defaults to draws from the prior distribution.}
 \item{initial_class_df}{A $K$ vector of initial values for the class degrees
 of freedom. Defaults to draws from the prior distribution.}
 
-\item{verbose}{Logiccal indicating if warning about proposal windows should 
+\item{verbose}{Logiccal indicating if warning about proposal windows should
 be printed.}
 }
 \value{
@@ -135,7 +130,7 @@ fixed <- c(rep(1, 10), rep(0, 40), rep(1, 10), rep(0, 40))
 # Batch
 batch_vec <- sample(seq(1, 5), replace = TRUE, size = 100)
 
-# Density choice 
+# Density choice
 type <- "MVN"
 
 # Sampling parameters
@@ -143,18 +138,19 @@ R <- 1000
 thin <- 50
 
 # MCMC samples and BIC vector
-samples <- batchSemiSupervisedMixtureModel(X,
-  R, 
-  thin, 
-  labels, 
-  fixed, 
-  batch_vec, 
+samples <- batchSemiSupervisedMixtureModel(
+  X,
+  R,
+  thin,
+  labels,
+  fixed,
+  batch_vec,
   type
 )
 
 # Given an initial value for the parameters
 initial_class_means <- matrix(c(1, 1, 3, 4), nrow = 2)
-initial_class_covariance <- array(c(1, 0, 0, 1, 1, 0, 0, 1), 
+initial_class_covariance <- array(c(1, 0, 0, 1, 1, 0, 0, 1),
   dim = c(2, 2, 2)
 )
 
@@ -166,11 +162,11 @@ initial_batch_scale <- matrix(
 )
 
 samples <- batchSemiSupervisedMixtureModel(X,
-  R, 
-  thin, 
-  labels, 
-  fixed, 
-  batch_vec, 
+  R,
+  thin,
+  labels,
+  fixed,
+  batch_vec,
   type,
   initial_class_means = initial_class_means,
   initial_class_covariance = initial_class_covariance,

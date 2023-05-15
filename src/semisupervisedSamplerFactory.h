@@ -51,7 +51,8 @@ public:
     arma::uvec fixed,
     double m_scale,
     double rho,
-    double theta
+    double theta,
+    bool sample_m_scale
   );
 };
 

@@ -39,7 +39,8 @@ Rcpp::List sampleSemisupervisedMVT (
     bool cov_initialised,
     bool df_initialised,
     bool m_initialised,
-    bool S_initialised
+    bool S_initialised,
+    bool sample_m_scale
 ) {
 
   mvtPredictive my_sampler(K,
@@ -56,7 +57,8 @@ Rcpp::List sampleSemisupervisedMVT (
     fixed,
     m_scale,
     rho,
-    theta
+    theta,
+    sample_m_scale
   );
   
   uword P = X.n_cols, N = X.n_rows, n_saved = std::floor(R / thin);
@@ -69,7 +71,7 @@ Rcpp::List sampleSemisupervisedMVT (
   vec BIC_record = zeros<vec>(n_saved),
     observed_likelihood = zeros<vec>(n_saved),
     complete_likelihood = zeros<vec>(n_saved),
-    lambda_2_saved = zeros<vec>(n_saved);
+    lambda_2_saved = m_scale * ones<vec>(n_saved);
   
   mat weights_saved(n_saved, K), t_df_saved(n_saved, K);
   weights_saved.zeros();

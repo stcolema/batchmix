@@ -19,13 +19,13 @@ predictFromMultipleChains(
 \item{point_estimate_method}{Summary statistic used to define the point
 estimate. Must be ``'mean'`` or ``'median'``. ``'median'`` is the default.}
 
-\item{chains_already_processed}{Logical indicating if the chains have already 
+\item{chains_already_processed}{Logical indicating if the chains have already
 had a burn-in applied.}
 }
 \value{
 A named list of quantities related to prediction/clustering:
 
- * ``allocation_probability``: List with an $(N x K)$ matrix if the model is 
+ * ``allocation_probability``: List with an $(N x K)$ matrix if the model is
    semi-supervised. The point estimate of the allocation probabilities for
    each data point to each class.
 
@@ -33,7 +33,7 @@ A named list of quantities related to prediction/clustering:
    allocated to the class with the highest probability.
 
  * ``pred``: $N$ vector of the predicted class for each sample. If the model
-   is unsupervised then the ``salso`` function from Dahl et al. (2021) is 
+   is unsupervised then the ``salso`` function from Dahl et al. (2021) is
    used on the sampled partitions using the default settings.
 
  * ``samples``: List of sampled allocations for each view. Columns
@@ -71,7 +71,7 @@ my_data <- generateBatchData(
   batch_var,
   group_weights,
   batch_weights,
-  type = "MVT", 
+  type = "MVT",
   group_dfs = dfs
 )
 
@@ -103,8 +103,7 @@ mcmc_outputs <- runMCMCChains(
   batch_vec,
   type,
   initial_labels = initial_labels,
-  fixed = fixed, 
-  batch_specific_weights = TRUE
+  fixed = fixed
 )
 ensemble_mod <- predictFromMultipleChains(mcmc_outputs, burn)
 
