@@ -57,11 +57,12 @@ group_means <- seq(1, K) * mean_dist
 batch_shift <- rnorm(B, mean = batch_dist, sd = batch_dist)
 std_dev <- rep(2, K)
 batch_var <- rep(1.2, B)
-group_weights <- matrix(c(
-  0.8, 0.6, 0.4, 0.2, 0.2,
-  0.2, 0.4, 0.6, 0.8, 0.8
-),
-nrow = K, ncol = B, byrow = TRUE
+group_weights <- matrix(
+  c(
+    0.8, 0.6, 0.4, 0.2, 0.2,
+    0.2, 0.4, 0.6, 0.8, 0.8
+  ),
+  nrow = K, ncol = B, byrow = TRUE
 )
 batch_weights <- rep(1 / B, B)
 

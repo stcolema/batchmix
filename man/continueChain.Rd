@@ -15,10 +15,10 @@ continueChain(mcmc_output, X, fixed, batch_vec, R, keep_old_samples = TRUE)
 
 \item{batch_vec}{The vector of the batch labels for the data.}
 
-\item{R}{The number of iterations to run in this continuation (thinning 
+\item{R}{The number of iterations to run in this continuation (thinning
 factor is the same as initial chain).}
 
-\item{keep_old_samples}{Logical indicating if the original samples should be 
+\item{keep_old_samples}{Logical indicating if the original samples should be
 kept or only the new samples returned. Defaults to TRUE.}
 }
 \value{
@@ -54,7 +54,7 @@ R <- 1000
 thin <- 50
 
 # MCMC samples and BIC vector
-mcmc_output <-  runBatchMix(
+mcmc_output <- runBatchMix(
   X,
   R,
   thin,

@@ -82,8 +82,7 @@
 #'   batch_vec,
 #'   type,
 #'   initial_labels = initial_labels,
-#'   fixed = fixed,
-#'   batch_specific_weights = TRUE
+#'   fixed = fixed
 #' )
 #' ensemble_mod <- predictFromMultipleChains(mcmc_outputs, burn)
 #'

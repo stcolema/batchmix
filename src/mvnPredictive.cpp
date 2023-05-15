@@ -29,7 +29,8 @@ mvnPredictive::mvnPredictive(
   arma::uvec _fixed,
   double _m_scale,
   double _rho,
-  double _theta
+  double _theta,
+  bool _sample_m_scale
 ) :
   sampler(_K, _B, _labels, _batch_vec, _concentration, _X),
   mvnSampler(                           
@@ -45,7 +46,8 @@ mvnPredictive::mvnPredictive(
     _X,
     _m_scale,
     _rho,
-    _theta
+    _theta,
+    _sample_m_scale
   ),
   semisupervisedSampler(_K, _B, _labels, _batch_vec, _concentration, _X, _fixed)
 {

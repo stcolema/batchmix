@@ -98,8 +98,7 @@ mcmc_output <- runMCMCChains(
   batch_vec,
   type,
   initial_labels = initial_labels,
-  fixed = fixed,
-  batch_specific_weights = TRUE
+  fixed = fixed
 )
 ```
 

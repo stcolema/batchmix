@@ -31,7 +31,8 @@ sampleSemisupervisedMVT(
   cov_initialised,
   df_initialised,
   m_initialised,
-  S_initialised
+  S_initialised,
+  sample_m_scale
 )
 }
 \arguments{
@@ -102,6 +103,9 @@ prior distribution.}
 \item{S_initialised}{Bool indicating if the batch scales are initialised by 
 the user. If ``false`` then initial values are drawn from the prior 
 distribution.}
+
+\item{sample_m_scale}{Bool indicating if the hyperparameter on the batch 
+shift effect is sampled or given as fixed.}
 }
 \value{
 Named list of the different quantities drawn by the sampler.

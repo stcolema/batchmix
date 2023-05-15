@@ -2,9 +2,9 @@ Package: batchmix
 Type: Package
 Title: Semi-Supervised Bayesian Mixture Models Incorporating Batch Correction
 License: GPL-3
-Version: 1.0.1
+Version: 2.0.0
 Authors@R: c(person(given = "Stephen", family = "Coleman",
-                    email = "stephen.coleman@mrc-bsu.cam.ac.uk",
+                    email = "stcolema@tcd.ie",
                     role = c("aut","cre")),
              person(given = "Paul", family ="Kirk",
                     email = "paul.kirk@mrc-bsu.cam.ac.uk",
@@ -25,5 +25,5 @@ SystemRequirements: GNU make
 Encoding: UTF-8
 URL: https://github.com/stcolema/batchmix
 BugReports: https://github.com/stcolema/batchmix/issues
-RoxygenNote: 7.2.1
+RoxygenNote: 7.2.3
 VignetteBuilder: knitr, rmarkdown

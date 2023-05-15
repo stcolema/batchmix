@@ -34,6 +34,6 @@ thin <- 5
 # MCMC samples and BIC vector
 samples <- runBatchMix(X, R, thin, batch_vec, "MVN")
 
-# Plot the sampled value of the batch scales against MCMC iteration 
+# Plot the sampled value of the batch scales against MCMC iteration
 plotSampledBatchScales(samples)
 }

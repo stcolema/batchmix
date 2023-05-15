@@ -18,7 +18,7 @@ getSampledBatchScale(
 \item{B}{The number of batches present. Defaults to the number of columns in
 the batch mean matrix from the first sample.}
 
-\item{P}{The dimension of the batch mean shifts. Defaults to the number of 
+\item{P}{The dimension of the batch mean shifts. Defaults to the number of
 rows in the batch mean matrix from the first sample.}
 
 \item{R}{The number of iterations run. Defaults to the number of slices in
@@ -30,7 +30,7 @@ the sampled batch mean array.}
 A data.frame of three columns; the parameter, the sampled value and the iteration.
 }
 \description{
-Given an array of sampled batch scales from the 
+Given an array of sampled batch scales from the
 ``mixtureModel`` function, acquire a tidy version ready for ``ggplot2`` use.
 }
 \examples{

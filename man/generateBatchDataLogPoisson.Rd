@@ -24,11 +24,11 @@ generateBatchDataLogPoisson(
 \item{group_rates}{A vector of the group rates for the classes within a column.}
 
 \item{batch_rates}{A vector of the batch rates for the classes within a column.
-This is used to create a variable which has the sum of the appropriate batch 
-and class rate, it might be better interpreted as the batch effect on the 
+This is used to create a variable which has the sum of the appropriate batch
+and class rate, it might be better interpreted as the batch effect on the
 observed rate.}
 
-\item{group_weights}{One of either a K x B matrix of the expected proportion 
+\item{group_weights}{One of either a K x B matrix of the expected proportion
 of each batch in each group or a K-vector of the expected proportion of the
 entire dataset in each group.}
 
@@ -40,7 +40,7 @@ entire dataset in each group.}
 standard deviations should be permuted in each column or not (defaults to
 ``TRUE``).}
 
-\item{scale_data}{Logical indicating if data should be mean centred and 
+\item{scale_data}{Logical indicating if data should be mean centred and
 standardised (defaults to ``FALSE``).}
 }
 \value{

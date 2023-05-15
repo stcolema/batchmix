@@ -18,7 +18,7 @@ getSampledBatchShift(
 \item{B}{The number of batches present. Defaults to the number of columns in
 the batch mean matrix from the first sample.}
 
-\item{P}{The dimension of the batch mean shifts. Defaults to the number of 
+\item{P}{The dimension of the batch mean shifts. Defaults to the number of
 rows in the batch mean matrix from the first sample.}
 
 \item{R}{The number of iterations run. Defaults to the number of slices in
@@ -30,7 +30,7 @@ the sampled batch mean array.}
 A data.frame of three columns; the parameter, the sampled value and the iteration.
 }
 \description{
-Given an array of sampled batch mean shifts from the 
+Given an array of sampled batch mean shifts from the
 ``mixtureModel`` function, acquire a tidy version ready for ``ggplot2`` use.
 }
 \examples{
@@ -48,8 +48,8 @@ thin <- 5
 # MCMC samples
 samples <- runBatchMix(X, R, thin, batch_vec, "MVN")
 
-batch_shift_df <- getSampledBatchShift(samples$batch_shift, 
-  R = R, 
+batch_shift_df <- getSampledBatchShift(samples$batch_shift,
+  R = R,
   thin = thin
 )
 

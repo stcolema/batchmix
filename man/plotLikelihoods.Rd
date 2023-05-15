@@ -51,7 +51,7 @@ n_chains <- 4
 
 # MCMC samples
 samples <- runMCMCChains(X, n_chains, R, thin, batch_vec, "MVN",
-  initial_labels = labels, 
+  initial_labels = labels,
   fixed = fixed
 )
 

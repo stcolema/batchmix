@@ -27,7 +27,8 @@ std::unique_ptr<semisupervisedSampler> semisupervisedSamplerFactory::createSemis
   arma::uvec fixed,
   double m_scale,
   double rho,
-  double theta
+  double theta,
+  bool sample_m_scale
 ) {
   switch (type) {
   // case G: return std::make_unique<gaussianSampler>(K, labels, concentration, X);
@@ -46,7 +47,8 @@ std::unique_ptr<semisupervisedSampler> semisupervisedSamplerFactory::createSemis
       fixed,
       m_scale,
       rho,
-      theta
+      theta,
+      sample_m_scale
    );
     
   case MVT: 
@@ -64,7 +66,8 @@ std::unique_ptr<semisupervisedSampler> semisupervisedSamplerFactory::createSemis
       fixed,
       m_scale,
       rho,
-      theta
+      theta,
+      sample_m_scale
     );
     
   default: throw "invalid sampler type.";

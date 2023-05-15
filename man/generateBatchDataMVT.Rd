@@ -44,7 +44,7 @@ without batch effects, the label indicating the generating group, the
 batch label and the vector indicating training versus test.
 }
 \description{
-Generate data from K multivariate t distributions with 
+Generate data from K multivariate t distributions with
 additional noise from batches. Assumes independence across columns. In each
 column the parameters are randomly permuted for both the groups and batches.
 }
@@ -55,7 +55,7 @@ K <- 2
 B <- 5
 mean_dist <- 4
 batch_dist <- 0.3
-group_means <- seq(1, K)* mean_dist
+group_means <- seq(1, K) * mean_dist
 batch_shift <- rnorm(B, mean = batch_dist, sd = batch_dist)
 std_dev <- rep(2, K)
 batch_var <- rep(1.2, B)

@@ -37,7 +37,8 @@ Rcpp::List sampleMVT (
     bool cov_initialised,
     bool df_initialised,
     bool m_initialised,
-    bool S_initialised
+    bool S_initialised,
+    bool sample_m_scale
 ) {
   
   mvtSampler my_sampler(K,
@@ -53,7 +54,8 @@ Rcpp::List sampleMVT (
     X,
     m_scale,
     rho,
-    theta
+    theta,
+    sample_m_scale
   );
   
   // We use this enough that declaring it is worthwhile
