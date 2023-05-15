@@ -67,7 +67,8 @@ public:
     arma::uvec _fixed,
     double _m_scale,
     double _rho,
-    double _theta
+    double _theta,
+    bool _sample_m_scale
   ) ;
   
   virtual ~mvnPredictive() { };

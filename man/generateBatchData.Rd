@@ -33,7 +33,7 @@ generateBatchData(
 
 \item{batch_scale}{A vector of batch standard deviations within a column.}
 
-\item{group_weights}{One of either a K x B matrix of the expected proportion 
+\item{group_weights}{One of either a K x B matrix of the expected proportion
 of each batch in each group or a K-vector of the expected proportion of the
 entire dataset in each group.}
 
@@ -51,7 +51,7 @@ multivariate normal ("MVN") or multivariate t ("MVT") densities (defaults to
 standard deviations should be permuted in each column or not (defaults to
 ``TRUE``).}
 
-\item{scale_data}{Logical indicating if data should be mean centred and 
+\item{scale_data}{Logical indicating if data should be mean centred and
 standardised (defaults to ``FALSE``).}
 }
 \value{

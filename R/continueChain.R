@@ -100,15 +100,16 @@ continueChain <- function(mcmc_output,
 
   is_mvt <- type == "MVT"
   is_semisupervised <- mcmc_output$Semisupervised
-  batch_specific_weights <- mcmc_output$batch_specific_weights
   initial_class_df <- NULL
   if (is_mvt) {
     initial_class_df <- mcmc_output$t_df[last_sample, ]
   }
 
   initial_concentration <- mcmc_output$concentration
-  if (batch_specific_weights) {
-    initial_concentration <- mcmc_output$concentration[last_sample, ]
+  
+  sample_m_scale <- is.null(m_scale)
+  if(sample_m_scale) {
+    old_lambda2 <- c(mcmc_output$lambda_2)
   }
 
   labels <- mcmc_output$samples[last_sample, ]
@@ -120,7 +121,6 @@ continueChain <- function(mcmc_output,
     fixed,
     batch_vec,
     type,
-    batch_specific_weights = batch_specific_weights,
     K_max = K_max,
     concentration = initial_concentration,
     mu_proposal_window = mu_proposal_window,
@@ -220,6 +220,11 @@ continueChain <- function(mcmc_output,
       new_samples$S_acceptance_rate * R)
     / (R_old + R)
     )
+    
+    if(sample_m_scale) {
+      comb_lambda2 <- c(old_lambda2, new_samples$lambda_2)
+    }
+    
 
     if (type == "MVT") {
       comb_t_df_acceptance_rate <- ((mcmc_output$t_df_acceptance_rate * R_old +
@@ -288,15 +293,15 @@ continueChain <- function(mcmc_output,
     new_samples$alloc <- comb_allocation_probs
     new_samples$batch_corrected_data <- comb_inferred_data
 
+    if(sample_m_scale) {
+      new_samples$lambda_2 <- comb_lambda2
+    }
+    
     if (is_mvt) {
       new_samples$t_df <- comb_t_df
       new_samples$t_df_acceptance_rate <- comb_t_df_acceptance_rate
     }
 
-    if (batch_specific_weights) {
-      comb_concentration <- rbind(mcmc_output$concentration, new_samples$concentration)
-      new_samples$concentration <- comb_concentration
-    }
   }
 
   new_samples

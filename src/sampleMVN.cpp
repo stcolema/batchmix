@@ -35,7 +35,8 @@ Rcpp::List sampleMVN (
     bool mu_initialised,
     bool cov_initialised,
     bool m_initialised,
-    bool S_initialised
+    bool S_initialised,
+    bool sample_m_scale
 ) {
   
   mvnSampler my_sampler(K,
@@ -50,7 +51,8 @@ Rcpp::List sampleMVN (
     X,
     m_scale,
     rho,
-    theta
+    theta,
+    sample_m_scale
   );
   
   // We use this enough that declaring it is worthwhile

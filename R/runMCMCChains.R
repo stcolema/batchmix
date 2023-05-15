@@ -10,10 +10,6 @@
 #' ``thin=50`` only every 50th sample is kept.
 #' @param type Character indicating density type to use. One of 'MVN'
 #' (multivariate normal distribution) or 'MVT' (multivariate t distribution).
-#' @param batch_specific_weights Allow each batch to have unique class weights.
-#' If FALSE class weights are common across batches, if TRUE the class weights
-#' are nested within batch and share a common hyperparameter. Defaults to FALSE.
-#' If batch-specific weights are used then the returned object contains a member
 #' ``weights`` which is a matrix with K x B columns. The columns are ordered by
 #' batch, i.e. the first K columns contain the class weights in the first batch,
 #' the second K are the class weights in the second batch, etc. If generic
@@ -97,7 +93,6 @@ runMCMCChains <- function(X,
                           thin,
                           batch_vec,
                           type,
-                          batch_specific_weights = FALSE,
                           K_max = NULL,
                           initial_labels = NULL,
                           fixed = NULL,
@@ -128,7 +123,6 @@ runMCMCChains <- function(X,
       initial_labels = initial_labels,
       fixed = fixed,
       alpha = alpha,
-      batch_specific_weights = batch_specific_weights,
       mu_proposal_window = mu_proposal_window,
       cov_proposal_window = cov_proposal_window,
       m_proposal_window = m_proposal_window,

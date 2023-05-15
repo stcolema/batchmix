@@ -39,7 +39,7 @@ thin <- 1
 # MCMC samples and BIC vector
 samples <- runBatchMix(X, R, thin, batch_vec, "MVN", K_max = 8)
 
-# Plot the sampled value of the cluster means against MCMC iteration 
+# Plot the sampled value of the cluster means against MCMC iteration
 parameter <- "means"
 plotSampledParameter(samples, parameter, R, thin)
 }

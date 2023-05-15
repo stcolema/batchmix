@@ -11,7 +11,7 @@ generateInitialLabels(alpha, K, fixed, labels = NULL)
 
 \item{K}{The number of classes available.}
 
-\item{fixed}{The vector of 0s and 1s indicating which labels are to be held 
+\item{fixed}{The vector of 0s and 1s indicating which labels are to be held
 fixed.}
 
 \item{labels}{The initial labelling. Defaults to NULL.}

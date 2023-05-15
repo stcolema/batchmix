@@ -5,15 +5,15 @@
 \alias{batchmix-package}
 \alias{batchmix,}
 \alias{BatchMixtureModel}
-\title{Bayesian Mixture Modelling for Joint Model-Based 
+\title{Bayesian Mixture Modelling for Joint Model-Based
 Clustering/Classification and Batch Correction}
 \description{
-Semi-supervised and unsupervised Bayesian mixture models that 
-simultaneously infer the cluster/class structure and a batch correction. 
-Densities available are the multivariate normal and the multivariate t. 
-The model sampler is implemented in C++. This package is aimed at analysis of 
-low-dimensional data generated across several batches. See 
-(Coleman et al. (2022))[https://doi.org/10.1101/2022.01.14.476352] for 
+Semi-supervised and unsupervised Bayesian mixture models that
+simultaneously infer the cluster/class structure and a batch correction.
+Densities available are the multivariate normal and the multivariate t.
+The model sampler is implemented in C++. This package is aimed at analysis of
+low-dimensional data generated across several batches. See
+(Coleman et al. (2022))[https://doi.org/10.1101/2022.01.14.476352] for
 details of the model.
 }
 \examples{
@@ -22,10 +22,11 @@ details of the model.
 X <- matrix(c(rnorm(100, 0, 1), rnorm(100, 3, 1)), ncol = 2, byrow = TRUE)
 
 # Initial labelling
-labels <- c(rep(1, 10), 
-  sample(c(1,2), size = 40, replace = TRUE), 
-  rep(2, 10), 
-  sample(c(1,2), size = 40, replace = TRUE)
+labels <- c(
+  rep(1, 10),
+  sample(c(1, 2), size = 40, replace = TRUE),
+  rep(2, 10),
+  sample(c(1, 2), size = 40, replace = TRUE)
 )
 
 # Which labels are observed
@@ -39,10 +40,10 @@ R <- 1000
 thin <- 50
 
 # Classification
-samples <- runBatchMix(X, 
-  R, 
-  thin, 
-  batch_vec, 
+samples <- runBatchMix(X,
+  R,
+  thin,
+  batch_vec,
   "MVN",
   initial_labels = labels,
   fixed = fixed,
