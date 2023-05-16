@@ -44,7 +44,7 @@ Applies a burn in to and finds a point estimate by combining
 multiple chains of ``callMDI``.
 }
 \examples{
-
+\donttest{
 # Data dimensions
 N <- 600
 P <- 4
@@ -106,5 +106,5 @@ mcmc_outputs <- runMCMCChains(
   fixed = fixed
 )
 ensemble_mod <- predictFromMultipleChains(mcmc_outputs, burn)
-
+}
 }
