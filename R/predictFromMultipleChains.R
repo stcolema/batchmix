@@ -23,7 +23,7 @@
 #'  * ``samples``: List of sampled allocations for each view. Columns
 #'    correspond to items being clustered, rows to MCMC samples.
 #' @examples
-#'
+#' \donttest{
 #' # Data dimensions
 #' N <- 600
 #' P <- 4
@@ -85,7 +85,7 @@
 #'   fixed = fixed
 #' )
 #' ensemble_mod <- predictFromMultipleChains(mcmc_outputs, burn)
-#'
+#' }
 #' @importFrom salso salso
 #' @export
 predictFromMultipleChains <- function(mcmc_outputs,
