@@ -87,7 +87,7 @@ high acceptance rates regardless of the value chosen.}
 
 \item{m_scale}{The scale hyperparameter for the batch shift prior
 distribution. This defines the scale of the batch effect upon the mean and
-should be in (0, 1].}
+should be in (0, 1]. If `NULL`, this quantity is sampled rather then fixed.}
 
 \item{rho}{The shape of the prior distribution for the batch scale.}
 
