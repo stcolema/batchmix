@@ -74,6 +74,21 @@ double rBeta(double a, double b);
 //' @return Sample from Beta(a, b).
 arma::vec rBeta(arma::uword n, double a, double b);
 
+//' @title The Log-Normal Distribution
+//' @description Random generation from the log-Normal distribution.
+//' @param mu mean parameter.
+//' @param sd standard deviation parameter.
+//' @return Sample from log-Normal(mu, sd^2).
+double rLogNormal(double mu, double sd);
+
+//' @title The Log-Normal Distribution
+//' @description Random generation from the log-Normal distribution.
+//' @param N positive integer - the number of samples drawn.
+//' @param mu mean parameter.
+//' @param sd standard deviation parameter.
+//' @return N samples from log-Normal(mu, sd^2)
+arma::vec rLogNormal(arma::uword N, double mu, double sd);
+
 //' @title Metropolis acceptance step
 //' @description Given a probaility, randomly accepts by sampling from a uniform 
 //' distribution.
