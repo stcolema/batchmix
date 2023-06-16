@@ -40,7 +40,7 @@
 #' the rate.
 #' @param m_scale The scale hyperparameter for the batch shift prior
 #' distribution. This defines the scale of the batch effect upon the mean and
-#' should be in (0, 1].
+#' should be in (0, 1]. If `NULL`, this quantity is sampled rather then fixed.
 #' @param rho The shape of the prior distribution for the batch scale.
 #' @param theta The scale of the prior distribution for the batch scale.
 #' @param initial_class_means A $P x K$ matrix of initial values for the class
@@ -102,7 +102,7 @@ runMCMCChains <- function(X,
                           m_proposal_window = 0.3**2,
                           S_proposal_window = 0.01,
                           t_df_proposal_window = 0.015,
-                          m_scale = 0.01,
+                          m_scale = NULL,
                           rho = 3.0,
                           theta = 1.0,
                           initial_class_means = NULL,
