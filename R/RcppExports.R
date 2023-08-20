@@ -72,6 +72,9 @@ NULL
 #' return Sample from Beta(a, b).
 NULL
 
+#' title The Log-Normal Distribution
+NULL
+
 #' title Metropolis acceptance step
 #' description Given a probaility, randomly accepts by sampling from a uniform 
 #' distribution.
@@ -194,6 +197,13 @@ invWishartLogLikelihood <- function(X, Psi, nu, P) {
 #' @return Named list of the different quantities drawn by the sampler.
 sampleMVN <- function(X, K, B, labels, batch_vec, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale) {
     .Call('_batchmix_sampleMVN', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale)
+}
+
+#' @title Sample mixture of multivariate normal distributions with batch effects
+NULL
+
+sampleMVNSeparationStrategy <- function(X, K, B, labels, batch_vec, mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale) {
+    .Call('_batchmix_sampleMVNSeparationStrategy', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale)
 }
 
 #' @title Sample mixture of multivariate t-distributions with batch effects
