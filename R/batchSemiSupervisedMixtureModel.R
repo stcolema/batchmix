@@ -216,7 +216,7 @@ batchSemiSupervisedMixtureModel <- function(X,
   if(sample_m_scale) {
     m_scale <- 0.01
   }
-  
+
   initial_parameters <- prepareInitialParameters(
     initial_class_means,
     initial_class_covariance,
