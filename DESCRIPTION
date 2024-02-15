@@ -2,7 +2,7 @@ Package: batchmix
 Type: Package
 Title: Semi-Supervised Bayesian Mixture Models Incorporating Batch Correction
 License: GPL-3
-Version: 2.0.0
+Version: 2.0.1
 Authors@R: c(person(given = "Stephen", family = "Coleman",
                     email = "stcolema@tcd.ie",
                     role = c("aut","cre")),
