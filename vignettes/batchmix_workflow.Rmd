@@ -1,9 +1,13 @@
 ---
 title: "batchmix workflow"
 author: "Stephen Coleman"
-output: pdf_document
-%\VignetteEngine{knitr::knitr}
-%\VignetteIndexEntry{Using BatchMixtureModel}
+output: rmarkdown::html_vignette
+description: |
+  Tutorial for clustering/classifying with batchmix.
+vignette: >
+  %\VignetteIndexEntry{Introduction to batchmix}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, include=FALSE}
