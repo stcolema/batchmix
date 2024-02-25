@@ -4,6 +4,7 @@ importFrom(ggplot2,
   aes_string, 
   facet_grid, 
   facet_wrap, 
+  geom_boxplot,
   geom_line, 
   geom_point, 
   ggplot,
@@ -13,6 +14,9 @@ importFrom(ggplot2,
 )
 
 importFrom(stats, 
+  cutree,
+  as.dist,
+  hclust,
   median,
   rbeta,
   rchisq,
@@ -20,27 +24,36 @@ importFrom(stats,
   rnorm
 )
 
-importFrom(tidyr, contains, pivot_longer, any_of)
+importFrom(tidyr, 
+  any_of,
+  contains, 
+  pivot_longer
+)
 
 importFrom(Rcpp, evalCpp, sourceCpp)
 
-importFrom(salso, salso)
-
-
-export(calcAllocProb,
+export(
+  calcAllocProb,
   collectAcceptanceRates,
+  continueChain,
+  continueChains,
+  createSimilarityMat,
   generateBatchData,
+  generateBatchDataLogPoisson,
+  generateBatchDataMVT,
+  generateBatchDataVaryingRepresentation,
   generateInitialLabels,
   getLikelihood,
   getSampledBatchScale,
   getSampledBatchShift,
   getSampledClusterMeans,
+  minVI,
+  plotAcceptanceRates,
   plotLikelihoods,
   plotSampledBatchMeans,
   plotSampledBatchScales,
   plotSampledClusterMeans,
   plotSampledParameter,
-  plotAcceptanceRates,
   predictClass,
   predictFromMultipleChains,
   processMCMCChain,

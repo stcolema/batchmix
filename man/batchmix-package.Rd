@@ -2,6 +2,7 @@
 % Please edit documentation in R/batchmix-package.R
 \docType{package}
 \name{batchmix-package}
+\alias{batchmix}
 \alias{batchmix-package}
 \alias{batchmix,}
 \alias{BatchMixtureModel}
@@ -51,6 +52,14 @@ samples <- runBatchMix(X,
 
 # Clustering
 samples <- runBatchMix(X, R, thin, batch_vec, "MVT")
+
+}
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://github.com/stcolema/batchmix}
+  \item Report bugs at \url{https://github.com/stcolema/batchmix/issues}
+}
 
 }
 \author{
