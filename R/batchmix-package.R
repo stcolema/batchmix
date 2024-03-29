@@ -15,7 +15,7 @@
 #'
 #' @importFrom ggplot2 aes_string facet_grid facet_wrap geom_line geom_point
 #' ggplot label_both labeller labs
-#' @importFrom stats median rbeta rchisq rnorm
+#' @importFrom stats cutree as.dist hclust median rbeta rchisq rnorm
 #' @importFrom tidyr contains pivot_longer
 #' @importFrom Rcpp evalCpp sourceCpp
 #' @useDynLib BatchMixtureModel
