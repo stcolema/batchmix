@@ -189,8 +189,9 @@ predictFromMultipleChains <- function(mcmc_outputs,
     merged_outputs$prob <- .prob <- apply(.alloc_prob, 1, max)
     merged_outputs$pred <- apply(.alloc_prob, 1, which.max)
   } else {
-    merged_outputs$psm <- .psm <- createSimilarityMat(merged_outputs$samples)
-    merged_outputs$pred <- minVI(.psm, merged_outputs$samples, method = "avg") # suppressWarnings(salso::salso(merged_outputs$samples))
+    # merged_outputs$psm <- .psm <- createSimilarityMat(merged_outputs$samples)
+    # merged_outputs$pred <- minVI(.psm, merged_outputs$samples, method = "avg")
+    merged_outputs$pred <- suppressWarnings(salso::salso(merged_outputs$samples))
   }
   merged_outputs
 }
