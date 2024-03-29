@@ -43,7 +43,7 @@ Names are due to legacy reasons - this function is replacing the
 }
 \description{
 Local implementation of S. Wade's `minVI` function from their
-`mcclust.ext` package (available at `sarawade/mcclust.ext` on github).
+`mcclust.ext` package (available from github).
 Reimplemented here to avoid dependency on a non-CRAN package and we have
 dropped the `greedy` method. Finds the optimal partition by minimising the
 lower bound to the Variation of Information obtained from Jensen's inequality
