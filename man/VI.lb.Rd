@@ -18,7 +18,7 @@ for
 }
 \description{
 Local implementation of S. Wade's `minVI` function from their
-`mcclust.ext` package (available at `sarawade/mcclust.ext` on github).
+`mcclust.ext` package (available from github).
 Reimplemented here to avoid dependency on a non-CRAN package. Computes the
 lower bound to the posterior expected Variation of Information. For full
 details please see the aforementioned package and Wade and Ghahramani, 2018,
