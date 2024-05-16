@@ -7,5 +7,5 @@
 #' #' registration info for the 'run_testthat_tests' symbol. This documentation is
 #' #' solely to overcome ``devtools::check()``.
 #' (function() {
-#'   .Call("run_testthat_tests", FALSE, PACKAGE = "BatchMixtureModel")
+#'   .Call("run_testthat_tests", FALSE, PACKAGE = "batchmix")
 #' })

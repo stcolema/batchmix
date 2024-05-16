@@ -8,7 +8,7 @@
 #' (Coleman et al. (2022))[https://doi.org/10.1101/2022.01.14.476352] for
 #' details of the model.
 #' @name batchmix-package
-#' @aliases batchmix, BatchMixtureModel
+#' @aliases batchmix
 #' @docType package
 #' @author Stephen Coleman <stcolema@tcd.ie>, Paul D.W. Kirk, Chris Wallace
 #' @keywords package
@@ -18,7 +18,7 @@
 #' @importFrom stats cutree as.dist hclust median rbeta rchisq rnorm
 #' @importFrom tidyr contains pivot_longer
 #' @importFrom Rcpp evalCpp sourceCpp
-#' @useDynLib BatchMixtureModel
+#' @useDynLib batchmix
 #' @examples
 #'
 #' # Data in a matrix format
