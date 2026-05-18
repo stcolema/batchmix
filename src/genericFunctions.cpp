@@ -134,6 +134,24 @@ bool metropolisAcceptanceStep(double acceptance_prob) {
   return (u < acceptance_prob);
 };
 
+//' title Accept proposal
+//' description Determines if a proposal is accepted given a log ratio of scores 
+//' for the proposed and original values.
+//' param proposed_model_score Score in the posterior kernel for the proposed 
+//' parameter value
+//' param current_model_score Score in the posterior kernel for the current 
+//' parameter value
+//' return Boolean indicating acceptance.
+bool acceptProposal(double proposed_model_score, double current_model_score) {
+  double u = 0.0, acceptance_prob = 0.0,
+  u = randu();
+  acceptance_prob = std::min(
+    1.0, 
+    std::exp(proposed_model_score - current_model_score)
+  );
+  return u < acceptance_prob;
+};
+
 //' title Sample mean
 //' description calculate the sample mean of a matrix X.
 //' param X Matrix
