@@ -56,9 +56,8 @@ mvnSampler(
   _sample_m_scale
 ) {
   
-  // Hyperparameter for the d.o.f for the t-distn
-  // psi = 0.5;
-  // chi = 0.5;
+  n_param_cluster = 2 + P + P * (P + 1) * 0.5;
+  n_param_batch = 2 * P;
   
   t_df.set_size(K);
   t_df.zeros();

@@ -48,7 +48,7 @@ class mvtSampler: virtual public mvnSampler {
 public:
   
   // arma::uword t_df = 4;
-  arma::uword n_param_cluster = 2 + P + P * (P + 1) * 0.5, n_param_batch = 2 * P;
+  arma::uword n_param_cluster = 0, n_param_batch = 0;
   
   // t degree of freedom hyperparameters (decision from
   // https://statmodeling.stat.columbia.edu/2015/05/17/do-we-have-any-recommendations-for-priors-for-student_ts-degrees-of-freedom-parameter/)
