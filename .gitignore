@@ -1,0 +1,34 @@
+# RStudio project artefacts
+.Rproj.user/
+*.Rproj
+.Rproj.user
+
+# R session / history
+.RData
+.Rhistory
+.Rapp.history
+.Ruserdata
+
+
+*.o
+*.so
+*.dll
+*.dylib
+src/*.o
+src/*.so
+src/*.dll
+
+# R package check and build output
+*.Rcheck/
+*.tar.gz
+*.tgz
+
+# devtools / testthat
+tests/testthat/_snaps/
+
+# knitr / rmarkdown cache and output
+vignettes/*.html
+vignettes/cache/
+vignettes/figure/
+**/*_cache/
+**/*_files/
