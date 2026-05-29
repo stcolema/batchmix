@@ -47,12 +47,11 @@ public:
   
   bool sample_m_scale = true;
   
-  arma::uword n_param_cluster = 1 + P + P * (P + 1) * 0.5, 
-    n_param_batch = 2 * P;
+  arma::uword n_param_cluster = 0, 
+    n_param_batch = 0;
   
-  // Prior hyperparameters and proposal parameters
   double kappa = 0.01, 
-    nu = P + 2, 
+    nu = 0.0,
     
     // Hyperparameters for the batch mean
     batch_shift_prior_mean = 0.0,
