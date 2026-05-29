@@ -46,7 +46,7 @@ private:
 public:
 
   
-  arma::uword K, B, N, P, K_occ, accepted = 0;
+  arma::uword K =0, B = 0, N= 0, P = 0, K_occ = 0, accepted = 0;
   
   double observed_likelihood = 0.0,
     BIC = 0.0, 
