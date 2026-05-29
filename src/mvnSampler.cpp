@@ -39,32 +39,11 @@ _X) {
   rowvec X_min = min(X), X_max = max(X);
   mat global_cov = arma::cov(X);
   
-  // n_param_cluster = 1 + P + P * (P + 1) * 0.5;
-  // n_param_batch = 2 * P;
-  // 
-  // // Prior hyperparameters and proposal parameters
-  // kappa = 0.01;
-  // nu = P + 2; 
-  // 
-  // // Hyperparameters for the batch mean
-  // batch_shift_prior_mean = 0.0;
-  // 
-  // // Hyperparameters for the batch scale. These choices give > 99% of sampled
-  // // values in the range of 1.2 to 2.0 which seems a sensible prior belief.
-  // // Posisbly a little too informative; if S = 2.0 we're saying the batch 
-  // // provides as much variation as the biology. However, as our batch scales 
-  // // are strictly greater than 1.0 some shared global scaling is collected 
-  // // here.
-  // rho = 21;
-  // theta = 10;
-  // S_loc = 1.0;
-  // 
-  // // Default values for hyperparameters
-  // // Cluster hyperparameters for the Normal-inverse Wishart
-  // // Prior shrinkage
-  // kappa = 0.01;
-  // // Degrees of freedom
-  // nu = P + 2;
+  n_param_cluster = 1 + P + P * (P + 1) * 0.5;
+  n_param_batch = 2 * P;
+
+  // Prior hyperparameters and proposal parameters
+  nu = P + 2;
   
   // Mean
   mat mean_mat = mean(_X, 0).t();
