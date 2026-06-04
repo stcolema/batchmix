@@ -31,7 +31,6 @@ importFrom(tidyr,
 )
 
 importFrom(Rcpp, evalCpp, sourceCpp)
-importFrom(RcppParallel, setThreadOptions)
 
 export(
   calcAllocProb,
