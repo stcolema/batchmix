@@ -52,8 +52,6 @@ public:
   
   double kappa = 0.01, 
     nu = 0.0,
-    
-    // Hyperparameters for the batch mean
     batch_shift_prior_mean = 0.0,
     batch_shift_prior_precision = 1.0,
     delta_2 = 0.0,

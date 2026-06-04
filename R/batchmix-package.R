@@ -18,6 +18,7 @@
 #' @importFrom stats cutree as.dist hclust median rbeta rchisq rnorm
 #' @importFrom tidyr contains pivot_longer
 #' @importFrom Rcpp evalCpp sourceCpp
+#' @importFrom RcppParallel setThreadOptions
 #' @useDynLib batchmix
 #' @examples
 #'

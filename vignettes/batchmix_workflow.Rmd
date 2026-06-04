@@ -29,6 +29,7 @@ We simulate some data using the ``generateBatchData`` function.
 ```{r dataGen}
 library(ggplot2)
 library(batchmix)
+setOpenMPThreads(numThreads=1)
 
 # Data dimensions
 N <- 600
@@ -88,7 +89,7 @@ of observed labels includes at least one example of each class in the data.
 # Sampling parameters
 R <- 1000
 thin <- 50
-n_chains <- 4
+n_chains <- 3
 
 # Density choice
 type <- "MVT"
