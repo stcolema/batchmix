@@ -29,13 +29,12 @@ We simulate some data using the ``generateBatchData`` function.
 ```{r dataGen}
 library(ggplot2)
 library(batchmix)
-setOpenMPThreads(numThreads=1)
 
 # Data dimensions
-N <- 600
+N <- 200
 P <- 4
-K <- 5
-B <- 7
+K <- 3
+B <- 5
 
 # Generating model parameters
 mean_dist <- 2.25
@@ -46,7 +45,7 @@ std_dev <- rep(2, K)
 batch_var <- rep(1.2, B)
 group_weights <- rep(1 / K, K)
 batch_weights <- rep(1 / B, B)
-dfs <- c(4, 7, 15, 60, 120)
+dfs <- c(4, 15, 120)
 
 my_data <- generateBatchData(
   N,
