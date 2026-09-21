@@ -1,12 +1,12 @@
 useDynLib(batchmix)
 
 importFrom(ggplot2,
-  aes_string, 
-  facet_grid, 
-  facet_wrap, 
+  aes,
+  facet_grid,
+  facet_wrap,
   geom_boxplot,
-  geom_line, 
-  geom_point, 
+  geom_line,
+  geom_point,
   ggplot,
   label_both,
   labeller,

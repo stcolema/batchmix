@@ -146,6 +146,24 @@ processMCMCChain <- function(mcmc_output, burn, point_estimate_method = "median"
     new_output$lambda_2 <- mcmc_output$lambda_2[-dropped_indices]
   }
 
+  # Batch x cluster interaction term and GP-correlated batch weights (if
+  # requested when the chain was run) need the same burn-in applied as
+  # every other sampled quantity above.
+  interaction_used <- isTRUE(mcmc_output$include_interaction)
+  if (interaction_used) {
+    new_output$gamma <- mcmc_output$gamma[, , -dropped_indices, drop = FALSE]
+  }
+
+  correlated_weights_used <- isTRUE(mcmc_output$weight_prior_type > 0)
+  if (correlated_weights_used) {
+    new_output$w_batch <- mcmc_output$w_batch[, , -dropped_indices, drop = FALSE]
+    new_output$eta_alr <- mcmc_output$eta_alr[, , -dropped_indices, drop = FALSE]
+    new_output$gp_tau2 <- mcmc_output$gp_tau2[-dropped_indices]
+    new_output$gp_length_scale <- mcmc_output$gp_length_scale[-dropped_indices]
+    new_output$pp_mu <- mcmc_output$pp_mu[, -dropped_indices, drop = FALSE]
+    new_output$pp_tau2 <- mcmc_output$pp_tau2[, -dropped_indices, drop = FALSE]
+  }
+
   # The mean of the posterior samples for the parameters
   if (use_mean) {
     mean_est <- rowMeans(new_output$means, dims = 2L)
@@ -237,6 +255,22 @@ processMCMCChain <- function(mcmc_output, burn, point_estimate_method = "median"
   new_output$cov_est <- cov_est_better_format
   new_output$mean_sum_est <- mean_sum_better_format
   new_output$cov_comb_est <- cov_comb_better_format
+
+  if (interaction_used) {
+    if (use_mean) {
+      new_output$gamma_est <- rowMeans(new_output$gamma, dims = 2L)
+    } else {
+      new_output$gamma_est <- apply(new_output$gamma, c(1, 2), stats::median)
+    }
+  }
+
+  if (correlated_weights_used) {
+    if (use_mean) {
+      new_output$w_batch_est <- rowMeans(new_output$w_batch, dims = 2L)
+    } else {
+      new_output$w_batch_est <- apply(new_output$w_batch, c(1, 2), stats::median)
+    }
+  }
 
   # The estimate of the inferred dataset
   if (use_mean) {

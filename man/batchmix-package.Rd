@@ -2,6 +2,7 @@
 % Please edit documentation in R/batchmix-package.R
 \docType{package}
 \name{batchmix-package}
+\alias{batchmix}
 \alias{batchmix-package}
 \alias{batchmix}
 \title{Bayesian Mixture Modelling for Joint Model-Based

@@ -26,7 +26,7 @@
 #' # Plot the sampled value of the cluster means against MCMC iteration
 #' plotSampledClusterMeans(samples)
 #'
-#' @importFrom ggplot2 ggplot aes_string geom_point facet_grid labs labeller label_both
+#' @importFrom ggplot2 ggplot aes geom_point facet_grid labs labeller label_both
 plotSampledClusterMeans <- function(samples, burn_in = 0) {
   K <- samples$K_max
   P <- samples$P
@@ -52,7 +52,7 @@ plotSampledClusterMeans <- function(samples, burn_in = 0) {
   # Create the plot as aggplot2 object
   p <- ggplot2::ggplot(
     sampled_cluster_means,
-    ggplot2::aes_string(x = "Iteration", y = "value")
+    ggplot2::aes(x = Iteration, y = value)
   ) +
     ggplot2::geom_point() +
     ggplot2::facet_grid(Cluster ~ Dimension,

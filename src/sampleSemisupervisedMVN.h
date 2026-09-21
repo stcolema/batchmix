@@ -85,7 +85,23 @@ Rcpp::List sampleSemisupervisedMVN (
     bool cov_initialised,
     bool m_initialised,
     bool S_initialised,
-    bool sample_m_scale
+    bool sample_m_scale,
+    bool auto_tune,
+    arma::uword n_burn,
+    bool include_interaction,
+    double gamma_proposal_window,
+    double a_gamma,
+    double b_gamma,
+    arma::uword weight_prior_type,
+    arma::vec batch_coordinates,
+    double gp_tau2,
+    double gp_length_scale,
+    double eta_proposal_window,
+    bool sample_gp_hyperparameters,
+    double gp_hyperparameter_proposal_window,
+    double pp_tau2_shape,
+    double pp_tau2_rate,
+    double pp_mu_prior_sd
 ) ;
 
 #endif /* SAMPLESEMISUPERVISEDMVN_H */
