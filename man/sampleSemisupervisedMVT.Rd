@@ -32,7 +32,23 @@ sampleSemisupervisedMVT(
   df_initialised,
   m_initialised,
   S_initialised,
-  sample_m_scale
+  sample_m_scale,
+  auto_tune,
+  n_burn,
+  include_interaction,
+  gamma_proposal_window,
+  a_gamma,
+  b_gamma,
+  weight_prior_type,
+  batch_coordinates,
+  gp_tau2,
+  gp_length_scale,
+  eta_proposal_window,
+  sample_gp_hyperparameters,
+  gp_hyperparameter_proposal_window,
+  pp_tau2_shape,
+  pp_tau2_rate,
+  pp_mu_prior_sd
 )
 }
 \arguments{

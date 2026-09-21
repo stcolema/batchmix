@@ -46,8 +46,21 @@ collectAcceptanceRates <- function(samples) {
   # Stack the sampled matrices on top of each other
   mean_rate <- t(samples$mu_acceptance_rate)
   colnames(mean_rate) <- paste0("Mu_", seq(1, K))
-  cov_rate <- t(samples$cov_acceptance_rate)
-  colnames(cov_rate) <- paste0("Sigma_", seq(1, K))
+
+  # The covariance parameterisation (and hence its acceptance-rate fields)
+  # differs by type: MVN/MVT use a single Wishart-proposed covariance,
+  # MVN_LKJ/MVN_MIXED use the separate R (correlation) and sigma (marginal
+  # scale) proposals.
+  if (type %in% c("MVN", "MVT")) {
+    cov_rate <- t(samples$cov_acceptance_rate)
+    colnames(cov_rate) <- paste0("Sigma_", seq(1, K))
+  } else {
+    r_rate <- t(samples$r_acceptance_rate)
+    colnames(r_rate) <- paste0("R_", seq(1, K))
+    sigma_rate <- t(samples$sigma_acceptance_rate)
+    colnames(sigma_rate) <- paste0("sigma_", seq(1, K))
+    cov_rate <- cbind(r_rate, sigma_rate)
+  }
 
   batch_shift_rate <- t(samples$m_acceptance_rate)
   colnames(batch_shift_rate) <- paste0("m_", seq(1, B))
@@ -73,6 +86,27 @@ collectAcceptanceRates <- function(samples) {
     phi_rate <- t(samples$phi_acceptance_rate)
     colnames(phi_rate) <- paste0("phi_", seq(1, K))
     output_df <- cbind(output_df, phi_rate)
+  }
+
+  # Interaction term acceptance rate (one entry per feature dimension P;
+  # see batchSemiSupervisedMixtureModel()'s include_interaction argument).
+  if (isTRUE(samples$include_interaction) && !is.null(samples$gamma_acceptance_rate)) {
+    gamma_rate <- matrix(samples$gamma_acceptance_rate, nrow = 1)
+    colnames(gamma_rate) <- paste0("gamma_", seq_len(ncol(gamma_rate)))
+    output_df <- cbind(output_df, gamma_rate)
+  }
+
+  # Batch-specific weight acceptance rates (one entry per free
+  # additive-log-ratio coordinate, K - 1 of them; see the
+  # batch_weight_prior argument - "partial_pooling" or "gp").
+  batch_weights_used <- isTRUE(samples$weight_prior_type > 0) || isTRUE(samples$batch_weight_prior %in% c("partial_pooling", "gp"))
+  if (batch_weights_used && !is.null(samples$eta_acceptance_rate)) {
+    eta_rate <- matrix(samples$eta_acceptance_rate, nrow = 1)
+    colnames(eta_rate) <- paste0("eta_", seq_len(ncol(eta_rate)))
+    output_df <- cbind(output_df, eta_rate)
+    if (!is.null(samples$gp_hyperparameter_acceptance_rate)) {
+      output_df$gp_hyperparameter <- samples$gp_hyperparameter_acceptance_rate
+    }
   }
 
   output_df

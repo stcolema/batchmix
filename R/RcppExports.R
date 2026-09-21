@@ -82,6 +82,16 @@ NULL
 #' return Boolean indicating acceptance.
 NULL
 
+#' title Accept proposal
+#' description Determines if a proposal is accepted given a log ratio of scores 
+#' for the proposed and original values.
+#' param proposed_model_score Score in the posterior kernel for the proposed 
+#' parameter value
+#' param current_model_score Score in the posterior kernel for the current 
+#' parameter value
+#' return Boolean indicating acceptance.
+NULL
+
 #' title Sample mean
 #' description calculate the sample mean of a matrix X.
 #' param X Matrix
@@ -99,6 +109,113 @@ NULL
 #'  Multivariate normal with uknown mean and covariance (the unnormalised
 #'  sample covariance).
 NULL
+
+#' title The truncated Normal distribution (right-tail helper)
+#' description Robert (1995, "Simulation of truncated normal variables",
+#' Statistics and Computing 5(2)) exponential-tilting rejection sampler
+#' for a standard Normal truncated to (alpha, infinity), used when alpha
+#' is far enough into the tail that inverse-CDF sampling loses precision
+#' (the CDF saturates to 1 in floating point). Returns a draw of the
+#' STANDARDISED variable, i.e. already on the (lower - mean)/sd scale.
+NULL
+
+#' title The truncated Normal distribution
+#' description Random generation from a truncated Normal. Uses inverse
+#' CDF sampling in the regime where that is numerically reliable, and
+#' falls back to Robert's (1995) exponential-tilting rejection sampler
+#' (see rTruncNormRightTailStd()) for one-sided truncation far into a
+#' tail, where inverse CDF sampling would otherwise saturate to the
+#' truncation boundary itself rather than a proper draw. Two-sided
+#' truncation with both bounds simultaneously far into the same tail is
+#' not specially handled and falls back to inverse CDF, per the header.
+#' param mean Mean of the untruncated Normal distribution.
+#' param sd Standard deviation of the untruncated Normal distribution.
+#' param lower Lower truncation bound (-arma::datum::inf for none).
+#' param upper Upper truncation bound (arma::datum::inf for none).
+#' return A draw from Normal(mean, sd^2) truncated to (lower, upper).
+NULL
+
+#' title The LKJ distribution
+#' description Random generation of a correlation matrix from LKJ(eta) by
+#' rejection sampling; see the header for the derivation.
+#' param P Dimension of the correlation matrix.
+#' param eta Concentration parameter, eta >= 1.
+#' return A P x P correlation matrix sampled from LKJ(eta).
+sampleLKJCorrelationMatrix <- function(P, eta) {
+    .Call('_batchmix_sampleLKJCorrelationMatrix', PACKAGE = 'batchmix', P, eta)
+}
+
+#' title Squared-exponential covariance kernel
+#' description Builds a Gaussian process covariance matrix; see header.
+#' param x Vector of 1-D locations.
+#' param tau2 Marginal variance.
+#' param length_scale Correlation length scale.
+#' param jitter Diagonal jitter for numerical stability.
+#' return The covariance matrix.
+squaredExponentialKernel <- function(x, tau2, length_scale, jitter) {
+    .Call('_batchmix_squaredExponentialKernel', PACKAGE = 'batchmix', x, tau2, length_scale, jitter)
+}
+
+#' title Multinomial-logit Gaussian process log-kernel
+#' description The unnormalised log-posterior-kernel for one ALR
+#' coordinate of batch-dependent multinomial weights under a GP prior
+#' over the batch index; see header for the full derivation and
+#' references.
+#' param eta B-vector, this ALR coordinate for each batch.
+#' param eta_other_sum B-vector, the softmax normalising contribution of
+#' every other non-pivot category, held fixed this step.
+#' param class_counts_j B-vector, per-batch counts in this category.
+#' param class_counts_total B-vector, per-batch total item counts.
+#' param gp_cov The GP covariance matrix for this coordinate (unused
+#' directly here beyond documenting the pairing with gp_cov_inv, kept for
+#' interface symmetry with the rest of the package's *LogKernel
+#' functions, several of which likewise take both a matrix and its
+#' precomputed inverse).
+#' param gp_cov_inv The inverse of gp_cov.
+#' return The unnormalised log-posterior-kernel value for eta.
+multinomialLogitGPLogKernel <- function(eta, eta_other_sum, class_counts_j, class_counts_total, gp_cov, gp_cov_inv) {
+    .Call('_batchmix_multinomialLogitGPLogKernel', PACKAGE = 'batchmix', eta, eta_other_sum, class_counts_j, class_counts_total, gp_cov, gp_cov_inv)
+}
+
+#' title Build a correlation-matrix Cholesky factor from partial
+#' correlations
+#' description See header for the construction and its provenance.
+#' param Z A P x P matrix; only strictly-lower-triangular entries used.
+#' param P The dimension.
+#' return The P x P lower-triangular Cholesky factor L.
+buildCorrelationCholeskyFromZ <- function(Z, P) {
+    .Call('_batchmix_buildCorrelationCholeskyFromZ', PACKAGE = 'batchmix', Z, P)
+}
+
+#' title Invert buildCorrelationCholeskyFromZ()
+#' description Recovers the partial correlations Z from a valid
+#' correlation-matrix Cholesky factor L.
+#' param L The P x P Cholesky factor.
+#' param P The dimension.
+#' return The P x P matrix Z.
+choleskyToPartialCorrelations <- function(L, P) {
+    .Call('_batchmix_choleskyToPartialCorrelations', PACKAGE = 'batchmix', L, P)
+}
+
+#' title Jacobian of the partial-correlation to correlation-matrix map
+#' description log|dR/dZ|; see header for verification against
+#' finite-difference Jacobians.
+#' param Z A P x P matrix; only strictly-lower-triangular entries used.
+#' param P The dimension.
+#' return The log-Jacobian determinant.
+logJacobianZToR <- function(Z, P) {
+    .Call('_batchmix_logJacobianZToR', PACKAGE = 'batchmix', Z, P)
+}
+
+#' title Robbins-Monro adaptive proposal-window update
+#' description See header for the references and convergence argument.
+robbinsMonroUpdate <- function(window, acceptance_rate, target_rate, n, step_scale, kappa) {
+    .Call('_batchmix_robbinsMonroUpdate', PACKAGE = 'batchmix', window, acceptance_rate, target_rate, n, step_scale, kappa)
+}
+
+diagRSigmaOnlyChain2 <- function(X, rho_true, n_iter, r_pw, sigma_pw) {
+    .Call('_batchmix_diagRSigmaOnlyChain2', PACKAGE = 'batchmix', X, rho_true, n_iter, r_pw, sigma_pw)
+}
 
 #' @title Gamma log-likelihood
 #' @description Used in calculating model probability in Metropolis-Hastings 
@@ -150,6 +267,24 @@ invWishartLogLikelihood <- function(X, Psi, nu, P) {
     .Call('_batchmix_invWishartLogLikelihood', PACKAGE = 'batchmix', X, Psi, nu, P)
 }
 
+#' @title LKJ correlation matrix log-likelihood
+#' @description The unnormalised log-density of the LKJ(eta) distribution
+#' for a correlation matrix R (Lewandowski, Kurowicka & Joe, 2009,
+#' J. Multivariate Analysis 100(9)). The normalising constant depends only
+#' on eta and the dimension P, not on R, so it is safe to omit whenever eta
+#' is held fixed (e.g. in a Metropolis-Hastings acceptance ratio); it is
+#' dropped here.
+#' @param R - matrix; a P x P correlation matrix (symmetric, unit diagonal,
+#' positive definite).
+#' @param eta - double; the LKJ concentration/shape parameter. eta = 1 gives
+#' a uniform density over the space of correlation matrices; eta > 1
+#' concentrates mass towards the identity (weaker correlations); eta < 1
+#' concentrates mass away from the identity (stronger correlations).
+#' @return the unnormalised log-density of R under LKJ(eta).
+lkjLogLikelihood <- function(R, eta) {
+    .Call('_batchmix_lkjLogLikelihood', PACKAGE = 'batchmix', R, eta)
+}
+
 #' @title Sample mixture of multivariate normal distributions with batch effects
 #' @description Performs MCMC sampling for a mixture model with batch effects.
 #' @param X The data matrix to perform clustering upon (items to cluster in rows).
@@ -192,18 +327,101 @@ invWishartLogLikelihood <- function(X, Psi, nu, P) {
 #' @param S_initialised Bool indicating if the batch scales are initialised by 
 #' the user. If ``false`` then initial values are drawn from the prior 
 #' distribution.
-#' @param sample_m_scale Bool indicating if the hyperparameter on the batch 
+#' @param sample_m_scale Bool indicating if the hyperparameter on the batch
 #' shift effect is sampled or given as fixed.
+#' @param auto_tune Bool; if true, every proposal window is adapted during
+#' the first ``n_burn`` iterations via Robbins-Monro diminishing adaptation
+#' (see ``robbinsMonroUpdate()``) instead of staying fixed at the value
+#' passed in.
+#' @param n_burn Number of iterations treated as burn-in for proposal-window
+#' adaptation; ignored if ``auto_tune`` is false. Adaptation is frozen after
+#' this many iterations so the post-burn-in chain retains the correct
+#' stationary distribution.
+#' @param include_interaction Bool; if true, add a batch x cluster
+#' interaction term to the mean, gamma_{k,b} ~ N(0, tau2_interaction), with
+#' tau2_interaction ~ InvGamma(a_gamma, b_gamma) (partial pooling).
+#' @param gamma_proposal_window Proposal window (Gaussian RW SD) for the
+#' interaction term; ignored if ``include_interaction`` is false.
+#' @param a_gamma,b_gamma Shape/rate of the InvGamma hyperprior on the
+#' interaction shrinkage variance; ignored if ``include_interaction`` is
+#' false.
+#' @param weight_prior_type Integer; 0 = "global" (the default) - a single
+#' mixture weight vector shared by every batch, exactly the original
+#' behaviour. 1 = "partial pooling" - each batch gets its own weight
+#' vector, with the K-1 additive-log-ratio (ALR) coordinates drawn
+#' exchangeably around a shared, estimated population mean/variance (no
+#' assumed order, distance or covariance structure between batches - see
+#' ``pp_tau2_shape``/``pp_tau2_rate``/``pp_mu_prior_sd``). 2 = "gp" - as
+#' partial pooling, but the ALR coordinates are instead linked by a
+#' Gaussian process over ``batch_coordinates``, for batches with a genuine
+#' known ordering in time or space.
+#' @param batch_coordinates A B-vector of 1-D coordinates for the batches
+#' (e.g. time order); if of length 0, defaults to 0, 1, ..., B - 1. Only
+#' used if ``weight_prior_type`` is 2.
+#' @param gp_tau2,gp_length_scale GP marginal variance and length scale for
+#' the batch-weight kernel; only used if ``weight_prior_type`` is 2.
+#' @param eta_proposal_window Proposal window for the ALR-coordinate
+#' block Metropolis-Hastings update; used if ``weight_prior_type`` is 1 or 2.
+#' @param sample_gp_hyperparameters Bool; if true, ``gp_tau2`` and
+#' ``gp_length_scale`` are themselves updated by Metropolis-Hastings rather
+#' than held fixed; only used if ``weight_prior_type`` is 2.
+#' @param gp_hyperparameter_proposal_window Proposal window for the GP
+#' hyperparameter update; only used if ``weight_prior_type`` is 2 and
+#' ``sample_gp_hyperparameters`` is true.
+#' @param pp_tau2_shape,pp_tau2_rate Shape/rate of the InvGamma hyperprior
+#' on each ALR coordinate's population variance tau2_j; only used if
+#' ``weight_prior_type`` is 1.
+#' @param pp_mu_prior_sd Prior standard deviation for each ALR
+#' coordinate's population mean mu_j (prior mu_j ~ N(0, pp_mu_prior_sd^2));
+#' only used if ``weight_prior_type`` is 1.
 #' @return Named list of the different quantities drawn by the sampler.
-sampleMVN <- function(X, K, B, labels, batch_vec, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale) {
-    .Call('_batchmix_sampleMVN', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale)
+sampleMVN <- function(X, K, B, labels, batch_vec, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd) {
+    .Call('_batchmix_sampleMVN', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd)
+}
+
+#' @title Sample a mixture of multivariate normal distributions with batch
+#' effects, mixed continuous/binary (probit) columns, and missing/censored
+#' data
+#' @description Performs MCMC sampling for a mixture model with batch
+#' effects, an LKJ prior on the cluster correlation structure, and a
+#' shared latent Gaussian layer supporting binary (probit-linked) columns
+#' alongside continuous ones, plus missing-at-random and left/right
+#' censored continuous entries.
+#' @param X The data matrix (items in rows). Continuous columns hold the
+#' observed value, or NaN for a missing entry, or the known censoring
+#' bound for a censored entry (see censor_code). Binary columns hold 0/1,
+#' or NaN for a missing outcome.
+#' @param K The number of components to model.
+#' @param B The number of batches to model.
+#' @param labels N-vector of unsigned integers denoting initial clustering.
+#' @param batch_vec N-vector of unsigned integers denoting batch of origin.
+#' @param column_type P-vector: 0 for a continuous column, 1 for a binary
+#' column observed via a probit link.
+#' @param censor_code N x P matrix, only meaningful for continuous
+#' columns: 0 = not censored, 1 = left-censored (true value below the
+#' recorded X entry), 2 = right-censored (true value above the recorded X
+#' entry).
+#' @param mu_proposal_window,r_proposal_window,sigma_proposal_window,m_proposal_window,S_proposal_window
+#' Metropolis-Hastings proposal windows.
+#' @param R The number of iterations to run.
+#' @param thin The thinning factor.
+#' @param concentration K-vector, the prior concentration for the class
+#' weights.
+#' @param m_scale,rho,theta Hyperparameters for the batch shift and scale
+#' priors.
+#' @param eta LKJ concentration parameter for the correlation matrix
+#' prior; eta = 1 is uniform over correlation matrices.
+#' @param sample_m_scale Should the batch shift hyperparameter be sampled?
+#' @return A named list of MCMC samples and diagnostics.
+sampleMVNMixed <- function(X, K, B, labels, batch_vec, column_type, censor_code, mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, eta, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd) {
+    .Call('_batchmix_sampleMVNMixed', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, column_type, censor_code, mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, eta, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd)
 }
 
 #' @title Sample mixture of multivariate normal distributions with batch effects
 NULL
 
-sampleMVNSeparationStrategy <- function(X, K, B, labels, batch_vec, mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale) {
-    .Call('_batchmix_sampleMVNSeparationStrategy', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale)
+sampleMVNSeparationStrategy <- function(X, K, B, labels, batch_vec, mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale, eta, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd) {
+    .Call('_batchmix_sampleMVNSeparationStrategy', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale, eta, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd)
 }
 
 #' @title Sample mixture of multivariate t-distributions with batch effects
@@ -258,8 +476,8 @@ sampleMVNSeparationStrategy <- function(X, K, B, labels, batch_vec, mu_proposal_
 #' @param sample_m_scale Bool indicating if the hyperparameter on the batch 
 #' shift effect is sampled or given as fixed.
 #' @return Named list of the different quantities drawn by the sampler.
-sampleMVT <- function(X, K, B, labels, batch_vec, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_df, initial_m, initial_S, mu_initialised, cov_initialised, df_initialised, m_initialised, S_initialised, sample_m_scale) {
-    .Call('_batchmix_sampleMVT', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_df, initial_m, initial_S, mu_initialised, cov_initialised, df_initialised, m_initialised, S_initialised, sample_m_scale)
+sampleMVT <- function(X, K, B, labels, batch_vec, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_df, initial_m, initial_S, mu_initialised, cov_initialised, df_initialised, m_initialised, S_initialised, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd) {
+    .Call('_batchmix_sampleMVT', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_df, initial_m, initial_S, mu_initialised, cov_initialised, df_initialised, m_initialised, S_initialised, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd)
 }
 
 #' @title Sample semi-supervised MVN Mixture model
@@ -309,8 +527,73 @@ sampleMVT <- function(X, K, B, labels, batch_vec, mu_proposal_window, cov_propos
 #' @param sample_m_scale Bool indicating if the hyperparameter on the batch 
 #' shift effect is sampled or given as fixed.
 #' @return Named list of the different quantities drawn by the sampler.
-sampleSemisupervisedMVN <- function(X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale) {
-    .Call('_batchmix_sampleSemisupervisedMVN', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale)
+sampleSemisupervisedMVN <- function(X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd) {
+    .Call('_batchmix_sampleSemisupervisedMVN', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd)
+}
+
+#' @title Sample semi-supervised mixed continuous/binary/missing/censored
+#' MVN mixture model
+#' @description The semi-supervised (``fixed`` labels respected) counterpart
+#' of sampleMVNMixed. See sampleMVNMixed() for the model.
+#' @param X The data matrix (items in rows); see sampleMVNMixed().
+#' @param K The number of components to model.
+#' @param B The number of batches to model.
+#' @param labels Vector item labels to initialise from.
+#' @param batch_vec Observed batch labels.
+#' @param fixed Binary vector of the items that are fixed in their initial
+#' label.
+#' @param column_type P-vector: 0 for continuous, 1 for binary (probit).
+#' @param censor_code N x P matrix; 0 = not censored, 1 = left-censored,
+#' 2 = right-censored.
+#' @param mu_proposal_window,r_proposal_window,sigma_proposal_window,m_proposal_window,S_proposal_window
+#' Metropolis-Hastings proposal windows.
+#' @param R The number of iterations to run.
+#' @param thin The thinning factor.
+#' @param concentration K-vector, the prior concentration for the class
+#' weights.
+#' @param m_scale,rho,theta Hyperparameters for the batch shift/scale
+#' priors.
+#' @param eta LKJ concentration parameter.
+#' @param sample_m_scale Should the batch shift hyperparameter be sampled?
+#' @param auto_tune,n_burn,include_interaction,gamma_proposal_window,a_gamma,b_gamma,weight_prior_type,batch_coordinates,gp_tau2,gp_length_scale,eta_proposal_window,sample_gp_hyperparameters,gp_hyperparameter_proposal_window,pp_tau2_shape,pp_tau2_rate,pp_mu_prior_sd
+#' Auto-tuning, interaction-term and GP-correlated-weight options; see
+#' sampleMVN() for the full description of each.
+#' @return A named list of MCMC samples and diagnostics.
+sampleSemisupervisedMVNMixed <- function(X, K, B, labels, batch_vec, fixed, column_type, censor_code, mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, eta, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd) {
+    .Call('_batchmix_sampleSemisupervisedMVNMixed', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, fixed, column_type, censor_code, mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, eta, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd)
+}
+
+#' @title Sample semi-supervised LKJ/separation-strategy MVN mixture model
+#' @description The semi-supervised (``fixed`` labels respected) counterpart
+#' of sampleMVNSeparationStrategy: an LKJ prior on the cluster correlation
+#' structure and log-normal marginal scales, rather than the original
+#' package's Inverse-Wishart covariance prior.
+#' @param X The data matrix to perform clustering upon (items to cluster in
+#' rows).
+#' @param K The number of components to model.
+#' @param B The number of batches to model.
+#' @param labels Vector item labels to initialise from.
+#' @param batch_vec Observed batch labels.
+#' @param fixed Binary vector of the items that are fixed in their initial
+#' label.
+#' @param mu_proposal_window,r_proposal_window,sigma_proposal_window,m_proposal_window,S_proposal_window
+#' Metropolis-Hastings proposal windows.
+#' @param R The number of iterations to run for.
+#' @param thin thinning factor for samples recorded.
+#' @param concentration Vector of concentrations for mixture weights.
+#' @param m_scale,rho,theta Hyperparameters for the batch shift/scale priors.
+#' @param initial_mu,initial_cov,initial_m,initial_S,mu_initialised,cov_initialised,m_initialised,S_initialised
+#' Optional user-supplied initial parameter values.
+#' @param sample_m_scale Bool indicating if the batch shift hyperparameter is
+#' sampled or fixed.
+#' @param eta LKJ concentration parameter; eta = 1 is uniform over
+#' correlation matrices.
+#' @param auto_tune,n_burn,include_interaction,gamma_proposal_window,a_gamma,b_gamma,weight_prior_type,batch_coordinates,gp_tau2,gp_length_scale,eta_proposal_window,sample_gp_hyperparameters,gp_hyperparameter_proposal_window,pp_tau2_shape,pp_tau2_rate,pp_mu_prior_sd
+#' Auto-tuning, interaction-term and GP-correlated-weight options; see
+#' sampleMVN() for the full description of each.
+#' @return Named list of the different quantities drawn by the sampler.
+sampleSemisupervisedMVNSeparationStrategy <- function(X, K, B, labels, batch_vec, fixed, mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale, eta, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd) {
+    .Call('_batchmix_sampleSemisupervisedMVNSeparationStrategy', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, fixed, mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale, eta, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd)
 }
 
 #' @title Sample semi-supervised MVT Mixture model
@@ -359,7 +642,7 @@ sampleSemisupervisedMVN <- function(X, K, B, labels, batch_vec, fixed, mu_propos
 #' @param sample_m_scale Bool indicating if the hyperparameter on the batch 
 #' shift effect is sampled or given as fixed.
 #' @return Named list of the different quantities drawn by the sampler.
-sampleSemisupervisedMVT <- function(X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_df, initial_m, initial_S, mu_initialised, cov_initialised, df_initialised, m_initialised, S_initialised, sample_m_scale) {
-    .Call('_batchmix_sampleSemisupervisedMVT', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_df, initial_m, initial_S, mu_initialised, cov_initialised, df_initialised, m_initialised, S_initialised, sample_m_scale)
+sampleSemisupervisedMVT <- function(X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_df, initial_m, initial_S, mu_initialised, cov_initialised, df_initialised, m_initialised, S_initialised, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd) {
+    .Call('_batchmix_sampleSemisupervisedMVT', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, R, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_df, initial_m, initial_S, mu_initialised, cov_initialised, df_initialised, m_initialised, S_initialised, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd)
 }
 

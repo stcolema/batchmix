@@ -8,7 +8,7 @@
 #' @param colour_by_chain Logical indcating if plots should be coloured by chain
 #' or all the same colour. Defaults to ``TRUE``.
 #' @return A ggplot2 object. Line plot of likelihood across iteration.
-#' @importFrom ggplot2 ggplot aes_string geom_line
+#' @importFrom ggplot2 ggplot aes geom_line
 #' @export
 #' @examples
 #'
@@ -57,20 +57,20 @@ plotLikelihoods <- function(mcmc_outputs,
   if (colour_by_chain) {
     p <- ggplot2::ggplot(
       data = lkl_df,
-      mapping = ggplot2::aes_string(
-        x = "iteration",
-        y = choice,
-        colour = "Chain"
+      mapping = ggplot2::aes(
+        x = iteration,
+        y = .data[[choice]],
+        colour = Chain
       )
     ) +
       ggplot2::geom_line()
   } else {
     p <- ggplot2::ggplot(
       data = lkl_df,
-      mapping = ggplot2::aes_string(
-        x = "iteration",
-        y = choice,
-        group = "Chain"
+      mapping = ggplot2::aes(
+        x = iteration,
+        y = .data[[choice]],
+        group = Chain
       )
     ) +
       ggplot2::geom_line()

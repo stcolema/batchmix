@@ -27,7 +27,7 @@
 #' # Plot the sampled value of the cluster means against MCMC iteration
 #' parameter <- "means"
 #' plotSampledParameter(samples, parameter, R, thin)
-#' @importFrom ggplot2 ggplot aes_string geom_point facet_wrap labs
+#' @importFrom ggplot2 ggplot aes geom_point facet_wrap labs
 plotSampledParameter <- function(samples, parameter, R = NULL, thin = 1, burn_in = 0) {
   n_param <- dim(samples[[parameter]])[2]
   P <- dim(samples[[parameter]])[1]
@@ -47,7 +47,7 @@ plotSampledParameter <- function(samples, parameter, R = NULL, thin = 1, burn_in
 
   p <- ggplot2::ggplot(
     sampled_parameter,
-    ggplot2::aes_string(x = "Iteration", y = "value")
+    ggplot2::aes(x = Iteration, y = value)
   ) +
     ggplot2::geom_point() +
     ggplot2::facet_wrap(~name, ncol = P) +

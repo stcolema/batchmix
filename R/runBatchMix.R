@@ -8,8 +8,9 @@
 #' @param R The number of iterations in the sampler.
 #' @param thin The factor by which the samples generated are thinned, e.g. if
 #' ``thin=50`` only every 50th sample is kept.
-#' @param type Character indicating density type to use. One of 'MVN'
-#' (multivariate normal distribution) or 'MVT' (multivariate t distribution).
+#' @param type Character indicating density type to use. One of 'MVN', 'MVT',
+#' 'MVN_LKJ' or 'MVN_MIXED' - see \code{\link{batchSemiSupervisedMixtureModel}}
+#' for the full description of each.
 #' @param K_max The number of components to include (the upper bound on the
 #' number of clusters in each sample). Defaults to the number of unique labels
 #' in ``initial_labels``.
@@ -58,6 +59,13 @@
 #' of freedom. Defaults to draws from the prior distribution.
 #' @param verbose Logiccal indicating if warning about proposal windows should
 #' be printed.
+#' @param r_proposal_window,sigma_proposal_window,eta,column_type,censor_code,
+#' auto_tune,n_burn,include_interaction,gamma_proposal_window,a_gamma,b_gamma,
+#' batch_weight_prior,batch_coordinates,gp_tau2,gp_length_scale,
+#' eta_proposal_window,sample_gp_hyperparameters,
+#' gp_hyperparameter_proposal_window,pp_tau2_shape,pp_tau2_rate,pp_mu_prior_sd
+#' Passed through to \code{\link{batchSemiSupervisedMixtureModel}}; see its
+#' documentation for the full description of each.
 #' @return A named list containing the sampled partitions, cluster and batch
 #' parameters, model fit measures and some details on the model call.
 #' @export
@@ -134,6 +142,8 @@ runBatchMix <- function(X,
                         alpha = 1,
                         mu_proposal_window = 0.5**2,
                         cov_proposal_window = 0.002,
+                        r_proposal_window = 0.1,
+                        sigma_proposal_window = 0.01,
                         m_proposal_window = 0.3**2,
                         S_proposal_window = 0.01,
                         t_df_proposal_window = 0.015,
@@ -145,7 +155,26 @@ runBatchMix <- function(X,
                         initial_batch_shift = NULL,
                         initial_batch_scale = NULL,
                         initial_class_df = NULL,
-                        verbose = TRUE) {
+                        verbose = TRUE,
+                        eta = 1.0,
+                        column_type = NULL,
+                        censor_code = NULL,
+                        auto_tune = TRUE,
+                        n_burn = NULL,
+                        include_interaction = FALSE,
+                        gamma_proposal_window = 0.1,
+                        a_gamma = 2.0,
+                        b_gamma = 1.0,
+                        batch_weight_prior = c("global", "partial_pooling", "gp"),
+                        batch_coordinates = NULL,
+                        gp_tau2 = 1.0,
+                        gp_length_scale = 1.0,
+                        eta_proposal_window = 0.1,
+                        sample_gp_hyperparameters = FALSE,
+                        gp_hyperparameter_proposal_window = 0.1,
+                        pp_tau2_shape = 2.0,
+                        pp_tau2_rate = 1.0,
+                        pp_mu_prior_sd = 10.0) {
   unsupervised <- is.null(fixed)
   no_initial_partition_given <- is.null(initial_labels)
   if (!is.matrix(X)) {
@@ -191,6 +220,8 @@ runBatchMix <- function(X,
     alpha = alpha,
     mu_proposal_window = mu_proposal_window,
     cov_proposal_window = cov_proposal_window,
+    r_proposal_window = r_proposal_window,
+    sigma_proposal_window = sigma_proposal_window,
     m_proposal_window = m_proposal_window,
     S_proposal_window = S_proposal_window,
     t_df_proposal_window = t_df_proposal_window,
@@ -202,7 +233,26 @@ runBatchMix <- function(X,
     initial_batch_shift = initial_batch_shift,
     initial_batch_scale = initial_batch_scale,
     initial_class_df = initial_class_df,
-    verbose = verbose
+    verbose = verbose,
+    eta = eta,
+    column_type = column_type,
+    censor_code = censor_code,
+    auto_tune = auto_tune,
+    n_burn = n_burn,
+    include_interaction = include_interaction,
+    gamma_proposal_window = gamma_proposal_window,
+    a_gamma = a_gamma,
+    b_gamma = b_gamma,
+    batch_weight_prior = batch_weight_prior,
+    batch_coordinates = batch_coordinates,
+    gp_tau2 = gp_tau2,
+    gp_length_scale = gp_length_scale,
+    eta_proposal_window = eta_proposal_window,
+    sample_gp_hyperparameters = sample_gp_hyperparameters,
+    gp_hyperparameter_proposal_window = gp_hyperparameter_proposal_window,
+    pp_tau2_shape = pp_tau2_shape,
+    pp_tau2_rate = pp_tau2_rate,
+    pp_mu_prior_sd = pp_mu_prior_sd
   )
 
   mcmc_out

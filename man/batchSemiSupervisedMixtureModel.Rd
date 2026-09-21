@@ -17,6 +17,8 @@ batchSemiSupervisedMixtureModel(
   concentration = NULL,
   mu_proposal_window = 0.5^2,
   cov_proposal_window = 0.002,
+  r_proposal_window = 0.1,
+  sigma_proposal_window = 0.01,
   m_proposal_window = 0.3^2,
   S_proposal_window = 0.01,
   t_df_proposal_window = 0.015,
@@ -28,7 +30,26 @@ batchSemiSupervisedMixtureModel(
   initial_batch_shift = NULL,
   initial_batch_scale = NULL,
   initial_class_df = NULL,
-  verbose = TRUE
+  verbose = TRUE,
+  eta = 1,
+  column_type = NULL,
+  censor_code = NULL,
+  auto_tune = TRUE,
+  n_burn = NULL,
+  include_interaction = FALSE,
+  gamma_proposal_window = 0.1,
+  a_gamma = 2,
+  b_gamma = 1,
+  batch_weight_prior = c("global", "partial_pooling", "gp"),
+  batch_coordinates = NULL,
+  gp_tau2 = 1,
+  gp_length_scale = 1,
+  eta_proposal_window = 0.1,
+  sample_gp_hyperparameters = FALSE,
+  gp_hyperparameter_proposal_window = 0.1,
+  pp_tau2_shape = 2,
+  pp_tau2_rate = 1,
+  pp_mu_prior_sd = 10
 )
 }
 \arguments{
@@ -47,7 +68,15 @@ batchSemiSupervisedMixtureModel(
 from.}
 
 \item{type}{Character indicating density type to use. One of 'MVN'
-(multivariate normal distribution) or 'MVT' (multivariate t distribution).}
+(multivariate normal distribution, Inverse-Wishart covariance prior),
+'MVT' (multivariate t distribution), 'MVN_LKJ' (multivariate normal with
+an LKJ prior on the cluster correlation structure and log-normal marginal
+scales, decoupling correlation and scale beliefs - see
+\code{vignette("lkj_correlation_recovery", package = "batchmix")}), or
+'MVN_MIXED' (as 'MVN_LKJ', extended to support binary/probit columns and
+missing/censored continuous entries - see
+\code{vignette("probit_missing_censored", package = "batchmix")}, and the
+\code{column_type}/\code{censor_code} arguments).}
 
 \item{K_max}{The number of components to include (the upper bound on the
 number of clusters in each sample). Defaults to the number of unique labels
@@ -63,8 +92,19 @@ kernel. The proposal density is a Gaussian distribution, the window is the
 variance.}
 
 \item{cov_proposal_window}{The proposal window for the cluster covariance
-proposal kernel. The proposal density is a Wishart distribution, this
-argument is the reciprocal of the degree of freedom.}
+proposal kernel when \code{type} is 'MVN' or 'MVT'. The proposal density
+is a Wishart distribution, this argument is the reciprocal of the degree
+of freedom.}
+
+\item{r_proposal_window}{Only used if \code{type} is 'MVN_LKJ' or
+'MVN_MIXED': the standard deviation of the (unconstrained-space) Gaussian
+random walk proposal for the cluster correlation matrix R. Smaller values
+give a tighter proposal (higher acceptance, smaller steps).}
+
+\item{sigma_proposal_window}{Only used if \code{type} is 'MVN_LKJ' or
+'MVN_MIXED': the proposal window for the cluster marginal standard
+deviations. As with \code{S_proposal_window}, the proposal density is a
+Gamma distribution and this argument is the reciprocal of the rate.}
 
 \item{m_proposal_window}{The proposal window for the batch mean proposal
  kernel. The proposal density is a Gaussian distribution, the window is the
@@ -104,6 +144,105 @@ of freedom. Defaults to draws from the prior distribution.}
 
 \item{verbose}{Logiccal indicating if warning about proposal windows should
 be printed.}
+
+\item{eta}{The LKJ concentration parameter for the cluster correlation
+prior; only used if \code{type} is 'MVN_LKJ' or 'MVN_MIXED'. eta = 1 is
+uniform over the space of correlation matrices, eta > 1 shrinks
+correlations towards 0.}
+
+\item{column_type}{Only used if \code{type} is 'MVN_MIXED': a P-vector, 0
+for a continuous column, 1 for a binary column observed via a probit
+link. Defaults to all-continuous.}
+
+\item{censor_code}{Only used if \code{type} is 'MVN_MIXED': an N x P
+matrix, meaningful only for continuous columns: 0 = not censored,
+1 = left-censored (true value below the recorded X entry), 2 =
+right-censored (true value above the recorded X entry). Defaults to no
+censoring. Missing entries are indicated by \code{NA}/\code{NaN} in
+\code{X} directly, for both continuous and binary columns.}
+
+\item{auto_tune}{Logical; if \code{TRUE} (the default), every proposal
+window is adapted during the first \code{n_burn} iterations via
+Robbins-Monro diminishing adaptation, instead of staying fixed at the
+value passed in. Adaptation is frozen after \code{n_burn} iterations so
+the post-burn-in chain retains the correct stationary distribution.}
+
+\item{n_burn}{Number of iterations treated as burn-in for proposal-window
+adaptation; ignored if \code{auto_tune} is \code{FALSE}. Defaults to half
+of \code{R}.}
+
+\item{include_interaction}{Logical; if \code{TRUE}, add a batch x cluster
+interaction term to the mean, \eqn{\gamma_{k,b} \sim N(0,
+\tau^2_{\mathrm{interaction}})}, with \eqn{\tau^2_{\mathrm{interaction}}
+\sim \mathrm{InvGamma}(a_\gamma, b_\gamma)} (a partial-pooling shrinkage
+prior, shrinking towards the purely-additive model when the data don't
+support an interaction). Defaults to \code{FALSE} (the original,
+purely-additive mean).}
+
+\item{gamma_proposal_window}{Proposal window (Gaussian random-walk SD)
+for the interaction term; ignored if \code{include_interaction} is
+\code{FALSE}.}
+
+\item{a_gamma, b_gamma}{Shape/rate of the InvGamma hyperprior on the
+interaction shrinkage variance; ignored if \code{include_interaction} is
+\code{FALSE}.}
+
+\item{batch_weight_prior}{One of \code{"global"} (the default),
+\code{"partial_pooling"} or \code{"gp"}, controlling whether/how mixture
+weights vary by batch:
+\itemize{
+  \item \code{"global"}: a single mixture weight vector shared by every
+  batch - the original behaviour.
+  \item \code{"partial_pooling"}: each batch gets its own weight vector,
+  with the K-1 additive-log-ratio (ALR) coordinates of each batch's
+  weights drawn exchangeably around a shared, estimated population mean
+  and variance - no assumed order, distance or covariance structure
+  between batches at all (the covariance is simply unknown/unstructured).
+  Use this when batches' proportions are expected to vary but there is no
+  known notion of which batches should be more similar to which.
+  \item \code{"gp"}: each batch gets its own weight vector as above, but
+  the ALR coordinates are instead linked across batches by a Gaussian
+  process prior over \code{batch_coordinates} - for batches collected
+  over a genuine, known ordering in time or space, where nearby batches
+  are expected to be more similar than distant ones. Requires more
+  assumptions than \code{"partial_pooling"} (an ordering/distance and a
+  length scale), so prefer \code{"partial_pooling"} unless that ordering
+  is actually known and relevant.
+}}
+
+\item{batch_coordinates}{A numeric vector of 1-D coordinates for the
+batches (e.g. collection order or time), recycled/matched to the sorted
+unique values of \code{batch_vec}. Defaults to \code{NULL}, i.e. batch
+order 0, 1, ..., B - 1. Only used if \code{batch_weight_prior} is
+\code{"gp"}.}
+
+\item{gp_tau2, gp_length_scale}{Marginal variance and length scale of the
+squared-exponential Gaussian process kernel over \code{batch_coordinates};
+only used if \code{batch_weight_prior} is \code{"gp"}.}
+
+\item{eta_proposal_window}{Proposal window for the batch-weight
+Metropolis-Hastings update; used if \code{batch_weight_prior} is
+\code{"partial_pooling"} or \code{"gp"}.}
+
+\item{sample_gp_hyperparameters}{Logical; if \code{TRUE}, \code{gp_tau2}
+and \code{gp_length_scale} are themselves updated by Metropolis-Hastings
+rather than held fixed at the values passed in; only used if
+\code{batch_weight_prior} is \code{"gp"}.}
+
+\item{gp_hyperparameter_proposal_window}{Proposal window for the GP
+hyperparameter update; only used if \code{batch_weight_prior} is
+\code{"gp"} and \code{sample_gp_hyperparameters} is \code{TRUE}.}
+
+\item{pp_tau2_shape, pp_tau2_rate}{Shape/rate of the InvGamma hyperprior
+on each ALR coordinate's population variance (how much pooling there is
+across batches: small values of the resulting tau2 pull batches strongly
+towards their shared mean, large values let them vary close to
+independently); only used if \code{batch_weight_prior} is
+\code{"partial_pooling"}.}
+
+\item{pp_mu_prior_sd}{Prior standard deviation for each ALR coordinate's
+population mean (the shared value batches are pooled towards); only used
+if \code{batch_weight_prior} is \code{"partial_pooling"}.}
 }
 \value{
 A named list containing the sampled partitions, cluster and batch
