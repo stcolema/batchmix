@@ -7,6 +7,7 @@
 #' estimate. Must be ``'mean'`` or ``'median'``. ``'median'`` is the default.
 #' @param chains_already_processed Logical indicating if the chains have already
 #' had a burn-in applied.
+#' @param nCores Integer used by salso to parallelize point estimate prediction.
 #' @returns A named list of quantities related to prediction/clustering:
 #'
 #'  * ``allocation_probability``: List with an $(N x K)$ matrix if the model is
@@ -86,12 +87,12 @@
 #' )
 #' ensemble_mod <- predictFromMultipleChains(mcmc_outputs, burn)
 #' }
-#' @importFrom salso salso
 #' @export
 predictFromMultipleChains <- function(mcmc_outputs,
                                       burn,
                                       point_estimate_method = "median",
-                                      chains_already_processed = FALSE) {
+                                      chains_already_processed = FALSE,
+                                      nCores = 1L) {
   if (chains_already_processed) {
     processed_chains <- mcmc_outputs
   } else {
@@ -190,8 +191,9 @@ predictFromMultipleChains <- function(mcmc_outputs,
     merged_outputs$prob <- .prob <- apply(.alloc_prob, 1, max)
     merged_outputs$pred <- apply(.alloc_prob, 1, which.max)
   } else {
-    merged_outputs$pred <- suppressWarnings(salso::salso(merged_outputs$samples))
+    # merged_outputs$psm <- .psm <- createSimilarityMat(merged_outputs$samples)
+    # merged_outputs$pred <- minVI(.psm, merged_outputs$samples, method = "avg")
+    merged_outputs$pred <- suppressWarnings(salso::salso(merged_outputs$samples, nCores = nCores))
   }
-
   merged_outputs
 }

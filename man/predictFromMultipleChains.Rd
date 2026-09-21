@@ -8,7 +8,8 @@ predictFromMultipleChains(
   mcmc_outputs,
   burn,
   point_estimate_method = "median",
-  chains_already_processed = FALSE
+  chains_already_processed = FALSE,
+  nCores = 1L
 )
 }
 \arguments{
@@ -21,6 +22,8 @@ estimate. Must be ``'mean'`` or ``'median'``. ``'median'`` is the default.}
 
 \item{chains_already_processed}{Logical indicating if the chains have already
 had a burn-in applied.}
+
+\item{nCores}{Integer used by salso to parallelize point estimate prediction.}
 }
 \value{
 A named list of quantities related to prediction/clustering:

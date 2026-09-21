@@ -2,8 +2,10 @@
 title: "batchmix workflow"
 author: "Stephen Coleman"
 output: rmarkdown::html_vignette
+description: |
+  Tutorial for clustering/classifying with batchmix.
 vignette: >
-  %\VignetteIndexEntry{Using BatchMixtureModel}
+  %\VignetteIndexEntry{Introduction to batchmix}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
