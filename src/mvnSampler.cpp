@@ -41,6 +41,8 @@ _X) {
   
   n_param_cluster = 1 + P + P * (P + 1) * 0.5;
   n_param_batch = 2 * P;
+
+  // Prior hyperparameters and proposal parameters
   nu = P + 2;
   
   // Mean

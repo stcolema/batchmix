@@ -11,7 +11,6 @@ using namespace arma ;
 
 // =============================================================================
 // virtual semisupervisedSampler class
-
 semisupervisedSampler::semisupervisedSampler(
   arma::uword _K,
   arma::uword _B,
@@ -22,8 +21,8 @@ semisupervisedSampler::semisupervisedSampler(
   arma::uvec _fixed
 ) : 
   sampler(_K, _B, _labels, _batch_vec, _concentration, _X) {
-  
-  arma::uvec fixed_ind(N);
+  uword N_place = _X.n_rows;
+  arma::uvec fixed_ind(N_place);
   
   fixed = _fixed;
   N_fixed = arma::sum(fixed);

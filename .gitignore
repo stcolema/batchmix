@@ -1,8 +1,11 @@
 # R session/history
 .Rproj.user
+.Rproj.user/
+*.Rproj
 .Rhistory
 .RData
 .Ruserdata
+.Rapp.history
 .httr-oauth
 
 # Compiled code
@@ -17,7 +20,11 @@ src/*.dylib
 # R CMD build/check artifacts
 /*.Rcheck/
 /*.tar.gz
+*.tgz
 inst/doc
+
+# devtools / testthat
+tests/testthat/_snaps/
 
 # knitr/vignette build artifacts (e.g. from knitting a vignette outside
 # R CMD build for a quick check - R CMD build itself stages these under
@@ -25,6 +32,10 @@ inst/doc
 figure/
 vignettes/*.html
 vignettes/*.R
+vignettes/cache/
+vignettes/figure/
+**/*_cache/
+**/*_files/
 
 # Editor/IDE
 .vscode/
