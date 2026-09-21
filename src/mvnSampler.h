@@ -147,6 +147,11 @@ public:
   // Metropolis sampling for the batch shift and class mean
   virtual void batchShiftMetorpolis();
   virtual void clusterMeanMetropolis();
+
+  // Batch x cluster interaction term (opt-in; see sampler.h). Inert
+  // no-ops in effect (gamma stays zero, never called from metropolisStep)
+  // unless initialiseInteraction(true, ...) has been called.
+  virtual void interactionMetropolis();
   
   // Update our inferred, batch-corrected dataset based on the current sampled 
   // values

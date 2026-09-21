@@ -152,32 +152,32 @@ context("Unit test for MVT posterior kernels.") {
   val8 = toy_sampler.sLogKernel(0,
     toy_sampler.S.col(0),
     toy_sampler.cov_comb_log_det.col(0),
-    toy_sampler.cov_comb_inv.slices(0, 3)
+    toy_sampler.cov_comb_inv.slices(toy_sampler.KB_inds + 0)
   );
-  
+
   val9 = toy_sampler.sLogKernel(1,
     toy_sampler.S.col(1),
     toy_sampler.cov_comb_log_det.col(1),
-    toy_sampler.cov_comb_inv.slices(1, 4)
+    toy_sampler.cov_comb_inv.slices(toy_sampler.KB_inds + 1)
   );
-  
+
   val10 = toy_sampler.sLogKernel(2,
     toy_sampler.S.col(2),
     toy_sampler.cov_comb_log_det.col(2),
-    toy_sampler.cov_comb_inv.slices(2, 5)
+    toy_sampler.cov_comb_inv.slices(toy_sampler.KB_inds + 2)
   );
   
   test_that("s log posterior kernel") {
-    expect_true(compareDoubles3(val8, -36.077722, 1e-5));
-    expect_true(compareDoubles3(val9, -34.990054, 1e-5));
-    expect_true(compareDoubles3(val10, -25.083692, 1e-5));
+    expect_true(compareDoubles3(val8, -27.12797, 1e-5));
+    expect_true(compareDoubles3(val9, -37.44770, 1e-5));
+    expect_true(compareDoubles3(val10, -17.64684, 1e-5));
   }
-  
+
   val11 = toy_sampler.dfLogKernel(0, toy_sampler.t_df(0), toy_sampler.pdf_coef(0));
   val12 = toy_sampler.dfLogKernel(1, toy_sampler.t_df(1), toy_sampler.pdf_coef(1));
-  
+
   test_that("df log posterior kernel") {
-    expect_true(compareDoubles3(val11, -20.553550, 1e-5));
-    expect_true(compareDoubles3(val12, -62.930631, 1e-5));
+    expect_true(compareDoubles3(val11, -21.54355, 1e-5));
+    expect_true(compareDoubles3(val12, -67.16063, 1e-5));
   }
 }

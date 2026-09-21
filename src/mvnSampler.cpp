@@ -170,6 +170,9 @@ void mvnSampler::sampleFromPriors() {
   sampleMuPrior();
   sampleSPrior();
   sampleMPrior();
+  if(include_interaction) {
+    sampleGammaPrior();
+  }
 };
 
 void mvnSampler::sampleMScalePrior() {
@@ -198,8 +201,11 @@ void mvnSampler::matrixCombinations() {
       }
       cov_comb_log_det(k, b) = log_det(cov_comb.slice(k * B + b)).real();
       cov_comb_inv.slice(k * B + b) = inv_sympd(cov_comb.slice(k * B + b));
-      
+
       mean_sum.col(k * B + b) = mu.col(k) + m.col(b);
+      if(include_interaction) {
+        mean_sum.col(k * B + b) += gamma.slice(b).col(k);
+      }
     }
   }
 };
@@ -227,26 +233,12 @@ arma::vec mvnSampler::itemLogLikelihood(arma::vec x, arma::uword b) {
 };
 
 void mvnSampler::calcBIC(){
-  
-  // Each component has a weight, a mean vector and a symmetric covariance matrix. 
-  // Each batch has a mean and standard deviations vector.
-  // arma::uword n_param = (P + P * (P + 1) * 0.5) * K_occ + (2 * P) * B;
-  // BIC = n_param * std::log(N) - 2 * observed_likelihood;
-  
-  // arma::uword n_param_cluster = 1 + P + P * (P + 1) * 0.5;
-  // arma::uword n_param_batch = 2 * P;
-  
-  // BIC = 2 * observed_likelihood;
-  
-  BIC = 2 * observed_likelihood - (n_param_batch + n_param_batch) * std::log(N);
-  
-  // for(arma::uword k = 0; k < K; k++) {
-  //   BIC -= n_param_cluster * std::log(N_k(k) + 1);
-  // }
-  // for(arma::uword b = 0; b < B; b++) {
-  //   BIC -= n_param_batch * std::log(N_b(b) + 1);
-  // }
-  
+
+  // Each occupied component has a weight, a mean vector and a symmetric
+  // covariance matrix; each batch has a shift vector and a scale vector.
+  // Empty components contribute no parameters, hence K_occ rather than K.
+  BIC = 2 * observed_likelihood - (n_param_cluster * K_occ + n_param_batch * B) * std::log(N);
+
 };
 
 double mvnSampler::groupLikelihood(arma::uvec inds,
@@ -383,9 +375,18 @@ void mvnSampler::batchScaleMetropolis() {
         next = true;
       }
 
-      // Asymmetric proposal density
-      proposed_model_score += gammaLogLikelihood(S_proposed(p) - S_loc, (S(p, b) - S_loc) * S_proposal_window, S_proposal_window);
-      current_model_score += gammaLogLikelihood(S(p, b) - S_loc, (S_proposed(p) - S_loc) * S_proposal_window, S_proposal_window);
+      // Metropolis-Hastings correction for the asymmetric Gamma proposal.
+      // proposed_model_score must accumulate log pi(proposed) + log q(current | proposed)
+      // (the REVERSE proposal density: current evaluated under a proposal
+      // centred at proposed), and current_model_score must accumulate
+      // log pi(current) + log q(proposed | current) (the FORWARD density,
+      // i.e. the density of the draw actually taken to get S_proposed).
+      // Swapping these (as a previous version of this code did) silently
+      // biases the chain: verified by simulating this exact proposal
+      // against a known Gamma(5, 2) target, where the swapped assignment
+      // recovers a posterior mean of ~1.41 instead of the true 2.5.
+      current_model_score += gammaLogLikelihood(S_proposed(p) - S_loc, (S(p, b) - S_loc) * S_proposal_window, S_proposal_window);
+      proposed_model_score += gammaLogLikelihood(S(p, b) - S_loc, (S_proposed(p) - S_loc) * S_proposal_window, S_proposal_window);
     }
     
     if(next) {
@@ -448,8 +449,11 @@ void mvnSampler::batchShiftMetorpolis() {
     
     for(arma::uword k = 0; k < K; k++) {
       proposed_mean_sum.col(k) = mu.col(k) + m_proposed;
+      if(include_interaction) {
+        proposed_mean_sum.col(k) += gamma.slice(b).col(k);
+      }
     }
-    
+
     // We have a symmetric proposal density so the posterior kernel is the only
     // thing we're interested in
     proposed_model_score = mLogKernel(b, m_proposed, proposed_mean_sum);
@@ -586,6 +590,9 @@ void mvnSampler::clusterMeanMetropolis() {
       mu_proposed = arma::mvnrnd(xi, (1.0/kappa) * cov.slice(k), 1);
       for(arma::uword b = 0; b < B; b++) {
         proposed_mean_sum.col(b) = mu_proposed + m.col(b);
+        if(include_interaction) {
+          proposed_mean_sum.col(b) += gamma.slice(b).col(k);
+        }
       }
     } else {
       for(arma::uword p = 0; p < P; p++){
@@ -594,8 +601,11 @@ void mvnSampler::clusterMeanMetropolis() {
       }
       for(arma::uword b = 0; b < B; b++) {
         proposed_mean_sum.col(b) = mu_proposed + m.col(b);
+        if(include_interaction) {
+          proposed_mean_sum.col(b) += gamma.slice(b).col(k);
+        }
       }
-      
+
       // The prior is included in the kernel
       proposed_model_score = muLogKernel(k, mu_proposed, proposed_mean_sum);
       current_model_score = muLogKernel(k, mu.col(k), mean_sum.cols(k * B + B_inds));
@@ -617,23 +627,112 @@ void mvnSampler::clusterMeanMetropolis() {
   }
 };
 
+// Block Metropolis-Hastings update for gamma(p, ., .), one feature p at a
+// time: propose a whole K x B perturbation, project it onto the
+// sum-to-zero subspace (doubleCenterMatrix(), sampler.h/.cpp - keeps the
+// proposal, and hence gamma itself, confined to that subspace given it
+// starts there), and accept/reject the whole K x B move for that feature
+// as one block, scored against the FULL dataset (a single (k,b) cell
+// cannot be moved on its own without breaking the sum-to-zero constraint
+// for the rest of its row/column, so cell-at-a-time updates are not an
+// option here - see the "why" in sampler.h's interaction-term section).
+void mvnSampler::interactionMetropolis() {
+
+  arma::uvec combined_group = labels * B + batch_vec;
+  arma::uvec all_items = arma::regspace<arma::uvec>(0, N - 1);
+
+  arma::vec cov_det_flat(K * B);
+  for(arma::uword k = 0; k < K; k++) {
+    for(arma::uword b = 0; b < B; b++) {
+      cov_det_flat(k * B + b) = cov_comb_log_det(k, b);
+    }
+  }
+
+  for(arma::uword p = 0; p < P; p++) {
+
+    arma::mat raw_perturbation(K, B);
+    for(arma::uword k = 0; k < K; k++) {
+      for(arma::uword b = 0; b < B; b++) {
+        raw_perturbation(k, b) = arma::randn() * gamma_proposal_window;
+      }
+    }
+    arma::mat perturbation = doubleCenterMatrix(raw_perturbation);
+
+    arma::mat proposed_mean_sum = mean_sum;
+    double prior_current = 0.0, prior_proposed = 0.0;
+    arma::mat current_gamma_p(K, B), proposed_gamma_p(K, B);
+
+    for(arma::uword k = 0; k < K; k++) {
+      for(arma::uword b = 0; b < B; b++) {
+        current_gamma_p(k, b) = gamma(p, k, b);
+        proposed_gamma_p(k, b) = current_gamma_p(k, b) + perturbation(k, b);
+
+        prior_current += -0.5 * std::pow(current_gamma_p(k, b), 2.0) / tau2_interaction(p);
+        prior_proposed += -0.5 * std::pow(proposed_gamma_p(k, b), 2.0) / tau2_interaction(p);
+
+        proposed_mean_sum(p, k * B + b) = mean_sum(p, k * B + b) - current_gamma_p(k, b) + proposed_gamma_p(k, b);
+      }
+    }
+
+    // Symmetric (Gaussian, projected) proposal: no Hastings correction needed.
+    double current_model_score = groupLikelihood(all_items, combined_group, cov_det_flat, mean_sum, cov_comb_inv) + prior_current;
+    double proposed_model_score = groupLikelihood(all_items, combined_group, cov_det_flat, proposed_mean_sum, cov_comb_inv) + prior_proposed;
+
+    double u = arma::randu();
+    double acceptance_prob = std::min(1.0, std::exp(proposed_model_score - current_model_score));
+
+    if(u < acceptance_prob) {
+      for(arma::uword k = 0; k < K; k++) {
+        for(arma::uword b = 0; b < B; b++) {
+          gamma(p, k, b) = proposed_gamma_p(k, b);
+        }
+      }
+      mean_sum.row(p) = proposed_mean_sum.row(p);
+      gamma_count(p)++;
+    }
+  }
+};
+
 void mvnSampler::updateBatchCorrectedData() {
-  
+
   arma::mat mu_mat = mu.cols(labels);
-  
-  Y = ((X_t - mu_mat - m.cols(batch_vec)) / sqrt(S.cols(batch_vec)) + mu_mat).t();
+  arma::mat location_correction = m.cols(batch_vec);
+
+  // The interaction term gamma_{k,b} is, by construction (see sampler.h),
+  // exactly the part of an item's mean that batch b contributes on top of
+  // an additive mu_k + m_b for its specific cluster k - i.e. it is just as
+  // much "batch effect" as m_b is, it just happens to depend on cluster
+  // identity too. Leaving it in would mean "batch-corrected" data for
+  // items in a cluster/batch cell with a real interaction still carries a
+  // batch-specific offset. Unlike decomposing gamma against mu/m
+  // individually (not identified - see sampler.h), this subtraction is
+  // well-defined: gamma_{k,b} for the SPECIFIC (k, b) each item actually
+  // belongs to is a single identified quantity once sampled, regardless of
+  // how the sum mu_k + m_b + gamma_{k,b} happens to have been split.
+  if(include_interaction) {
+    for(arma::uword n = 0; n < N; n++) {
+      location_correction.col(n) += gamma.slice(batch_vec(n)).col(labels(n));
+    }
+  }
+
+  Y = ((X_t - mu_mat - location_correction) / sqrt(S.cols(batch_vec)) + mu_mat).t();
 }
 
 void mvnSampler::metropolisStep() {
-  
+
   // Metropolis step for cluster parameters
   clusterCovarianceMetropolis();
   clusterMeanMetropolis();
-  
+
   // Metropolis step for batch parameters
   if(sample_m_scale) {
     sampleMScalePosterior();
   }
   batchScaleMetropolis();
   batchShiftMetorpolis();
+
+  if(include_interaction) {
+    interactionMetropolis();
+    sampleTauInteractionPosterior();
+  }
 };

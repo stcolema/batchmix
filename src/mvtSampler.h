@@ -148,7 +148,13 @@ public:
   );
   
   virtual void clusterDFMetropolis();
-  
+
+  // Batch x cluster interaction term (opt-in; see sampler.h). Uses the
+  // Student-t (not Gaussian) location-shift log-likelihood, since t_df is
+  // held fixed while gamma is updated.
+  virtual double interactionDataLogLikelihood(arma::mat mean_sum_arg);
+  virtual void interactionMetropolis();
+
   virtual void metropolisStep() override;
 
 };
