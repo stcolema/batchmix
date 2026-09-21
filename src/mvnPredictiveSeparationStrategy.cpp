@@ -1,0 +1,58 @@
+// mvnPredictiveSeparationStrategy.cpp
+// =============================================================================
+// included dependencies
+# include <RcppArmadillo.h>
+# include "pdfs.h"
+# include "sampler.h"
+# include "semisupervisedSampler.h"
+# include "mvnSamplerSeparationStrategy.h"
+# include "mvnPredictiveSeparationStrategy.h"
+
+// =============================================================================
+// namespace
+using namespace Rcpp ;
+using namespace arma ;
+
+// =============================================================================
+// mvnPredictiveSeparationStrategy class
+mvnPredictiveSeparationStrategy::mvnPredictiveSeparationStrategy(
+  arma::uword _K,
+  arma::uword _B,
+  double _mu_proposal_window,
+  double _r_proposal_window,
+  double _sigma_proposal_window,
+  double _m_proposal_window,
+  double _S_proposal_window,
+  arma::uvec _labels,
+  arma::uvec _batch_vec,
+  arma::vec _concentration,
+  arma::mat _X,
+  arma::uvec _fixed,
+  double _m_scale,
+  double _rho,
+  double _theta,
+  bool _sample_m_scale,
+  double _eta
+) :
+  sampler(_K, _B, _labels, _batch_vec, _concentration, _X),
+  mvnSamplerSeparationStrategy(
+    _K,
+    _B,
+    _mu_proposal_window,
+    _r_proposal_window,
+    _sigma_proposal_window,
+    _m_proposal_window,
+    _S_proposal_window,
+    _labels,
+    _batch_vec,
+    _concentration,
+    _X,
+    _m_scale,
+    _rho,
+    _theta,
+    _sample_m_scale,
+    _eta
+  ),
+  semisupervisedSampler(_K, _B, _labels, _batch_vec, _concentration, _X, _fixed)
+{
+};
