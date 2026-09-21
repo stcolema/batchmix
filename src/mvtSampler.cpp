@@ -93,6 +93,9 @@ void mvtSampler::sampleFromPriors() {
   sampleDFPrior();
   sampleSPrior();
   sampleMPrior();
+  if(include_interaction) {
+    sampleGammaPrior();
+  }
 };
 
 // Update the common matrix manipulations to avoid recalculating N times
@@ -110,8 +113,11 @@ void mvtSampler::matrixCombinations() {
       }
       cov_comb_log_det(k, b) = arma::log_det(cov_comb.slice(k * B + b)).real();
       cov_comb_inv.slice(k * B + b) = arma::inv_sympd(cov_comb.slice(k * B + b));
-      
+
       mean_sum.col(k * B + b) = mu.col(k) + m.col(b);
+      if(include_interaction) {
+        mean_sum.col(k * B + b) += gamma.slice(b).col(k);
+      }
     }
   }
 };
@@ -142,25 +148,12 @@ arma::vec mvtSampler::itemLogLikelihood(arma::vec x, arma::uword b) {
 };
 
 void mvtSampler::calcBIC(){
-  
-  // Each component has a weight, a mean vector, a symmetric covariance matrix and a
-  // degree of freedom parameter. Each batch has a mean and standard
-  // deviations vector.
-  // arma::uword n_param = (P + P * (P + 1) * 0.5 + 1) * K_occ + (2 * P) * B;
-  // BIC = n_param * std::log(N) - 2 * observed_likelihood;
-  
-  // arma::uword n_param_cluster = 2 + P + P * (P + 1) * 0.5;
-  // arma::uword n_param_batch = 2 * P;
-  
-  BIC = 2 * observed_likelihood - (n_param_batch + n_param_batch) * std::log(N);
-  
-  // for(arma::uword k = 0; k < K; k++) {
-  //   BIC -= n_param_cluster * std::log(N_k(k)+ 1);
-  // }
-  // for(arma::uword b = 0; b < B; b++) {
-  //   BIC -= n_param_batch * std::log(N_b(b)+ 1);
-  // }
-  
+
+  // Each occupied component has a weight, a mean vector, a symmetric
+  // covariance matrix and a degrees-of-freedom parameter; each batch has a
+  // shift vector and a scale vector.
+  BIC = 2 * observed_likelihood - (n_param_cluster * K_occ + n_param_batch * B) * std::log(N);
+
 };
 
 double mvtSampler::clusterLikelihood(
@@ -354,18 +347,87 @@ void mvtSampler::clusterDFMetropolis() {
   }
 }
 
+// Full-dataset Student-t log-likelihood (t_df held fixed; pdf_coef and
+// cov_comb_log_det are constant w.r.t. gamma and dropped, as elsewhere in
+// this class) under a given mean_sum, used by interactionMetropolis().
+double mvtSampler::interactionDataLogLikelihood(arma::mat mean_sum_arg) {
+  double score = 0.0;
+  for(arma::uword n = 0; n < N; n++) {
+    arma::uword c = labels(n) * B + batch_vec(n);
+    arma::vec diff = X_t.col(n) - mean_sum_arg.col(c);
+    double u = arma::as_scalar(diff.t() * cov_comb_inv.slice(c) * diff);
+    score += -0.5 * (t_df(labels(n)) + P) * log(1.0 + (1.0 / t_df(labels(n))) * u);
+  }
+  return score;
+};
+
+// Block Metropolis-Hastings update for gamma(p, ., .) - see
+// mvnSampler::interactionMetropolis() for the sum-to-zero-subspace
+// derivation; the only difference here is the Student-t (rather than
+// Gaussian) data log-likelihood used to score each candidate.
+void mvtSampler::interactionMetropolis() {
+
+  for(arma::uword p = 0; p < P; p++) {
+
+    arma::mat raw_perturbation(K, B);
+    for(arma::uword k = 0; k < K; k++) {
+      for(arma::uword b = 0; b < B; b++) {
+        raw_perturbation(k, b) = arma::randn() * gamma_proposal_window;
+      }
+    }
+    arma::mat perturbation = doubleCenterMatrix(raw_perturbation);
+
+    arma::mat proposed_mean_sum = mean_sum;
+    double prior_current = 0.0, prior_proposed = 0.0;
+    arma::mat current_gamma_p(K, B), proposed_gamma_p(K, B);
+
+    for(arma::uword k = 0; k < K; k++) {
+      for(arma::uword b = 0; b < B; b++) {
+        current_gamma_p(k, b) = gamma(p, k, b);
+        proposed_gamma_p(k, b) = current_gamma_p(k, b) + perturbation(k, b);
+
+        prior_current += -0.5 * std::pow(current_gamma_p(k, b), 2.0) / tau2_interaction(p);
+        prior_proposed += -0.5 * std::pow(proposed_gamma_p(k, b), 2.0) / tau2_interaction(p);
+
+        proposed_mean_sum(p, k * B + b) = mean_sum(p, k * B + b) - current_gamma_p(k, b) + proposed_gamma_p(k, b);
+      }
+    }
+
+    double current_model_score = interactionDataLogLikelihood(mean_sum) + prior_current;
+    double proposed_model_score = interactionDataLogLikelihood(proposed_mean_sum) + prior_proposed;
+
+    double u = arma::randu();
+    double acceptance_prob = std::min(1.0, std::exp(proposed_model_score - current_model_score));
+
+    if(u < acceptance_prob) {
+      for(arma::uword k = 0; k < K; k++) {
+        for(arma::uword b = 0; b < B; b++) {
+          gamma(p, k, b) = proposed_gamma_p(k, b);
+        }
+      }
+      mean_sum.row(p) = proposed_mean_sum.row(p);
+      gamma_count(p)++;
+    }
+  }
+};
+
 void mvtSampler::metropolisStep() {
-  
+
   // Metropolis step for cluster parameters
   clusterCovarianceMetropolis();
   clusterMeanMetropolis();
   clusterDFMetropolis();
-  
+
   // Metropolis step for batch parameters
   if(sample_m_scale) {
     sampleMScalePosterior();
   }
   batchScaleMetropolis();
   batchShiftMetorpolis();
+
+  if(include_interaction) {
+    interactionMetropolis();
+    sampleTauInteractionPosterior();
+  }
 };
 

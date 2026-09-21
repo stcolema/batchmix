@@ -40,29 +40,35 @@ semisupervisedSampler::semisupervisedSampler(
 
 void semisupervisedSampler::updateAllocation() {
   
-  double u = 0.0;
+  double u = 0.0, max_comp_prob = 0.0;
   arma::uvec uniqueK;
   arma::vec comp_prob(K);
-  
+
   // The model likelihoods
   complete_likelihood = 0.0;
   observed_likelihood = 0.0;
-  
+
   // for (auto& n : unfixed_ind) {
   for (uword n = 0; n < N; n++) {
-    
+
     // The mixture-specific log likelihood for each observation in each class
     ll = itemLogLikelihood(X_t.col(n), batch_vec(n));
-    
-    // Update with weights
-    comp_prob = ll + log(w);
-    
-    // Record the likelihood - this is used to calculate the observed likelihood
-    // likelihood(n) = accu(comp_prob);
-    observed_likelihood += accu(comp_prob);
-    
+
+    // Update with weights: batch-specific under the GP-correlated weight
+    // model, the single global vector otherwise (unchanged default path).
+    if(weight_prior_type > 0) {
+      comp_prob = ll + log(w_batch.row(batch_vec(n)).t());
+    } else {
+      comp_prob = ll + log(w);
+    }
+
+    // The observed (marginal, label-free) log-likelihood of item n is
+    // log sum_k exp(comp_prob(k)), via the log-sum-exp trick.
+    max_comp_prob = max(comp_prob);
+    observed_likelihood += max_comp_prob + log(accu(exp(comp_prob - max_comp_prob)));
+
     // Handle overflow problems and then normalise to convert to probabilities
-    comp_prob = exp(comp_prob - max(comp_prob));
+    comp_prob = exp(comp_prob - max_comp_prob);
     comp_prob = comp_prob / sum(comp_prob);
     
     // Prediction and update

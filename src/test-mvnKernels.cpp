@@ -144,28 +144,28 @@ context("Unit test for MVN posterior kernels.") {
     expect_true(compareDoubles2(val7, -78.71547, 1e-5));
   }
   
-  val8 = toy_sampler.sLogKernel(0, 
+  val8 = toy_sampler.sLogKernel(0,
     toy_sampler.S.col(0),
     toy_sampler.cov_comb_log_det.col(0),
-    toy_sampler.cov_comb_inv.slices(0, 3)
+    toy_sampler.cov_comb_inv.slices(toy_sampler.KB_inds + 0)
   );
-  
-  val9 = toy_sampler.sLogKernel(1, 
+
+  val9 = toy_sampler.sLogKernel(1,
     toy_sampler.S.col(1),
     toy_sampler.cov_comb_log_det.col(1),
-    toy_sampler.cov_comb_inv.slices(1, 4)
+    toy_sampler.cov_comb_inv.slices(toy_sampler.KB_inds + 1)
   );
-  
-  val10 = toy_sampler.sLogKernel(2, 
+
+  val10 = toy_sampler.sLogKernel(2,
     toy_sampler.S.col(2),
     toy_sampler.cov_comb_log_det.col(2),
-    toy_sampler.cov_comb_inv.slices(2, 5)
+    toy_sampler.cov_comb_inv.slices(toy_sampler.KB_inds + 2)
   );
   
   test_that("s log posterior kernel") {
-    expect_true(compareDoubles2(val8, -40.70917, 1e-5));
-    expect_true(compareDoubles2(val9, -42.90078, 1e-5));
-    expect_true(compareDoubles2(val10, -30.56562, 1e-5));
+    expect_true(compareDoubles2(val8, -35.00168, 1e-5));
+    expect_true(compareDoubles2(val9, -49.56650, 1e-5));
+    expect_true(compareDoubles2(val10, -22.18394, 1e-5));
   }
   
 
