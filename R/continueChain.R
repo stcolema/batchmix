@@ -79,11 +79,32 @@ continueChain <- function(mcmc_output,
   rho <- mcmc_output$rho
   theta <- mcmc_output$theta
 
-  mu_proposal_window <- mcmc_output$mu_proposal_window
+  # If the previous chain auto-tuned its proposal windows, continue from the
+  # tuned values rather than restarting from whatever fixed values were
+  # originally passed in; freeze further adaptation, since the windows
+  # should already be close to their target acceptance rate by then.
+  # mu/m are passed through to the C++ layer unchanged, but cov/S/t_df are
+  # reciprocal-transformed on the way in (see checkProposalWindows() and
+  # the actual_*_proposal_window lines in batchSemiSupervisedMixtureModel());
+  # final_S_proposal_window/final_t_df_proposal_window come back in the
+  # post-transform (C++-internal) scale, so must be inverted back to the
+  # R-facing scale before being passed in again, or they would be
+  # transformed a second time.
+  auto_tune_used <- isTRUE(mcmc_output$auto_tune)
+  `%||%` <- function(a, b) if (is.null(a)) b else a
+  mu_proposal_window <- mcmc_output$final_mu_proposal_window %||% mcmc_output$mu_proposal_window
   cov_proposal_window <- mcmc_output$cov_proposal_window
-  m_proposal_window <- mcmc_output$m_proposal_window
-  S_proposal_window <- mcmc_output$S_proposal_window
-  t_df_proposal_window <- mcmc_output$t_df_proposal_window
+  m_proposal_window <- mcmc_output$final_m_proposal_window %||% mcmc_output$m_proposal_window
+  S_proposal_window <- if (!is.null(mcmc_output$final_S_proposal_window)) {
+    1.0 / mcmc_output$final_S_proposal_window
+  } else {
+    mcmc_output$S_proposal_window
+  }
+  t_df_proposal_window <- if (!is.null(mcmc_output$final_t_df_proposal_window)) {
+    1.0 / mcmc_output$final_t_df_proposal_window
+  } else {
+    mcmc_output$t_df_proposal_window
+  }
 
   initial_class_means <- mcmc_output$means[, , last_sample]
 
@@ -106,13 +127,41 @@ continueChain <- function(mcmc_output,
   }
 
   initial_concentration <- mcmc_output$concentration
-  
+
   sample_m_scale <- is.null(m_scale)
   if(sample_m_scale) {
     old_lambda2 <- c(mcmc_output$lambda_2)
   }
 
   labels <- mcmc_output$samples[last_sample, ]
+
+  # Interaction term and batch-weight-prior model specification: these
+  # change what is being fitted (not just how it is being fitted), so a
+  # continuation must reuse them exactly, not silently fall back to their
+  # defaults (include_interaction = FALSE, batch_weight_prior = "global").
+  include_interaction <- isTRUE(mcmc_output$include_interaction)
+  gamma_proposal_window <- mcmc_output$final_gamma_proposal_window %||% mcmc_output$gamma_proposal_window %||% 0.1
+  a_gamma <- mcmc_output$a_gamma %||% 2.0
+  b_gamma <- mcmc_output$b_gamma %||% 1.0
+
+  batch_weight_prior <- mcmc_output$batch_weight_prior %||% "global"
+  batch_coordinates <- mcmc_output$batch_coordinates
+  if (is.null(batch_coordinates) || length(batch_coordinates) == 0) {
+    batch_coordinates <- NULL
+  }
+  eta_proposal_window <- mcmc_output$final_eta_proposal_window %||% mcmc_output$eta_proposal_window %||% 0.1
+  sample_gp_hyperparameters <- isTRUE(mcmc_output$sample_gp_hyperparameters)
+  gp_hyperparameter_proposal_window <- mcmc_output$final_gp_hyperparameter_proposal_window %||%
+    mcmc_output$gp_hyperparameter_proposal_window %||% 0.1
+  pp_tau2_shape <- mcmc_output$pp_tau2_shape %||% 2.0
+  pp_tau2_rate <- mcmc_output$pp_tau2_rate %||% 1.0
+  pp_mu_prior_sd <- mcmc_output$pp_mu_prior_sd %||% 10.0
+
+  # Resume the GP hyperparameters from their last sampled value rather than
+  # restarting from the original fixed/prior value, matching the treatment
+  # of every other continued parameter.
+  gp_tau2 <- if (!is.null(mcmc_output$gp_tau2)) mcmc_output$gp_tau2[last_sample] else 1.0
+  gp_length_scale <- if (!is.null(mcmc_output$gp_length_scale)) mcmc_output$gp_length_scale[last_sample] else 1.0
 
   new_samples <- batchSemiSupervisedMixtureModel(X,
     R,
@@ -135,7 +184,22 @@ continueChain <- function(mcmc_output,
     initial_class_covariance = initial_class_covariance,
     initial_class_df = initial_class_df,
     initial_batch_shift = initial_batch_shift,
-    initial_batch_scale = initial_batch_scale
+    initial_batch_scale = initial_batch_scale,
+    auto_tune = FALSE,
+    include_interaction = include_interaction,
+    gamma_proposal_window = gamma_proposal_window,
+    a_gamma = a_gamma,
+    b_gamma = b_gamma,
+    batch_weight_prior = batch_weight_prior,
+    batch_coordinates = batch_coordinates,
+    gp_tau2 = gp_tau2,
+    gp_length_scale = gp_length_scale,
+    eta_proposal_window = eta_proposal_window,
+    sample_gp_hyperparameters = sample_gp_hyperparameters,
+    gp_hyperparameter_proposal_window = gp_hyperparameter_proposal_window,
+    pp_tau2_shape = pp_tau2_shape,
+    pp_tau2_rate = pp_tau2_rate,
+    pp_mu_prior_sd = pp_mu_prior_sd
   )
 
   if (keep_old_samples) {
@@ -233,6 +297,66 @@ continueChain <- function(mcmc_output,
       )
 
       comb_t_df <- rbind(mcmc_output$t_df, new_samples$t_df)
+    }
+
+    # Interaction term: gamma is a proper per-iteration trace (P x K*B x
+    # iterations); tau2_interaction is only ever the current value (like a
+    # sampled parameter's current state, not a trace), so it needs no
+    # combining - new_samples$tau2_interaction is already the right thing.
+    if (include_interaction) {
+      combined_gamma <- array(
+        c(mcmc_output$gamma, new_samples$gamma),
+        dim = c(P, K_max * B, R_comb_eff)
+      )
+      comb_gamma_acceptance_rate <- ((mcmc_output$gamma_acceptance_rate * R_old +
+        new_samples$gamma_acceptance_rate * R)
+      / (R_old + R)
+      )
+
+      new_samples$gamma <- combined_gamma
+      new_samples$gamma_acceptance_rate <- comb_gamma_acceptance_rate
+    }
+
+    # Batch-weight-prior model: w_batch/eta_alr are B x K(-1) x iterations
+    # traces returned unconditionally (even batch_weight_prior = "global"
+    # returns one, just constant across batches within an iteration), so
+    # these are always combined; gp_tau2/gp_length_scale (iterations x 1)
+    # and pp_mu/pp_tau2 ((K-1) x iterations) only exist for "gp"/
+    # "partial_pooling" respectively - three different conventions
+    # inherited from the underlying C++ wrappers, each combined along its
+    # own iteration axis.
+    combined_w_batch <- array(
+      c(mcmc_output$w_batch, new_samples$w_batch),
+      dim = c(B, K_max, R_comb_eff)
+    )
+    combined_eta_alr <- array(
+      c(mcmc_output$eta_alr, new_samples$eta_alr),
+      dim = c(B, K_max - 1, R_comb_eff)
+    )
+    comb_eta_acceptance_rate <- ((mcmc_output$eta_acceptance_rate * R_old +
+      new_samples$eta_acceptance_rate * R)
+    / (R_old + R)
+    )
+
+    new_samples$w_batch <- combined_w_batch
+    new_samples$eta_alr <- combined_eta_alr
+    new_samples$eta_acceptance_rate <- comb_eta_acceptance_rate
+
+    if (batch_weight_prior == "partial_pooling") {
+      new_samples$pp_mu <- cbind(mcmc_output$pp_mu, new_samples$pp_mu)
+      new_samples$pp_tau2 <- cbind(mcmc_output$pp_tau2, new_samples$pp_tau2)
+    }
+
+    if (batch_weight_prior == "gp") {
+      new_samples$gp_tau2 <- rbind(mcmc_output$gp_tau2, new_samples$gp_tau2)
+      new_samples$gp_length_scale <- rbind(mcmc_output$gp_length_scale, new_samples$gp_length_scale)
+      if (sample_gp_hyperparameters) {
+        comb_gp_hyperparameter_acceptance_rate <- ((mcmc_output$gp_hyperparameter_acceptance_rate * R_old +
+          new_samples$gp_hyperparameter_acceptance_rate * R)
+        / (R_old + R)
+        )
+        new_samples$gp_hyperparameter_acceptance_rate <- comb_gp_hyperparameter_acceptance_rate
+      }
     }
 
     # if(is_semisupervised) {

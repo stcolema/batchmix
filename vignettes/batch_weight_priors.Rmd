@@ -1,0 +1,475 @@
+---
+title: "Correlated batch effects on class proportions: global, partial-pooling and GP weight priors"
+author: "batchmix"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Correlated batch effects on class proportions: global, partial-pooling and GP weight priors}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, collapse = TRUE, comment = "#>", fig.width = 6.5, fig.height = 4.5)
+```
+
+## Purpose
+
+`batch_weight_prior` controls how the class/cluster mixing weights are
+allowed to vary across batches: `"global"` ties every batch to one shared
+weight vector, `"partial_pooling"` lets each batch have its own weight with
+no assumed order or structure (only exchangeable shrinkage towards a common
+mean), and `"gp"` places a Gaussian process over a batch coordinate (e.g.
+collection time), so batches close together are expected to have similar
+proportions. The other vignettes cover the mean/covariance side of batch
+correction; this one is specifically about the *proportions*, using a
+scenario designed so the three choices actually disagree with each other.
+
+**Scenario.** Six assay batches (e.g. an ELISA seropositivity panel) are
+collected at irregular points across a two-year window. Two things drift
+with time, for different reasons:
+
+- The assay itself drifts smoothly - reagent/instrument aging shifts and
+  spreads the raw readout further from its true value the longer a batch
+  is run after the assay was calibrated. This erodes how separable the two
+  classes look in the *raw* data, even though nothing about the underlying
+  biology has changed.
+- The true proportion of positives does **not** drift smoothly - it is flat
+  and low for the first four batches, then jumps abruptly at batch 5 (an
+  outbreak) and stays high at batch 6. This is a step change, not a trend,
+  and it is what the three `batch_weight_prior` choices disagree about:
+  `"global"` cannot represent it at all, `"partial_pooling"` can represent
+  it immediately with no assumption about batch order, and `"gp"` assumes
+  nearby batches have similar proportions - an assumption a genuine step
+  change violates right at the boundary, making it the hardest of the
+  three priors to get exactly right here, even though it is the only one
+  built to use real collection-time information at all.
+
+```{r libs, message=FALSE}
+library(batchmix)
+library(ggplot2)
+```
+
+## 1. Simulate the data
+
+`generateBatchData()` cannot produce this scenario (it has no notion of a
+time-varying batch effect or batch-specific class proportions), so the data
+is simulated directly. Batch collection times are irregular - drawn at
+random over a 24-unit window, not evenly spaced - since that is what
+`batch_weight_prior = "gp"` is actually built for and it is worth stressing
+that the model uses genuine inter-batch distances, not just batch order.
+
+```{r simSetup}
+set.seed(2024)
+
+B <- 6
+time_points <- sort(round(runif(B, 0, 24), 2))
+cat("Batch collection times:", time_points, "\n")
+cat("Gaps between consecutive batches:", round(diff(time_points), 2), "\n")
+```
+
+With this particular random draw, batches 4 and 5 land only a fraction of
+a unit apart in time - essentially back-to-back - which makes the outbreak
+an even sharper test for `batch_weight_prior = "gp"` than the scenario
+already is by design: two batches that are about as close together as any
+pair in this dataset turn out to have almost the most different true
+proportions of any pair (0.15 vs 0.65). A GP has no time-based warning
+that anything is about to change.
+
+```{r simSetupContinued}
+K <- 2 # seronegative (0) / seropositive (1)
+P <- 2 # two correlated assay readouts
+
+# True, batch-free class means: fixed, well-separated - the biology itself
+# does not change over time, only what is measured does.
+mu_true <- rbind(c(0, 0), c(5, 5))
+class_sd <- 1.0
+
+# Smooth assay drift: both the shift and the scale grow with time. Scale
+# growth (not shift) is what actually erodes separability - an additive
+# shift moves both classes by the same amount and so does not by itself
+# bring them closer together.
+drift_rate <- 0.09
+scale_rate <- 0.085
+batch_shift_true <- drift_rate * time_points
+batch_scale_true <- 1 + scale_rate * time_points # S_loc has support [1, Inf)
+
+# True per-batch prevalence: flat and low for batches 1-4, a step change at
+# batch 5 that persists into batch 6.
+true_p1 <- c(0.15, 0.10, 0.20, 0.15, 0.65, 0.75)
+```
+
+```{r simGenerate}
+n_per_batch <- 100
+N <- n_per_batch * B
+
+X_obs <- matrix(0, N, P)
+X_true <- matrix(0, N, P)
+labels_true <- integer(N)
+batch_vec <- integer(N)
+
+row_i <- 1
+for (b in seq_len(B)) {
+  n1 <- rbinom(1, n_per_batch, true_p1[b])
+  n0 <- n_per_batch - n1
+  cls <- c(rep(0, n0), rep(1, n1))
+  for (k in cls) {
+    z <- rnorm(P, mean = mu_true[k + 1, ], sd = class_sd)
+    X_true[row_i, ] <- z
+    X_obs[row_i, ] <- (z - mu_true[k + 1, ]) * batch_scale_true[b] +
+      mu_true[k + 1, ] + batch_shift_true[b]
+    labels_true[row_i] <- k
+    batch_vec[row_i] <- b - 1
+    row_i <- row_i + 1
+  }
+}
+```
+
+**Semi-supervised labels: the extremes, not a random sample.** Rather than
+labelling a random subset (`generateBatchData()`'s usual `frac_known`),
+here the "confirmed" items are the most extreme observed values within
+each true class, per batch - the items a lab would realistically have
+independent confirmatory testing for (e.g. a panel's positive/negative
+controls), not an arbitrary sample of the whole run. This is done
+per-batch rather than pooling extremes across the whole dataset, since the
+batches with the most severe drift would otherwise dominate which items
+count as "extreme" and leave some batches with no anchor at all.
+
+```{r fixedLabels}
+score <- X_obs[, 1] + X_obs[, 2] # a simple separating projection
+n_fixed_per_class_per_batch <- 4
+
+fixed <- rep(0L, N)
+for (b in 0:(B - 1)) {
+  bidx <- which(batch_vec == b)
+  neg_idx <- bidx[labels_true[bidx] == 0]
+  pos_idx <- bidx[labels_true[bidx] == 1]
+  extreme_neg <- neg_idx[order(score[neg_idx])][seq_len(min(n_fixed_per_class_per_batch, length(neg_idx)))]
+  extreme_pos <- pos_idx[order(-score[pos_idx])][seq_len(min(n_fixed_per_class_per_batch, length(pos_idx)))]
+  fixed[c(extreme_neg, extreme_pos)] <- 1L
+}
+cat("Fixed (confirmed-label) items per batch and class:\n")
+print(table(batch = batch_vec[fixed == 1] + 1, class = labels_true[fixed == 1]))
+```
+
+## 2. Visualise the data, with and without the batch effect
+
+```{r simViz}
+plot_df <- data.frame(
+  X1 = X_obs[, 1], X2 = X_obs[, 2],
+  X1_true = X_true[, 1], X2_true = X_true[, 2],
+  class = factor(labels_true, labels = c("negative", "positive")),
+  batch = factor(batch_vec + 1),
+  fixed = factor(fixed, labels = c("unlabelled", "confirmed"))
+)
+
+ggplot(plot_df, aes(X1, X2, colour = batch)) +
+  geom_point(alpha = 0.6) +
+  labs(title = "Observed data, coloured by batch", subtitle = "Later batches visibly shifted and more spread out") +
+  theme_minimal()
+
+ggplot(plot_df, aes(X1, X2, colour = class, shape = fixed, alpha = fixed)) +
+  geom_point() +
+  scale_alpha_manual(values = c(unlabelled = 0.35, confirmed = 1)) +
+  labs(
+    title = "Observed data, coloured by true class",
+    subtitle = "The two classes overlap far more in later (more drifted) batches; confirmed labels are the extremes"
+  ) +
+  theme_minimal()
+
+ggplot(plot_df, aes(X1_true, X2_true, colour = class)) +
+  geom_point(alpha = 0.6) +
+  labs(
+    title = "True batch-free data, coloured by class",
+    subtitle = "The underlying biology: always well separated, regardless of batch"
+  ) +
+  theme_minimal()
+```
+
+```{r trueProportionViz}
+prop_df <- data.frame(batch = factor(1:B), time = time_points, true_p1 = true_p1)
+ggplot(prop_df, aes(time, true_p1)) +
+  geom_line(linetype = "dashed", colour = "grey50") +
+  geom_point(aes(colour = batch), size = 3) +
+  labs(
+    title = "True per-batch positive-class proportion",
+    subtitle = "Flat through batches 1-4, a step change at batch 5 that persists into batch 6",
+    x = "Batch collection time", y = "True P(positive)"
+  ) +
+  ylim(0, 1) +
+  theme_minimal()
+```
+
+## 3. Fit three models
+
+Identical in every respect (data, labels, `type = "MVN"`) except
+`batch_weight_prior`. For `"gp"`, `batch_coordinates` is the actual
+collection time (not batch index), and `sample_gp_hyperparameters = TRUE`
+lets the length scale and marginal variance be estimated rather than fixed
+- important here since there is no reason to assume any particular
+smoothness in advance. Four chains per model, so agreement between chains
+can be checked before trusting any of it (Section 4).
+
+```{r fitModels}
+n_chains <- 4
+R0 <- 6000
+thin <- 15
+n_burn0 <- 3000
+
+init_labels <- labels_true
+init_labels[fixed == 0] <- sample(0:(K - 1), sum(fixed == 0), replace = TRUE)
+
+out_global <- runMCMCChains(X_obs, n_chains, R0, thin, batch_vec + 1, "MVN",
+  initial_labels = init_labels, fixed = fixed,
+  auto_tune = TRUE, n_burn = n_burn0,
+  batch_weight_prior = "global"
+)
+
+out_pp <- runMCMCChains(X_obs, n_chains, R0, thin, batch_vec + 1, "MVN",
+  initial_labels = init_labels, fixed = fixed,
+  auto_tune = TRUE, n_burn = n_burn0,
+  batch_weight_prior = "partial_pooling"
+)
+
+out_gp <- runMCMCChains(X_obs, n_chains, R0, thin, batch_vec + 1, "MVN",
+  initial_labels = init_labels, fixed = fixed,
+  auto_tune = TRUE, n_burn = n_burn0,
+  batch_weight_prior = "gp", batch_coordinates = time_points,
+  sample_gp_hyperparameters = TRUE
+)
+```
+
+## 4. MCMC diagnostics
+
+```{r diagPlots}
+plotAcceptanceRates(out_global)
+plotAcceptanceRates(out_pp)
+plotAcceptanceRates(out_gp)
+
+plotLikelihoods(out_pp)
+plotLikelihoods(out_gp)
+```
+
+Per-batch weights under partial pooling and, especially, a Gaussian
+process over irregular time points are a harder target than a single
+global weight - a batch's positive-class weight is only weakly identified
+by that batch's own (often heavily overlapping) data plus a handful of
+confirmed labels, so it is worth checking convergence explicitly for this
+quantity rather than only for the overall likelihood.
+
+```{r rhat}
+gelmanRubinRhat <- function(chain_matrix) {
+  # chain_matrix: iterations x chains, restricted to the second half of
+  # each chain.
+  n <- nrow(chain_matrix)
+  m <- ncol(chain_matrix)
+  chain_means <- colMeans(chain_matrix)
+  grand_mean <- mean(chain_means)
+  B_var <- n / (m - 1) * sum((chain_means - grand_mean)^2)
+  W_var <- mean(apply(chain_matrix, 2, var))
+  sqrt((((n - 1) / n) * W_var + B_var / n) / W_var)
+}
+
+rhat_summary <- function(out, label, check_batch_weight = TRUE) {
+  lkl <- sapply(out, function(ch) ch$complete_likelihood)
+  half <- seq(floor(nrow(lkl) / 2) + 1, nrow(lkl))
+  cat(label, "R-hat, complete_likelihood:", round(gelmanRubinRhat(lkl[half, ]), 3), "\n")
+  if (check_batch_weight) {
+    # Batch 5's positive-class weight: the batch right at the discontinuity,
+    # and so the hardest one for either of these two priors to pin down.
+    # (Not checked for "global": every batch is identical by construction,
+    # so a per-batch R-hat there tests nothing beyond the likelihood check.)
+    w5 <- sapply(out, function(ch) ch$w_batch[5, 2, ])
+    cat(label, "R-hat, batch 5 positive-class weight:", round(gelmanRubinRhat(w5[half, ]), 3), "\n")
+  }
+}
+
+rhat_summary(out_global, "global", check_batch_weight = FALSE)
+rhat_summary(out_pp, "partial_pooling")
+rhat_summary(out_gp, "gp")
+```
+
+If any of these are still well above the usual ~1.1 rule of thumb, the
+right move is to run longer via `continueChains()` before trusting
+anything downstream - not to explain it away.
+
+```{r continueChains}
+R_new <- 18000
+
+out_global <- continueChains(out_global, X_obs, fixed, batch_vec + 1, R_new, keep_old_samples = TRUE)
+out_pp <- continueChains(out_pp, X_obs, fixed, batch_vec + 1, R_new, keep_old_samples = TRUE)
+out_gp <- continueChains(out_gp, X_obs, fixed, batch_vec + 1, R_new, keep_old_samples = TRUE)
+
+rhat_summary(out_global, "global (continued)", check_batch_weight = FALSE)
+rhat_summary(out_pp, "partial_pooling (continued)")
+rhat_summary(out_gp, "gp (continued)")
+```
+
+```{r processChains}
+R_total <- R0 + R_new
+burn_total <- floor(R_total / 2)
+
+proc_global <- processMCMCChains(out_global, burn_total)[[1]]
+proc_pp <- processMCMCChains(out_pp, burn_total)[[1]]
+proc_gp <- processMCMCChains(out_gp, burn_total)[[1]]
+```
+
+R-hat drops sharply after continuing, but is unlikely to be perfectly at 1
+for every quantity in every one of the three fits - in particular, `gp`'s
+complete-likelihood R-hat commonly stays the highest of the three even
+after continuing, which is exactly what the discussion above predicts: a
+Gaussian process over six irregular time points, fit to data with a real
+discontinuity in what it is modelling, is the hardest of the three targets
+to pin down. This vignette is kept to a single continuation call to keep
+its build time reasonable; in real use, keep calling `continueChains()`
+until every diagnostic you care about is comfortably below ~1.1, not just
+the ones checked here.
+
+## 5. Recovered per-batch proportions vs the truth
+
+The plot the whole comparison hinges on: each method's posterior point
+estimate of the positive-class proportion in every batch, against the true
+step function from Section 2.
+
+```{r weightRecoveryViz}
+weight_recovery_df <- data.frame(
+  batch = rep(1:B, 3),
+  time = rep(time_points, 3),
+  true_p1 = rep(true_p1, 3),
+  # w_batch_est only exists for batch_weight_prior != "global" (there is no
+  # per-batch weight to estimate under a single global weight) - the global
+  # model's single positive-class weight is repeated across every batch
+  # instead, since that is exactly what "global" means: one shared estimate
+  # applied everywhere, regardless of batch.
+  est_p1 = c(
+    rep(median(proc_global$weights[, 2]), B),
+    proc_pp$w_batch_est[, 2], proc_gp$w_batch_est[, 2]
+  ),
+  method = rep(c("global", "partial_pooling", "gp"), each = B)
+)
+
+ggplot(weight_recovery_df, aes(time, true_p1)) +
+  geom_line(aes(y = true_p1), colour = "grey40", linetype = "dashed") +
+  geom_point(aes(y = true_p1), colour = "grey20", shape = 4, size = 3, stroke = 1.2) +
+  geom_line(aes(y = est_p1, colour = method)) +
+  geom_point(aes(y = est_p1, colour = method), size = 2.5) +
+  labs(
+    title = "Recovered vs true per-batch positive-class proportion",
+    subtitle = "Grey X = truth (also the dashed line); coloured points/lines = each method's posterior estimate",
+    x = "Batch collection time", y = "P(positive)"
+  ) +
+  ylim(0, 1) +
+  theme_minimal()
+```
+
+`global` is flat by construction, at roughly the pooled average prevalence
+across all six batches (~0.35) - it has no way to represent batch 5's jump
+at all, so it is badly wrong in both directions: too high for the
+low-prevalence batches 1-4, too low for the high-prevalence batches 5-6.
+`partial_pooling` and `gp` both track the step correctly - low through
+batches 1-4, high at 5-6 - which is the main result: either is a real fix
+for what `global` cannot do at all. Where they are not perfect, both are
+imperfect in the same place and the same direction: batch 4, immediately
+before the jump, is over-estimated by both (its true proportion is 0.15,
+but both land closer to 0.28-0.30). That is not a coincidence - batch 4
+has the most accumulated assay drift of any of the low-prevalence batches
+(heaviest class overlap, so the weakest per-batch signal) and sits right
+at the edge of the regime change, so both models' information-sharing
+mechanism (shrinkage towards a common mean for `partial_pooling`, towards
+nearby batches for `gp`) pulls its estimate towards the now-elevated
+batches next to it. A hierarchical model borrowing strength across batches
+is exactly what makes it able to represent the jump at all; the same
+mechanism is what makes the batch right at the boundary the hardest one
+to pin down precisely.
+
+## 6. Batch-corrected data per method, vs ground truth
+
+Each model's `inferred_dataset` (its posterior batch-corrected estimate)
+coloured by *predicted* class, compared against the true batch-free data
+coloured by *true* class from Section 2.
+
+```{r correctedViz, fig.width=7, fig.height=5.5}
+make_corrected_df <- function(proc, method) {
+  data.frame(
+    X1 = proc$inferred_dataset[, 1], X2 = proc$inferred_dataset[, 2],
+    pred_class = factor(proc$pred - 1, labels = c("negative", "positive")),
+    method = method
+  )
+}
+
+corrected_df <- rbind(
+  make_corrected_df(proc_global, "global"),
+  make_corrected_df(proc_pp, "partial_pooling"),
+  make_corrected_df(proc_gp, "gp")
+)
+truth_df <- data.frame(
+  X1 = X_true[, 1], X2 = X_true[, 2],
+  pred_class = factor(labels_true, labels = c("negative", "positive")),
+  method = "truth"
+)
+combined_df <- rbind(corrected_df, truth_df)
+combined_df$method <- factor(combined_df$method, levels = c("truth", "global", "partial_pooling", "gp"))
+
+ggplot(combined_df, aes(X1, X2, colour = pred_class)) +
+  geom_point(alpha = 0.6, size = 1.2) +
+  facet_wrap(~method) +
+  labs(
+    title = "Batch-corrected data by method vs ground truth",
+    subtitle = "Coloured by predicted class (truth panel: true class)"
+  ) +
+  theme_minimal()
+```
+
+## 7. Classification accuracy by batch
+
+A single number per method hides exactly the batches this scenario is
+designed to stress, so this breaks accuracy down by batch instead of just
+reporting one overall figure.
+
+```{r accuracy}
+unlabelled <- fixed == 0
+
+acc_by_batch <- function(proc, method) {
+  pred <- proc$pred - 1L
+  data.frame(
+    batch = 1:B, time = time_points, method = method,
+    accuracy = as.numeric(tapply(pred[unlabelled] == labels_true[unlabelled], batch_vec[unlabelled], mean))
+  )
+}
+
+acc_df <- rbind(
+  acc_by_batch(proc_global, "global"),
+  acc_by_batch(proc_pp, "partial_pooling"),
+  acc_by_batch(proc_gp, "gp")
+)
+
+ggplot(acc_df, aes(batch, accuracy, colour = method, group = method)) +
+  geom_line() +
+  geom_point(size = 2.5) +
+  geom_vline(xintercept = 4.5, linetype = "dotted", colour = "grey50") +
+  labs(
+    title = "Classification accuracy on unlabelled items, by batch",
+    subtitle = "Dotted line marks the outbreak (batch 5 onward)",
+    x = "Batch", y = "Accuracy"
+  ) +
+  ylim(0, 1) +
+  theme_minimal()
+
+cat("Overall accuracy (unlabelled items):\n")
+cat("  global:         ", round(mean((proc_global$pred - 1L)[unlabelled] == labels_true[unlabelled]), 3), "\n")
+cat("  partial_pooling:", round(mean((proc_pp$pred - 1L)[unlabelled] == labels_true[unlabelled]), 3), "\n")
+cat("  gp:             ", round(mean((proc_gp$pred - 1L)[unlabelled] == labels_true[unlabelled]), 3), "\n")
+```
+
+`global`'s accuracy falls away from batch 4 onward and is at its worst in
+batches 5-6 (~0.84-0.88 here): it keeps assuming the pre-outbreak
+(mostly-negative) prior even after the true proportion has flipped towards
+mostly-positive, so it systematically under-calls the positive class
+exactly where it has become common. `partial_pooling` and `gp` both
+recover noticeably more accuracy in those same two batches (~0.90-0.92) -
+this is the practical payoff of Section 5's weight recovery: getting the
+per-batch prior closer to right directly improves the classifications that
+prior feeds into. All three methods are roughly tied, and all three at
+their worst, on batch 4 - the same batch that Section 5 flagged as the
+hardest to estimate a weight for, for the same reason: heavy class overlap
+and sitting right at the edge of the regime change, which no choice of
+weight prior can fully fix once the raw signal itself is this ambiguous.

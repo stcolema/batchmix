@@ -16,6 +16,8 @@ runBatchMix(
   alpha = 1,
   mu_proposal_window = 0.5^2,
   cov_proposal_window = 0.002,
+  r_proposal_window = 0.1,
+  sigma_proposal_window = 0.01,
   m_proposal_window = 0.3^2,
   S_proposal_window = 0.01,
   t_df_proposal_window = 0.015,
@@ -27,7 +29,26 @@ runBatchMix(
   initial_batch_shift = NULL,
   initial_batch_scale = NULL,
   initial_class_df = NULL,
-  verbose = TRUE
+  verbose = TRUE,
+  eta = 1,
+  column_type = NULL,
+  censor_code = NULL,
+  auto_tune = TRUE,
+  n_burn = NULL,
+  include_interaction = FALSE,
+  gamma_proposal_window = 0.1,
+  a_gamma = 2,
+  b_gamma = 1,
+  batch_weight_prior = c("global", "partial_pooling", "gp"),
+  batch_coordinates = NULL,
+  gp_tau2 = 1,
+  gp_length_scale = 1,
+  eta_proposal_window = 0.1,
+  sample_gp_hyperparameters = FALSE,
+  gp_hyperparameter_proposal_window = 0.1,
+  pp_tau2_shape = 2,
+  pp_tau2_rate = 1,
+  pp_mu_prior_sd = 10
 )
 }
 \arguments{
@@ -41,8 +62,9 @@ runBatchMix(
 \item{batch_vec}{Labels identifying which batch each item being clustered is
 from.}
 
-\item{type}{Character indicating density type to use. One of 'MVN'
-(multivariate normal distribution) or 'MVT' (multivariate t distribution).}
+\item{type}{Character indicating density type to use. One of 'MVN', 'MVT',
+'MVN_LKJ' or 'MVN_MIXED' - see \code{\link{batchSemiSupervisedMixtureModel}}
+for the full description of each.}
 
 \item{K_max}{The number of components to include (the upper bound on the
 number of clusters in each sample). Defaults to the number of unique labels
@@ -68,6 +90,13 @@ set this aiming for accpetance rates of greater than 0.5 for the covariance
 matrices (e.g., between 2e-03 and 1e-04 is a good range to consider
 initially). As the entire covariance matrix is sampled at once exploration is
 difficult.}
+
+\item{r_proposal_window, sigma_proposal_window, eta, column_type, censor_code, }{auto_tune,n_burn,include_interaction,gamma_proposal_window,a_gamma,b_gamma,
+batch_weight_prior,batch_coordinates,gp_tau2,gp_length_scale,
+eta_proposal_window,sample_gp_hyperparameters,
+gp_hyperparameter_proposal_window,pp_tau2_shape,pp_tau2_rate,pp_mu_prior_sd
+Passed through to \code{\link{batchSemiSupervisedMixtureModel}}; see its
+documentation for the full description of each.}
 
 \item{m_proposal_window}{The proposal window for the batch mean proposal
  kernel. The proposal density is a Gaussian distribution, the window is the

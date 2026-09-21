@@ -1,5 +1,6 @@
 # include <RcppArmadillo.h>
 # include "pdfs.h"
+# include "genericFunctions.h"
 
 // [[Rcpp::depends(RcppArmadillo)]]
 
@@ -23,6 +24,10 @@ double wishartLogLikelihood(arma::mat X, arma::mat V, double n, arma::uword P){
 double invWishartLogLikelihood(arma::mat X, arma::mat Psi, double nu, arma::uword P) {
   return -0.5*(nu * arma::log_det(Psi).real()
                + (nu + P + 1) * arma::log_det(X).real()
-               + arma::trace( Psi * arma::inv_sympd(X) ) 
+               + arma::trace( Psi * arma::inv_sympd(X) )
                );
+}
+
+double lkjLogLikelihood(arma::mat R, double eta) {
+  return (eta - 1.0) * arma::log_det(R).real();
 }

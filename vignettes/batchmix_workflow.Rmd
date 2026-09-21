@@ -1,201 +1,333 @@
 ---
 title: "batchmix workflow"
 author: "Stephen Coleman"
-output: pdf_document
-%\VignetteEngine{knitr::knitr}
-%\VignetteIndexEntry{Using BatchMixtureModel}
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Using BatchMixtureModel}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-
+knitr::opts_chunk$set(echo = TRUE, collapse = TRUE, comment = "#>", fig.width = 6, fig.height = 4.5)
 set.seed(1)
 ```
 
 ## Introduction
 
-This document shows the basics of applying our Bayesian model-based 
-clustering/classification with joint batch correction in ``R``. It shows how to
-generate some toy data, apply the model, assess convergence and process outputs.
+This is the end-to-end workflow for `batchmix`: simulate data with a known
+batch effect, confirm the batch effect is actually there (and check what the
+data would look like without it), fit the semi-supervised model, check that
+the MCMC chains have actually converged before trusting anything they say,
+and finally check that the fitted model recovered the parameters used to
+generate the data and removed the batch effect. Each step matters on its own
+- a model fit from a chain that hasn't converged, or accepted without
+checking whether the batch correction did anything, is not a result you can
+trust.
 
-## Data generation
-
-We simulate some data using the ``generateBatchData`` function.
-
-```{r dataGen}
-library(ggplot2)
+```{r libraries, message=FALSE}
 library(batchmix)
-
-# Data dimensions
-N <- 600
-P <- 4
-K <- 5
-B <- 7
-
-# Generating model parameters
-mean_dist <- 2.25
-batch_dist <- 0.3
-group_means <- seq(1, K) * mean_dist
-batch_shift <- rnorm(B, mean = batch_dist, sd = batch_dist)
-std_dev <- rep(2, K)
-batch_var <- rep(1.2, B)
-group_weights <- rep(1 / K, K)
-batch_weights <- rep(1 / B, B)
-dfs <- c(4, 7, 15, 60, 120)
-
-my_data <- generateBatchData(
-  N,
-  P,
-  group_means,
-  std_dev,
-  batch_shift,
-  batch_var,
-  group_weights,
-  batch_weights,
-  type = "MVT",
-  group_dfs = dfs
-)
+library(ggplot2)
 ```
 
-This gives us a named list with two related datasets, the ``observed_data`` 
-which includes batch effects and the ``corrected_data`` which is batch-free. It
-also includes ``group_IDs``, a vector indicating class membership for each item,
-``batch_IDs``, which indicates batch of origin for each item, and ``fixed``,
-which indicates which labels are observed and fixed in the model. We pull these 
-out of the names list in the format that the modelling functions desire them.
+## 1. Simulate data with a known batch effect
 
-```{r dataClean}
+`generateBatchData()` returns both the `observed_data` (what you would
+actually measure, batch effect included) and the `corrected_data` (the same
+draws with the batch effect never applied) for the same items, which is what
+makes it possible to check, on this simulation, whether a fitted model's
+batch correction actually recovers the right thing rather than just
+producing *some* transformation of the data.
+
+```{r dataGen}
+N <- 400
+P <- 2
+K <- 3
+B <- 5
+
+group_means <- c(0, 5, 10)
+group_sds <- rep(1, K)
+
+# A deliberately obvious batch effect: shifts of very different sizes, and
+# scales further from 1 than you would want in practice, so that its effect
+# on the raw data is unambiguous in the plots below. (The model's batch
+# scale has support (1, Inf) - see S_loc in the package's C++ sources - so
+# generateBatchData() requires batch_scale >= 1 too.)
+batch_shift <- c(-4, -2, 0, 2, 4)
+batch_scale <- c(1.0, 1.3, 1.6, 2.0, 2.6)
+
+group_weights <- rep(1 / K, K)
+batch_weights <- rep(1 / B, B)
+
+my_data <- generateBatchData(
+  N, P,
+  group_means, group_sds,
+  batch_shift, batch_scale,
+  group_weights, batch_weights,
+  type = "MVN"
+)
+
 X <- my_data$observed_data
-
+X_true <- my_data$corrected_data
 true_labels <- my_data$group_IDs
-fixed <- my_data$fixed
 batch_vec <- my_data$batch_IDs
+fixed <- my_data$fixed
+```
+
+`fixed` marks which items have an observed label (this simulation labels
+about 20% of items, `frac_known` in `generateBatchData()`); the rest are
+what the model has to cluster.
+
+## 2. Confirm the batch effect is actually present
+
+Before fitting anything, look at the raw data. Colouring the *same*
+`observed_data` by batch and then by true group shows whether the batch
+effect is visible at all, and whether it's large enough to matter relative
+to the group structure; colouring the batch-free `corrected_data` by group
+shows what the data would look like if the batch effect were successfully
+removed - the target the model fit is aiming for.
+
+```{r batchEffectViz}
+plot_df <- data.frame(
+  X1 = X[, 1], X2 = X[, 2],
+  X1_true = X_true[, 1], X2_true = X_true[, 2],
+  batch = factor(batch_vec),
+  group = factor(true_labels)
+)
+
+# Observed data, coloured by batch: if there were no batch effect, batches
+# would be scattered on top of each other rather than forming separated
+# clouds.
+ggplot(plot_df, aes(X1, X2, colour = batch)) +
+  geom_point(alpha = 0.7) +
+  labs(title = "Observed data, coloured by batch", subtitle = "Batches visibly offset/rescaled: the batch effect is present") +
+  theme_minimal()
+
+# The same observed data, coloured by the true group instead: batch noise
+# make the group structure noisier/harder to see than in the corrected data
+# below.
+ggplot(plot_df, aes(X1, X2, colour = group)) +
+  geom_point(alpha = 0.7) +
+  labs(title = "Observed data, coloured by true group", subtitle = "Batch effect blurs the group separation") +
+  theme_minimal()
+
+# The batch-free ground truth: what a perfect batch correction would recover.
+ggplot(plot_df, aes(X1_true, X2_true, colour = group)) +
+  geom_point(alpha = 0.7) +
+  labs(title = "Batch-free ground truth (corrected_data), coloured by true group", subtitle = "Target for the batch-corrected posterior estimate") +
+  theme_minimal()
+```
+
+## 3. Fit the model
+
+We run several chains in parallel so we can check they agree (Section 4) -
+a single chain can look perfectly converged and still be wrong if it's
+stuck in a poor part of the space. `auto_tune = TRUE` (the default) adapts
+every Metropolis-Hastings proposal window automatically during `n_burn`
+iterations, rather than requiring hand-tuned windows up front.
+
+```{r runMCMCChains}
+R <- 1500
+thin <- 25
+n_chains <- 4
 
 alpha <- 1
 initial_labels <- generateInitialLabels(alpha, K, fixed, true_labels)
-```
 
-## Modelling
-
-Given some data, we are interested in modelling it. We assume here that the set
-of observed labels includes at least one example of each class in the data. 
-
-```{r runMCMCChains}
-# Sampling parameters
-R <- 1000
-thin <- 50
-n_chains <- 4
-
-# Density choice
-type <- "MVT"
-
-# MCMC samples and BIC vector
 mcmc_output <- runMCMCChains(
-  X,
-  n_chains,
-  R,
-  thin,
-  batch_vec,
-  type,
+  X, n_chains, R, thin, batch_vec, "MVN",
   initial_labels = initial_labels,
-  fixed = fixed
+  fixed = fixed,
+  auto_tune = TRUE,
+  n_burn = floor(R / 2)
 )
 ```
 
-We want to assess two things. First, how frequently the proposed parameters in the Metropolis-Hastings step are accepted:
+## 4. MCMC diagnostics
+
+**Acceptance rates.** Metropolis-Hastings proposals accepted far too often
+(close to 1) or almost never (close to 0) both indicate a poorly-tuned
+chain that isn't exploring properly; `auto_tune` aims most blocks at
+~0.234-0.44 automatically, but it's still worth checking nothing pinned at
+an extreme.
 
 ```{r plotAcceptanceRatesEarly}
 plotAcceptanceRates(mcmc_output)
 ```
 
-Secondly, we want to asses how well our chains have converged. To do this we plot the ``complete_likelihood`` of each chain. This is the quantity most relevant to a clustering/classification, being dependent on the labels. The ``observed_likelihood`` is independent of labels and more relevant for density estimation.
+**Likelihood traces.** `complete_likelihood` (label-dependent, most relevant
+to the clustering itself) and `observed_likelihood` (label-free, more
+relevant to density estimation) should each look like they've settled down
+to fluctuating around a stable level, with the chains agreeing with each
+other, not still trending or visibly separated.
 
 ```{r likelihood}
 plotLikelihoods(mcmc_output)
 ```
 
-We see that our chains disagree. We have to run them for more iterations. We use the ``continueChains`` function for this.
+**Multi-chain agreement (Gelman-Rubin R-hat).** A visual check is a good
+start but is easy to kid yourself with; the standard quantitative check is
+the potential scale reduction factor (Gelman & Rubin, 1992, *Statistical
+Science* 7(4)): compare the variance of a quantity *within* each chain to
+its variance pooling *across* chains, for the second half of each chain
+(to let early-chain differences burn off). Values close to 1 (rule of
+thumb: below ~1.1) indicate the chains agree; values well above 1 mean at
+least one chain hasn't converged to the same place as the others.
+
+```{r rhat}
+gelmanRubinRhat <- function(chain_matrix) {
+  # chain_matrix: iterations x chains, already restricted to the second
+  # half of each chain.
+  n <- nrow(chain_matrix)
+  m <- ncol(chain_matrix)
+  chain_means <- colMeans(chain_matrix)
+  grand_mean <- mean(chain_means)
+
+  # Between-chain variance (scaled as in Gelman & Rubin, 1992).
+  B <- n / (m - 1) * sum((chain_means - grand_mean)^2)
+  # Within-chain variance.
+  W <- mean(apply(chain_matrix, 2, var))
+
+  var_hat <- ((n - 1) / n) * W + B / n
+  sqrt(var_hat / W)
+}
+
+complete_lkl <- sapply(mcmc_output, function(chain) chain$complete_likelihood)
+second_half <- seq(floor(nrow(complete_lkl) / 2) + 1, nrow(complete_lkl))
+
+cat("R-hat for complete_likelihood:", round(gelmanRubinRhat(complete_lkl[second_half, ]), 3), "\n")
+
+# The same check for a specific, interpretable parameter: the first batch's
+# shift on the first feature.
+batch1_shift_p1 <- sapply(mcmc_output, function(chain) chain$batch_shift[1, 1, ])
+cat("R-hat for batch 1's shift (feature 1):", round(gelmanRubinRhat(batch1_shift_p1[second_half, ]), 3), "\n")
+```
+
+If either diagnostic looks bad - trending likelihoods, R-hat well above
+1.1, or acceptance rates stuck near 0 or 1 - the right move is to run
+longer before trusting anything downstream, via `continueChains()`:
 
 ```{r continueChains}
-R_new <- 9000
+R_new <- 6000
 
-# Given an initial value for the parameters
 new_output <- continueChains(
-  mcmc_output,
-  X,
-  fixed,
-  batch_vec,
-  R_new,
+  mcmc_output, X, fixed, batch_vec, R_new,
   keep_old_samples = TRUE
 )
-```
 
-To see if the chains better agree we re-plot the likelihood.
-
-```{r continuedLikelihood}
 plotLikelihoods(new_output)
+
+rhat_after <- gelmanRubinRhat(
+  sapply(new_output, function(chain) chain$complete_likelihood)[
+    seq(floor(R_new / thin / 2) + 1, floor((R + R_new) / thin)),
+  ]
+)
+cat("R-hat for complete_likelihood after continuing:", round(rhat_after, 3), "\n")
 ```
 
-We also re-check the acceptance rates.
+R-hat has moved closer to 1 than the first check, but this vignette is kept
+deliberately short so it builds quickly - in real use, keep calling
+`continueChains()` (each call picks up exactly where the last left off)
+until R-hat is comfortably below ~1.1 for every quantity you care about,
+not just the one or two checked here, before trusting any point estimate
+from `processMCMCChains()` below.
 
-```{r plotAcceptanceRates}
-plotAcceptanceRates(new_output)
-```
-
-This looks like several of the chains agree by the 5,000th iteration.
-
-## Process chains
-
-We process the chains, acquiring point estimates of different quantities.
+## 5. Process the chains
 
 ```{r processChains}
-# Burn in
-burn <- 5000
-
-# Process the MCMC samples
+burn <- floor((R + R_new) / 2)
 processed_samples <- processMCMCChains(new_output, burn)
+chain_used <- processed_samples[[1]]
 ```
 
-## Visualisation
+## 6. Parameter recovery
 
-For multidimensional data we use a PCA plot.
+Because this is simulated data, we know the true group means and batch
+shifts, so we can check directly whether the model recovered them (up to
+label switching between the sampler's cluster indices and the simulator's
+group indices, and up to the usual mean/shift additive confound when
+neither is anchored - here we just match each sampled cluster to its
+closest true group mean for a readable plot).
 
-```{r pca}
-chain_used <- processed_samples[[1]]
+```{r paramRecovery}
+est_means <- chain_used$mean_est # P x K
+match_order <- apply(est_means, 2, function(col) which.min(abs(col[1] - group_means)))
 
-pc <- prcomp(X, scale = T)
-pc_batch_corrected <- prcomp(chain_used$inferred_dataset)
+recovery_df <- data.frame(
+  true_mean = group_means[match_order],
+  est_mean = est_means[1, ],
+  cluster = factor(seq_len(K))
+)
 
-plot_df <- data.frame(
-  PC1 = pc$x[, 1],
-  PC2 = pc$x[, 2],
-  PC1_bf = pc_batch_corrected$x[, 1],
-  PC2_bf = pc_batch_corrected$x[, 2],
+ggplot(recovery_df, aes(true_mean, est_mean, colour = cluster)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", colour = "grey50") +
+  geom_point(size = 3) +
+  labs(
+    title = "Cluster mean recovery (feature 1)",
+    x = "True group mean", y = "Posterior point estimate"
+  ) +
+  theme_minimal()
+
+shift_recovery_df <- data.frame(
+  true_shift = batch_shift,
+  est_shift = chain_used$shift_est[1, ],
+  batch = factor(seq_len(B))
+)
+
+ggplot(shift_recovery_df, aes(true_shift, est_shift, colour = batch)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", colour = "grey50") +
+  geom_point(size = 3) +
+  labs(
+    title = "Batch shift recovery (feature 1)",
+    x = "True batch shift", y = "Posterior point estimate"
+  ) +
+  theme_minimal()
+```
+
+## 7. Did the batch correction work?
+
+The real test: compare the model's inferred batch-corrected data
+(`inferred_dataset`, the posterior estimate) against the simulator's
+`corrected_data` ground truth from Section 2, not just against the raw
+observed data.
+
+```{r finalViz}
+pc_raw <- prcomp(X, scale. = TRUE)
+pc_corrected <- prcomp(chain_used$inferred_dataset, scale. = TRUE)
+pc_truth <- prcomp(X_true, scale. = TRUE)
+
+viz_df <- data.frame(
+  PC1_raw = pc_raw$x[, 1], PC2_raw = pc_raw$x[, 2],
+  PC1_est = pc_corrected$x[, 1], PC2_est = pc_corrected$x[, 2],
+  PC1_truth = pc_truth$x[, 1], PC2_truth = pc_truth$x[, 2],
   pred_labels = factor(chain_used$pred),
   true_labels = factor(true_labels),
   prob = chain_used$prob,
   batch = factor(batch_vec)
 )
 
-plot_df |>
-  ggplot(aes(
-    x = PC1,
-    y = PC2,
-    colour = true_labels,
-    alpha = prob
-  )) +
-  geom_point()
+ggplot(viz_df, aes(PC1_raw, PC2_raw, colour = batch)) +
+  geom_point(alpha = 0.7) +
+  labs(title = "Raw observed data (PCA)", subtitle = "Batch effect still visible") +
+  theme_minimal()
 
-plot_df |>
-  ggplot(aes(
-    x = PC1_bf,
-    y = PC2_bf,
-    colour = pred_labels,
-    alpha = prob
-  )) +
-  geom_point()
+ggplot(viz_df, aes(PC1_est, PC2_est, colour = pred_labels, alpha = prob)) +
+  geom_point() +
+  labs(title = "Model's batch-corrected estimate (PCA)", subtitle = "Coloured by predicted cluster") +
+  theme_minimal()
+
+ggplot(viz_df, aes(PC1_truth, PC2_truth, colour = true_labels)) +
+  geom_point(alpha = 0.7) +
+  labs(title = "True batch-free data (PCA)", subtitle = "What the estimate above should resemble") +
+  theme_minimal()
 
 test_inds <- which(fixed == 0)
-
-sum(true_labels[test_inds] == chain_used$pred[test_inds]) / length(test_inds)
+accuracy <- sum(true_labels[test_inds] == chain_used$pred[test_inds]) / length(test_inds)
+cat("Classification accuracy on unlabelled items:", round(accuracy, 3), "\n")
 ```
+
+If the batch-corrected PCA plot looks like the true batch-free plot (same
+group separation, no leftover batch structure) rather than like the raw
+data, the correction worked; the classification accuracy on the unlabelled
+items gives a single-number summary of the same thing for the class
+structure specifically.

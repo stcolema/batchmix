@@ -55,6 +55,11 @@
 #' of freedom. Defaults to draws from the prior distribution.
 #' @param verbose Logiccal indicating if warning about proposal windows should
 #' be printed.
+#' @param ... Further arguments passed to ``runBatchMix`` (e.g.
+#' ``auto_tune``, ``n_burn``, ``include_interaction``, ``batch_weight_prior``
+#' and their associated options, or ``r_proposal_window``/
+#' ``sigma_proposal_window``/``eta``/``column_type``/``censor_code`` for
+#' ``type`` ``'MVN_LKJ'``/``'MVN_MIXED'``).
 #' @returns A list of named lists. Each entry is the output of
 #' ``runBatchMix``.
 #' @export
@@ -110,7 +115,8 @@ runMCMCChains <- function(X,
                           initial_batch_shift = NULL,
                           initial_batch_scale = NULL,
                           initial_class_df = NULL,
-                          verbose = TRUE) {
+                          verbose = TRUE,
+                          ...) {
   mcmc_lst <- vector("list", n_chains)
 
   mcmc_lst <- lapply(mcmc_lst, function(x) {
@@ -136,7 +142,8 @@ runMCMCChains <- function(X,
       initial_batch_shift = initial_batch_shift,
       initial_batch_scale = initial_batch_scale,
       initial_class_df = initial_class_df,
-      verbose = verbose
+      verbose = verbose,
+      ...
     )
   })
 

@@ -28,7 +28,8 @@ runMCMCChains(
   initial_batch_shift = NULL,
   initial_batch_scale = NULL,
   initial_class_df = NULL,
-  verbose = TRUE
+  verbose = TRUE,
+  ...
 )
 }
 \arguments{
@@ -109,6 +110,12 @@ of freedom. Defaults to draws from the prior distribution.}
 
 \item{verbose}{Logiccal indicating if warning about proposal windows should
 be printed.}
+
+\item{...}{Further arguments passed to ``runBatchMix`` (e.g.
+``auto_tune``, ``n_burn``, ``include_interaction``, ``batch_weight_prior``
+and their associated options, or ``r_proposal_window``/
+``sigma_proposal_window``/``eta``/``column_type``/``censor_code`` for
+``type`` ``'MVN_LKJ'``/``'MVN_MIXED'``).}
 }
 \value{
 A list of named lists. Each entry is the output of

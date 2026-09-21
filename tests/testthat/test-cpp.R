@@ -1,1 +1,1 @@
-run_cpp_tests("BatchMixtureModel")
+run_cpp_tests("batchmix")
