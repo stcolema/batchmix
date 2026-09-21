@@ -57,4 +57,21 @@ double wishartLogLikelihood(arma::mat X, arma::mat V, double n, arma::uword P);
 // [[Rcpp::export]]
 double invWishartLogLikelihood(arma::mat X, arma::mat Psi, double nu, arma::uword P);
 
+//' @title LKJ correlation matrix log-likelihood
+//' @description The unnormalised log-density of the LKJ(eta) distribution
+//' for a correlation matrix R (Lewandowski, Kurowicka & Joe, 2009,
+//' J. Multivariate Analysis 100(9)). The normalising constant depends only
+//' on eta and the dimension P, not on R, so it is safe to omit whenever eta
+//' is held fixed (e.g. in a Metropolis-Hastings acceptance ratio); it is
+//' dropped here.
+//' @param R - matrix; a P x P correlation matrix (symmetric, unit diagonal,
+//' positive definite).
+//' @param eta - double; the LKJ concentration/shape parameter. eta = 1 gives
+//' a uniform density over the space of correlation matrices; eta > 1
+//' concentrates mass towards the identity (weaker correlations); eta < 1
+//' concentrates mass away from the identity (stronger correlations).
+//' @return the unnormalised log-density of R under LKJ(eta).
+// [[Rcpp::export]]
+double lkjLogLikelihood(arma::mat R, double eta);
+
 #endif /* PDFS_H */

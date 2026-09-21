@@ -13,12 +13,11 @@
 #' @author Stephen Coleman <stcolema@tcd.ie>, Paul D.W. Kirk, Chris Wallace
 #' @keywords package
 #'
-#' @importFrom ggplot2 aes_string facet_grid facet_wrap geom_line geom_point
+#' @importFrom ggplot2 aes facet_grid facet_wrap geom_boxplot geom_line geom_point
 #' ggplot label_both labeller labs
 #' @importFrom stats cutree as.dist hclust median rbeta rchisq rnorm
 #' @importFrom tidyr contains pivot_longer
 #' @importFrom Rcpp evalCpp sourceCpp
-#' @importFrom RcppParallel setThreadOptions
 #' @useDynLib batchmix
 #' @examples
 #'

@@ -41,7 +41,7 @@
 #' # Plot the acceptance rate of each parameter in the 4 chains
 #' plotAcceptanceRates(mcmc_lst)
 #'
-#' @importFrom ggplot2 ggplot aes_string geom_boxplot
+#' @importFrom ggplot2 ggplot aes geom_boxplot
 #' @importFrom tidyr pivot_longer any_of
 plotAcceptanceRates <- function(mcmc_lst) {
   type <- mcmc_lst[[1]]$type
@@ -60,7 +60,7 @@ plotAcceptanceRates <- function(mcmc_lst) {
 
   p_out <- ggplot2::ggplot(
     plot_df,
-    ggplot2::aes_string(x = "Parameter", y = "Acceptance_rate")
+    ggplot2::aes(x = Parameter, y = Acceptance_rate)
   ) +
     ggplot2::geom_boxplot() +
     ggplot2::ylim(0, 1)

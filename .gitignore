@@ -1,34 +1,42 @@
-# RStudio project artefacts
+# R session/history
+.Rproj.user
 .Rproj.user/
 *.Rproj
-.Rproj.user
-
-# R session / history
-.RData
 .Rhistory
-.Rapp.history
+.RData
 .Ruserdata
+.Rapp.history
+.httr-oauth
 
-
-*.o
-*.so
-*.dll
-*.dylib
+# Compiled code
 src/*.o
 src/*.so
 src/*.dll
+src/*.dylib
+*.o
+*.so
+*.dll
 
-# R package check and build output
-*.Rcheck/
-*.tar.gz
+# R CMD build/check artifacts
+/*.Rcheck/
+/*.tar.gz
 *.tgz
+inst/doc
 
 # devtools / testthat
 tests/testthat/_snaps/
 
-# knitr / rmarkdown cache and output
+# knitr/vignette build artifacts (e.g. from knitting a vignette outside
+# R CMD build for a quick check - R CMD build itself stages these under
+# inst/doc, not here)
+figure/
 vignettes/*.html
+vignettes/*.R
 vignettes/cache/
 vignettes/figure/
 **/*_cache/
 **/*_files/
+
+# Editor/IDE
+.vscode/
+.DS_Store
