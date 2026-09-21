@@ -1,0 +1,31 @@
+# R session/history
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.httr-oauth
+
+# Compiled code
+src/*.o
+src/*.so
+src/*.dll
+src/*.dylib
+*.o
+*.so
+*.dll
+
+# R CMD build/check artifacts
+/*.Rcheck/
+/*.tar.gz
+inst/doc
+
+# knitr/vignette build artifacts (e.g. from knitting a vignette outside
+# R CMD build for a quick check - R CMD build itself stages these under
+# inst/doc, not here)
+figure/
+vignettes/*.html
+vignettes/*.R
+
+# Editor/IDE
+.vscode/
+.DS_Store
