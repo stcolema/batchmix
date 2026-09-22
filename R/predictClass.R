@@ -25,13 +25,13 @@
 #' batch_vec <- sample(seq(1, 5), replace = TRUE, size = 100)
 #'
 #' # Sampling parameters
-#' R <- 1000
+#' n_iter <- 1000
 #' thin <- 50
 #'
 #' # MCMC samples and BIC vector
 #' samples <- batchSemiSupervisedMixtureModel(
 #'   X,
-#'   R,
+#'   n_iter,
 #'   thin,
 #'   labels,
 #'   fixed,

@@ -39,12 +39,12 @@
 #' batch_vec <- sample(seq(1, 5), replace = TRUE, size = 100)
 #'
 #' # Sampling parameters
-#' R <- 1000
+#' n_iter <- 1000
 #' thin <- 50
 #'
 #' # Classification
 #' samples <- runBatchMix(X,
-#'   R,
+#'   n_iter,
 #'   thin,
 #'   batch_vec,
 #'   "MVN",
@@ -53,6 +53,6 @@
 #' )
 #'
 #' # Clustering
-#' samples <- runBatchMix(X, R, thin, batch_vec, "MVT")
+#' samples <- runBatchMix(X, n_iter, thin, batch_vec, "MVT")
 #'
 NULL

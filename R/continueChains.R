@@ -4,10 +4,16 @@
 #' @param X Data to cluster as a matrix with the items to cluster held in rows.
 #' @param fixed The indicator vector for which labels are observed.
 #' @param batch_vec The vector of the batch labels for the data.
-#' @param R The number of iterations to run in this continuation (thinning
+#' @param n_iter The number of iterations to run in this continuation (thinning
 #' factor is the same as initial chain).
 #' @param keep_old_samples Logical indicating if the original samples should be
 #' kept or only the new samples returned. Defaults to TRUE.
+#' @param ... Accepts only the deprecated \code{R} argument (renamed to
+#' \code{n_iter}; still works, with a warning, for this release, when
+#' passed positionally in its original slot or when every other argument is
+#' also named - naming \code{R} while leaving later arguments positional is
+#' not supported, since there is no way to bind two names to the same
+#' argument slot). Anything else is an "unused argument" error.
 #' @return A named list containing the sampled partitions, cluster and batch
 #' parameters, model fit measures and some details on the model call.
 #' @export
@@ -33,15 +39,15 @@
 #' type <- "MVT"
 #'
 #' # Sampling parameters
-#' R <- 1000
+#' n_iter <- 1000
 #' thin <- 50
 #' n_chains <- 4
 #'
 #' # MCMC samples
-#' mcmc_output <- runMCMCChains(
+#' mcmc_output <- fitBatchMix(
 #'   X,
 #'   n_chains,
-#'   R,
+#'   n_iter,
 #'   thin,
 #'   batch_vec,
 #'   type,
@@ -55,22 +61,27 @@
 #'   X,
 #'   fixed,
 #'   batch_vec,
-#'   R,
+#'   n_iter,
 #'   keep_old_samples = TRUE
 #' )
 continueChains <- function(mcmc_output,
                            X,
                            fixed,
                            batch_vec,
-                           R,
-                           keep_old_samples = TRUE) {
+                           n_iter,
+                           keep_old_samples = TRUE,
+                           ...) {
+  n_iter <- .resolveDeprecatedNIter(
+    missing(n_iter), if (missing(n_iter)) NULL else n_iter, list(...), "continueChains"
+  )
+
   new_output <- lapply(
     mcmc_output,
     continueChain,
     X,
     fixed,
     batch_vec,
-    R,
+    n_iter,
     keep_old_samples
   )
 
@@ -81,6 +92,16 @@ continueChains <- function(mcmc_output,
     new_output[[ii]]$Chain <- mcmc_output[[ii]]$Chain
   }
 
+  # Convergence (see ``runMCMCChains``) is recomputed, not copied from
+  # ``mcmc_output``: the chains are now longer, so the old Rhat/ESS/best
+  # chain are stale.
+  if (n_chains >= 2) {
+    convergence <- tryCatch(assessConvergence(new_output), error = function(e) NULL)
+    if (!is.null(convergence)) {
+      attr(new_output, "convergence") <- convergence
+      attr(new_output, "best_chain") <- convergence$best_chain
+    }
+  }
 
   new_output
 }

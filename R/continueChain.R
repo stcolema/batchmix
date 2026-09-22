@@ -4,10 +4,16 @@
 #' @param X Data to cluster as a matrix with the items to cluster held in rows.
 #' @param fixed The indicator vector for which labels are observed.
 #' @param batch_vec The vector of the batch labels for the data.
-#' @param R The number of iterations to run in this continuation (thinning
+#' @param n_iter The number of iterations to run in this continuation (thinning
 #' factor is the same as initial chain).
 #' @param keep_old_samples Logical indicating if the original samples should be
 #' kept or only the new samples returned. Defaults to TRUE.
+#' @param ... Accepts only the deprecated \code{R} argument (renamed to
+#' \code{n_iter}; still works, with a warning, for this release, when
+#' passed positionally in its original slot or when every other argument is
+#' also named - naming \code{R} while leaving later arguments positional is
+#' not supported, since there is no way to bind two names to the same
+#' argument slot). Anything else is an "unused argument" error.
 #' @return A named list containing the sampled partitions, cluster and batch
 #' parameters, model fit measures and some details on the model call.
 #' @export
@@ -33,13 +39,13 @@
 #' type <- "MVT"
 #'
 #' # Sampling parameters
-#' R <- 1000
+#' n_iter <- 1000
 #' thin <- 50
 #'
 #' # MCMC samples and BIC vector
 #' mcmc_output <- runBatchMix(
 #'   X,
-#'   R,
+#'   n_iter,
 #'   thin,
 #'   batch_vec,
 #'   type,
@@ -53,19 +59,24 @@
 #'   X,
 #'   fixed,
 #'   batch_vec,
-#'   R,
+#'   n_iter,
 #' )
 #'
 continueChain <- function(mcmc_output,
                           X,
                           fixed,
                           batch_vec,
-                          R,
-                          keep_old_samples = TRUE) {
+                          n_iter,
+                          keep_old_samples = TRUE,
+                          ...) {
+  n_iter <- .resolveDeprecatedNIter(
+    missing(n_iter), if (missing(n_iter)) NULL else n_iter, list(...), "continueChain"
+  )
+
   # The relevant aspects of the previous chain
-  R_old <- mcmc_output$R
+  n_iter_old <- mcmc_output$n_iter
   thin <- mcmc_output$thin
-  last_sample <- R_eff_old <- floor(R_old / thin)
+  last_sample <- n_iter_eff_old <- floor(n_iter_old / thin)
 
   B <- mcmc_output$B
   K_max <- mcmc_output$K_max
@@ -164,7 +175,7 @@ continueChain <- function(mcmc_output,
   gp_length_scale <- if (!is.null(mcmc_output$gp_length_scale)) mcmc_output$gp_length_scale[last_sample] else 1.0
 
   new_samples <- batchSemiSupervisedMixtureModel(X,
-    R,
+    n_iter,
     thin,
     labels,
     fixed,
@@ -203,15 +214,15 @@ continueChain <- function(mcmc_output,
   )
 
   if (keep_old_samples) {
-    R_eff <- floor(R / thin)
+    n_iter_eff <- floor(n_iter / thin)
 
-    R_comb_eff <- R_eff + R_eff_old
+    n_iter_comb_eff <- n_iter_eff + n_iter_eff_old
 
-    # R_comb is has to be calculated this way. Reason, consider R_old = 107,
-    # R = 113, thin = 10; then R_old + R = 220, 220 / 10 = 22, but we only
-    # record R_eff_old = floor(107 / 10) = 10, R_eff = floor(113 / 10) = 11,
-    # R_comb_eff = 21.
-    R_comb <- R_comb_eff * thin
+    # n_iter_comb is has to be calculated this way. Reason, consider n_iter_old = 107,
+    # n_iter = 113, thin = 10; then n_iter_old + n_iter = 220, 220 / 10 = 22, but we only
+    # record n_iter_eff_old = floor(107 / 10) = 10, n_iter_eff = floor(113 / 10) = 11,
+    # n_iter_comb_eff = 21.
+    n_iter_comb <- n_iter_comb_eff * thin
 
     # Let's combine the sampled parameters
     combined_allocation_samples <- rbind(
@@ -220,7 +231,7 @@ continueChain <- function(mcmc_output,
     )
 
     combined_means <- array(c(mcmc_output$means, new_samples$means),
-      dim = c(P, K_max, R_comb_eff)
+      dim = c(P, K_max, n_iter_comb_eff)
     )
 
     combined_shifts <- array(
@@ -228,7 +239,7 @@ continueChain <- function(mcmc_output,
         mcmc_output$batch_shift,
         new_samples$batch_shift
       ),
-      dim = c(P, B, R_comb_eff)
+      dim = c(P, B, n_iter_comb_eff)
     )
 
     combined_scales <- array(
@@ -236,7 +247,7 @@ continueChain <- function(mcmc_output,
         mcmc_output$batch_scale,
         new_samples$batch_scale
       ),
-      dim = c(P, B, R_comb_eff)
+      dim = c(P, B, n_iter_comb_eff)
     )
 
     combined_mean_sums <- array(
@@ -244,7 +255,7 @@ continueChain <- function(mcmc_output,
         mcmc_output$mean_sum,
         new_samples$mean_sum
       ),
-      dim = c(P, K_max * B, R_comb_eff)
+      dim = c(P, K_max * B, n_iter_comb_eff)
     )
 
     combined_covariances <- array(
@@ -252,7 +263,7 @@ continueChain <- function(mcmc_output,
         mcmc_output$covariance,
         new_samples$covariance
       ),
-      dim = c(P, P * K_max, R_comb_eff)
+      dim = c(P, P * K_max, n_iter_comb_eff)
     )
 
     combined_covariance_comb <- array(
@@ -260,29 +271,29 @@ continueChain <- function(mcmc_output,
         mcmc_output$cov_comb,
         new_samples$cov_comb
       ),
-      dim = c(P, P * K_max * B, R_comb_eff)
+      dim = c(P, P * K_max * B, n_iter_comb_eff)
     )
 
     combined_weights <- rbind(mcmc_output$weights, new_samples$weights)
 
-    comb_cov_acceptance_rate <- ((mcmc_output$cov_acceptance_rate * R_old +
-      new_samples$cov_acceptance_rate * R)
-    / (R_old + R)
+    comb_cov_acceptance_rate <- ((mcmc_output$cov_acceptance_rate * n_iter_old +
+      new_samples$cov_acceptance_rate * n_iter)
+    / (n_iter_old + n_iter)
     )
 
-    comb_mu_acceptance_rate <- ((mcmc_output$mu_acceptance_rate * R_old +
-      new_samples$mu_acceptance_rate * R)
-    / (R_old + R)
+    comb_mu_acceptance_rate <- ((mcmc_output$mu_acceptance_rate * n_iter_old +
+      new_samples$mu_acceptance_rate * n_iter)
+    / (n_iter_old + n_iter)
     )
 
-    comb_m_acceptance_rate <- ((mcmc_output$m_acceptance_rate * R_old +
-      new_samples$m_acceptance_rate * R)
-    / (R_old + R)
+    comb_m_acceptance_rate <- ((mcmc_output$m_acceptance_rate * n_iter_old +
+      new_samples$m_acceptance_rate * n_iter)
+    / (n_iter_old + n_iter)
     )
 
-    comb_S_acceptance_rate <- ((mcmc_output$S_acceptance_rate * R_old +
-      new_samples$S_acceptance_rate * R)
-    / (R_old + R)
+    comb_S_acceptance_rate <- ((mcmc_output$S_acceptance_rate * n_iter_old +
+      new_samples$S_acceptance_rate * n_iter)
+    / (n_iter_old + n_iter)
     )
     
     if(sample_m_scale) {
@@ -291,9 +302,9 @@ continueChain <- function(mcmc_output,
     
 
     if (type == "MVT") {
-      comb_t_df_acceptance_rate <- ((mcmc_output$t_df_acceptance_rate * R_old +
-        new_samples$t_df_acceptance_rate * R)
-      / (R_old + R)
+      comb_t_df_acceptance_rate <- ((mcmc_output$t_df_acceptance_rate * n_iter_old +
+        new_samples$t_df_acceptance_rate * n_iter)
+      / (n_iter_old + n_iter)
       )
 
       comb_t_df <- rbind(mcmc_output$t_df, new_samples$t_df)
@@ -306,11 +317,11 @@ continueChain <- function(mcmc_output,
     if (include_interaction) {
       combined_gamma <- array(
         c(mcmc_output$gamma, new_samples$gamma),
-        dim = c(P, K_max * B, R_comb_eff)
+        dim = c(P, K_max * B, n_iter_comb_eff)
       )
-      comb_gamma_acceptance_rate <- ((mcmc_output$gamma_acceptance_rate * R_old +
-        new_samples$gamma_acceptance_rate * R)
-      / (R_old + R)
+      comb_gamma_acceptance_rate <- ((mcmc_output$gamma_acceptance_rate * n_iter_old +
+        new_samples$gamma_acceptance_rate * n_iter)
+      / (n_iter_old + n_iter)
       )
 
       new_samples$gamma <- combined_gamma
@@ -327,15 +338,15 @@ continueChain <- function(mcmc_output,
     # own iteration axis.
     combined_w_batch <- array(
       c(mcmc_output$w_batch, new_samples$w_batch),
-      dim = c(B, K_max, R_comb_eff)
+      dim = c(B, K_max, n_iter_comb_eff)
     )
     combined_eta_alr <- array(
       c(mcmc_output$eta_alr, new_samples$eta_alr),
-      dim = c(B, K_max - 1, R_comb_eff)
+      dim = c(B, K_max - 1, n_iter_comb_eff)
     )
-    comb_eta_acceptance_rate <- ((mcmc_output$eta_acceptance_rate * R_old +
-      new_samples$eta_acceptance_rate * R)
-    / (R_old + R)
+    comb_eta_acceptance_rate <- ((mcmc_output$eta_acceptance_rate * n_iter_old +
+      new_samples$eta_acceptance_rate * n_iter)
+    / (n_iter_old + n_iter)
     )
 
     new_samples$w_batch <- combined_w_batch
@@ -351,9 +362,9 @@ continueChain <- function(mcmc_output,
       new_samples$gp_tau2 <- rbind(mcmc_output$gp_tau2, new_samples$gp_tau2)
       new_samples$gp_length_scale <- rbind(mcmc_output$gp_length_scale, new_samples$gp_length_scale)
       if (sample_gp_hyperparameters) {
-        comb_gp_hyperparameter_acceptance_rate <- ((mcmc_output$gp_hyperparameter_acceptance_rate * R_old +
-          new_samples$gp_hyperparameter_acceptance_rate * R)
-        / (R_old + R)
+        comb_gp_hyperparameter_acceptance_rate <- ((mcmc_output$gp_hyperparameter_acceptance_rate * n_iter_old +
+          new_samples$gp_hyperparameter_acceptance_rate * n_iter)
+        / (n_iter_old + n_iter)
         )
         new_samples$gp_hyperparameter_acceptance_rate <- comb_gp_hyperparameter_acceptance_rate
       }
@@ -365,7 +376,7 @@ continueChain <- function(mcmc_output,
         mcmc_output$alloc,
         new_samples$alloc
       ),
-      dim = c(N, K_max, R_comb_eff)
+      dim = c(N, K_max, n_iter_comb_eff)
     )
 
     # }
@@ -391,10 +402,10 @@ continueChain <- function(mcmc_output,
         mcmc_output$batch_corrected_data,
         new_samples$batch_corrected_data
       ),
-      dim = c(N, P, R_comb_eff)
+      dim = c(N, P, n_iter_comb_eff)
     )
 
-    new_samples$R <- R_comb
+    new_samples$n_iter <- n_iter_comb
 
     new_samples$means <- combined_means
     new_samples$covariance <- combined_covariances

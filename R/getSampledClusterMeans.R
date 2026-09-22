@@ -7,7 +7,7 @@
 #' the batch mean matrix from the first sample.
 #' @param P The dimension of the batch mean shifts. Defaults to the number of
 #' rows in the batch mean matrix from the first sample.
-#' @param R The number of iterations run. Defaults to the number of slices in
+#' @param n_iter The number of iterations run. Defaults to the number of slices in
 #' the sampled batch mean array.
 #' @param thin The thinning factor of the sampler. Defaults to 1.
 #' @return A data.frame of three columns; the parameter, the sampled value and the iteration.
@@ -21,23 +21,23 @@
 #' batch_vec <- sample(seq(1, 5), size = 100, replace = TRUE)
 #'
 #' # MCMC iterations (this is too low for real use)
-#' R <- 100
+#' n_iter <- 100
 #' thin <- 5
 #'
 #' # MCMC samples
-#' samples <- runBatchMix(X, R, thin, batch_vec, "MVN")
+#' samples <- runBatchMix(X, n_iter, thin, batch_vec, "MVN")
 #'
-#' batch_shift_df <- getSampledClusterMeans(samples$means, R = R, thin = thin)
+#' batch_shift_df <- getSampledClusterMeans(samples$means, n_iter = n_iter, thin = thin)
 #'
 #' @importFrom tidyr pivot_longer contains
 getSampledClusterMeans <- function(sampled_cluster_means,
                                    K = dim(sampled_cluster_means)[2],
                                    P = dim(sampled_cluster_means)[1],
-                                   R = dim(sampled_cluster_means)[3],
+                                   n_iter = dim(sampled_cluster_means)[3],
                                    thin = 1) {
-  # Check that the values of R and thin make sense
-  if (floor(R / thin) != dim(sampled_cluster_means)[3]) {
-    stop("The ratio of R to thin does not match the number of samples present.")
+  # Check that the values of n_iter and thin make sense
+  if (floor(n_iter / thin) != dim(sampled_cluster_means)[3]) {
+    stop("The ratio of n_iter to thin does not match the number of samples present.")
   }
 
   # Stack the sampled matrices on top of each other
@@ -54,7 +54,7 @@ getSampledClusterMeans <- function(sampled_cluster_means,
   )
 
   # Add a variable for the iteration the sample comes from
-  iterations <- seq(1, R / thin) * thin
+  iterations <- seq(1, n_iter / thin) * thin
   mean_df$Iteration <- iterations
 
   # Pivot to a long format ready for ``ggplot2``
