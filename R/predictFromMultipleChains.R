@@ -1,6 +1,12 @@
 #' @title Predict from multiple MCMC chains
 #' @description Applies a burn in to and finds a point estimate by combining
-#' multiple chains of ``callMDI``.
+#' multiple chains of ``callMDI``. Pools every chain unconditionally - this
+#' is usually preferable once ``runMCMCChains``'s reported Rhat/ESS confirm
+#' the chains have converged, since it uses more posterior draws than any
+#' one chain alone. If a single representative chain is wanted instead
+#' (e.g. to inspect directly or to ``continueChain()``), use
+#' ``getBestChain(mcmc_outputs)``, which returns the chain with the best
+#' (highest post-burn-in mean) BIC.
 #' @param mcmc_outputs Output from ``runMCMCChains``
 #' @param burn The number of MCMC samples to drop as part of a burn in.
 #' @param point_estimate_method Summary statistic used to define the point
@@ -66,7 +72,7 @@
 #' initial_labels <- generateInitialLabels(alpha, K, fixed, true_labels)
 #'
 #' # Sampling parameters
-#' R <- 1000
+#' n_iter <- 1000
 #' thin <- 25
 #' burn <- 100
 #' n_chains <- 2
@@ -75,10 +81,10 @@
 #' type <- "MVT"
 #'
 #' # MCMC samples and BIC vector
-#' mcmc_outputs <- runMCMCChains(
+#' mcmc_outputs <- fitBatchMix(
 #'   X,
 #'   n_chains,
-#'   R,
+#'   n_iter,
 #'   thin,
 #'   batch_vec,
 #'   type,
@@ -112,7 +118,7 @@ predictFromMultipleChains <- function(mcmc_outputs,
   K <- first_chain$K
 
   # MCMC call
-  R <- first_chain$R
+  n_iter <- first_chain$n_iter
   thin <- first_chain$thin
 
   # The type of mixture model used
@@ -132,8 +138,8 @@ predictFromMultipleChains <- function(mcmc_outputs,
   # We burn the floor of burn / thin of these
   eff_burn <- floor(burn / thin)
 
-  # We record only the floor of R / thin samples
-  eff_R <- floor(R / thin) - eff_burn
+  # We record only the floor of n_iter / thin samples
+  eff_R <- floor(n_iter / thin) - eff_burn
 
   # The indices dropped as part of the burn in
   dropped_indices <- seq(1, eff_burn)
@@ -141,7 +147,7 @@ predictFromMultipleChains <- function(mcmc_outputs,
   # Setup the output list
   merged_outputs <- list()
 
-  merged_outputs$R <- R
+  merged_outputs$n_iter <- n_iter
   merged_outputs$thin <- thin
   merged_outputs$burn <- burn
   merged_outputs$n_chains <- n_chains

@@ -62,12 +62,12 @@
 #' batch_vec <- sample(seq(1, 5), replace = TRUE, size = 100)
 #'
 #' # Sampling parameters
-#' R <- 1000
+#' n_iter <- 1000
 #' burn <- 250
 #' thin <- 50
 #'
 #' # MCMC samples
-#' samples <- runBatchMix(X, R, thin, batch_vec, "MVN",
+#' samples <- runBatchMix(X, n_iter, thin, batch_vec, "MVN",
 #'   initial_labels = labels,
 #'   fixed = fixed
 #' )
@@ -91,7 +91,7 @@ processMCMCChain <- function(mcmc_output, burn, point_estimate_method = "median"
   cluster_inds <- seq(1, K_max)
 
   # MCMC iterations and thinning
-  R <- mcmc_output$R
+  n_iter <- mcmc_output$n_iter
   thin <- mcmc_output$thin
 
   # Is the output semisupervised
@@ -108,8 +108,8 @@ processMCMCChain <- function(mcmc_output, burn, point_estimate_method = "median"
   # We burn the floor of burn / thin of these
   eff_burn <- floor(burn / thin)
 
-  # We record only the floor of R / thin samples
-  eff_R <- floor(R / thin) - eff_burn
+  # We record only the floor of n_iter / thin samples
+  eff_R <- floor(n_iter / thin) - eff_burn
 
   # The indices dropped as part of the burn in
   dropped_indices <- seq(1, eff_burn)

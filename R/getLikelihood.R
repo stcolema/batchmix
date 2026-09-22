@@ -17,21 +17,21 @@
 #' batch_vec <- sample(seq(1, 5), replace = TRUE, size = 100)
 #'
 #' # Sampling parameters
-#' R <- 100
+#' n_iter <- 100
 #' thin <- 5
 #'
 #' # MCMC samples and BIC vector
-#' samples <- runBatchMix(X, R, thin, batch_vec, "MVN")
+#' samples <- runBatchMix(X, n_iter, thin, batch_vec, "MVN")
 #'
 #' lkl_df <- getLikelihood(samples)
 #'
 getLikelihood <- function(mcmc_output, choice = "complete_likelihood") {
-  R <- mcmc_output$R
+  n_iter <- mcmc_output$n_iter
   thin <- mcmc_output$thin
   burn <- mcmc_output$burn
   first_recorded_iter <- burn + thin
 
-  iters <- seq(first_recorded_iter, R, by = thin)
+  iters <- seq(first_recorded_iter, n_iter, by = thin)
 
   invalid_choice <- !(
     choice %in% c(

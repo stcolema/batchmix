@@ -62,13 +62,13 @@
 #' batch_vec <- sample(seq(1, 5), replace = TRUE, size = 100)
 #'
 #' # Sampling parameters
-#' R <- 1000
+#' n_iter <- 1000
 #' burn <- 250
 #' thin <- 50
 #' n_chains <- 4
 #'
 #' # MCMC samples
-#' samples <- runMCMCChains(X, n_chains, R, thin, batch_vec, "MVN",
+#' samples <- fitBatchMix(X, n_chains, n_iter, thin, batch_vec, "MVN",
 #'   initial_labels = labels,
 #'   fixed = fixed
 #' )
@@ -78,6 +78,15 @@
 #'
 processMCMCChains <- function(mcmc_lst, burn, point_estimate_method = "median") {
   new_output <- lapply(mcmc_lst, processMCMCChain, burn, point_estimate_method)
+
+  # lapply() drops attributes of its input list; carry the convergence/
+  # best-chain attributes (see ``runMCMCChains``) over explicitly, so that
+  # e.g. ``processMCMCChains(chains, burn)[[attr(., "best_chain")]]`` keeps
+  # working after processing, without recomputing anything.
+  if (!is.null(attr(mcmc_lst, "convergence"))) {
+    attr(new_output, "convergence") <- attr(mcmc_lst, "convergence")
+    attr(new_output, "best_chain") <- attr(mcmc_lst, "best_chain")
+  }
 
   # Return the MCMC object with burn in applied and point estimates found
   new_output

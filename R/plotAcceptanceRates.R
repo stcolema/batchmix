@@ -28,12 +28,12 @@
 #' batch_vec <- sample(seq(1, 5), replace = TRUE, size = 100)
 #'
 #' # Sampling parameters
-#' R <- 500
+#' n_iter <- 500
 #' thin <- 10
 #' n_chains <- 4
 #'
 #' # MCMC samples and BIC vector
-#' mcmc_lst <- runMCMCChains(X, n_chains, R, thin, batch_vec, "MVN",
+#' mcmc_lst <- fitBatchMix(X, n_chains, n_iter, thin, batch_vec, "MVN",
 #'   initial_labels = labels,
 #'   fixed = fixed
 #' )

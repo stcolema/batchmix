@@ -27,11 +27,11 @@
 #' batch_vec <- sample(seq(1, 5), replace = TRUE, size = 100)
 #'
 #' # Sampling parameters
-#' R <- 1000
+#' n_iter <- 1000
 #' thin <- 50
 #'
 #' # MCMC samples and BIC vector
-#' samples <- batchSemiSupervisedMixtureModel(X, R, thin, labels, fixed, batch_vec, "MVN")
+#' samples <- batchSemiSupervisedMixtureModel(X, n_iter, thin, labels, fixed, batch_vec, "MVN")
 #'
 #' # Burn in
 #' burn <- 20
@@ -41,12 +41,12 @@
 #' probs <- calcAllocProb(samples, burn = burn)
 #'
 calcAllocProb <- function(mcmc_samples, burn = 0, method = "median") {
-  R <- mcmc_samples$R
+  n_iter <- mcmc_samples$n_iter
   thin <- mcmc_samples$thin
   .alloc <- mcmc_samples$alloc
 
   if (burn > 0) {
-    if (burn > R) {
+    if (burn > n_iter) {
       stop("Burn in exceeds number of iterations run.")
     }
 

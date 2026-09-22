@@ -17,11 +17,11 @@
 #' batch_vec <- sample(seq(1, 5), size = 100, replace = TRUE)
 #'
 #' # MCMC iterations (this is too low for real use)
-#' R <- 100
+#' n_iter <- 100
 #' thin <- 5
 #'
 #' # MCMC samples and BIC vector
-#' samples <- runBatchMix(X, R, thin, batch_vec, "MVN")
+#' samples <- runBatchMix(X, n_iter, thin, batch_vec, "MVN")
 #'
 #' # Plot the sampled value of the cluster means against MCMC iteration
 #' plotSampledClusterMeans(samples)
@@ -31,16 +31,16 @@ plotSampledClusterMeans <- function(samples, burn_in = 0) {
   K <- samples$K_max
   P <- samples$P
 
-  R <- samples$R
+  n_iter <- samples$n_iter
   thin <- samples$thin
 
-  # Check that the values of R and thin make sense
-  if (floor(R / thin) != nrow(samples$samples)) {
-    stop("The ratio of R to thin does not match the number of samples present.")
+  # Check that the values of n_iter and thin make sense
+  if (floor(n_iter / thin) != nrow(samples$samples)) {
+    stop("The ratio of n_iter to thin does not match the number of samples present.")
   }
 
   sampled_cluster_means <- getSampledClusterMeans(samples$means, K, P,
-    R = R,
+    n_iter = n_iter,
     thin = thin
   )
 
