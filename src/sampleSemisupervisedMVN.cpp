@@ -101,6 +101,7 @@ Rcpp::List sampleSemisupervisedMVN (
     cov_comb_saved(P, P * K * B, n_saved),
     alloc(N, K, n_saved),
     batch_corrected_data(N, P, n_saved),
+    latent_data(N, P, n_saved),
     gamma_saved(P, K * B, n_saved),
     w_batch_saved(B, K, n_saved),
     eta_alr_saved(B, (K > 0) ? K - 1 : 0, n_saved);
@@ -150,6 +151,10 @@ Rcpp::List sampleSemisupervisedMVN (
   for(uword r = 0; r < n_iter; r++){
 
     Rcpp::checkUserInterrupt();
+
+    // Complete the data given the current parameters (see mvnSampler);
+    // this runs for fixed (label-known) items too - see mvnSampler.h.
+    my_sampler.updateLatentData();
 
     my_sampler.updateWeights();
 
@@ -216,7 +221,7 @@ Rcpp::List sampleSemisupervisedMVN (
 
       my_sampler.updateBatchCorrectedData();
       batch_corrected_data.slice( save_int ) =  my_sampler.Y;
-
+      latent_data.slice( save_int ) = my_sampler.X;
 
       save_int++;
     }
@@ -240,6 +245,7 @@ Rcpp::List sampleSemisupervisedMVN (
       Named("complete_likelihood") = complete_likelihood,
       Named("BIC") = BIC_record,
       Named("batch_corrected_data") = batch_corrected_data,
+      Named("latent_data") = latent_data,
       Named("lambda_2") = lambda_2_saved,
       Named("gamma") = gamma_saved,
       Named("tau2_interaction") = my_sampler.tau2_interaction,

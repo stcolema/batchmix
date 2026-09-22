@@ -8,12 +8,26 @@
 using namespace Rcpp ;
 using namespace arma ;
 
+arma::mat imputeColumnMeans(arma::mat X) {
+  for(uword p = 0; p < X.n_cols; p++) {
+    vec col_p = X.col(p);
+    uvec observed = find_finite(col_p);
+    double col_mean = observed.n_elem > 0 ? mean(col_p.elem(observed)) : 0.0;
+    for(uword n = 0; n < X.n_rows; n++) {
+      if(!std::isfinite(X(n, p))) {
+        X(n, p) = col_mean;
+      }
+    }
+  }
+  return X;
+};
+
 //' @title Propose new non-negative value
 //' @description Propose new non-negative for sampling.
 //' @param x Current value to be proposed
 //' @param window The proposal window
 //' @return new double
-double proposeNewNonNegativeValue(double x, double window, 
+double proposeNewNonNegativeValue(double x, double window,
                                   bool use_log_norm,
                                   double tolerance
 ) {

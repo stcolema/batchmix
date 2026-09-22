@@ -41,6 +41,22 @@ sampler::sampler(
     N = X.n_rows;
     P = X.n_cols;
 
+    // Missing-data bookkeeping (see sampler.h): X_raw/X_raw_t preserve
+    // exactly what was passed in (including any NaN); items_to_augment
+    // flags every row with at least one missing entry, generically, from
+    // X_raw alone. mvnSamplerMixed additionally has censored/binary
+    // entries to augment, so it recomputes (overwrites) this with its own
+    // broader definition in its own constructor.
+    X_raw = X;
+    X_raw_t = X_t;
+    std::vector<uword> rows_to_augment;
+    for(uword n = 0; n < N; n++) {
+      if(!X_t.col(n).is_finite()) {
+        rows_to_augment.push_back(n);
+      }
+    }
+    items_to_augment = conv_to<uvec>::from(rows_to_augment);
+
     // Class and batch populations
     N_k = zeros<uvec>(K);
     N_b = zeros<uvec>(B);

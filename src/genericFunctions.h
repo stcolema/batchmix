@@ -13,6 +13,20 @@ using namespace arma ;
 // =============================================================================
 // a set of functions used in a few different places
 
+//' @title Impute column means
+//' @description Replaces every NaN entry of X with its column's mean over
+//' the finite entries of that column (0.0 if a column is entirely NaN).
+//' Used ONLY to give an empirical-Bayes prior-hyperparameter calculation
+//' (mean()/cov(), which do not skip NaN) a finite matrix to work with; it
+//' has no bearing on the actual per-sweep missing-data augmentation carried
+//' out by a sampler's updateLatentData(), which works from the untouched
+//' X_raw/items_to_augment instead. See mvnSampler/mvnSamplerSeparationStrategy
+//' constructors and mvnSamplerMixed::imputeForPriorSetup() (its own,
+//' independent copy of the same idea, predating this shared version).
+//' @param X A matrix, possibly containing NaN entries.
+//' @return A matrix of the same size as X with every NaN replaced.
+arma::mat imputeColumnMeans(arma::mat X);
+
 //' @title Propose new non-negative value
 //' @description Propose new non-negative for sampling.
 //' @param x Current value to be proposed

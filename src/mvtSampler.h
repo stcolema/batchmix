@@ -102,6 +102,30 @@ public:
   
   // Update the common matrix manipulations to avoid recalculating N times
   virtual void matrixCombinations() override;
+
+  // Missing-data augmentation for the multivariate-t model. A plain
+  // conditional-Gaussian draw (as in mvnSampler::updateLatentData()) is
+  // NOT the correct full conditional here, because the joint distribution
+  // of X is Student-t, not Gaussian. Instead this uses the standard
+  // Gaussian-scale-mixture representation of the multivariate t (Liu &
+  // Rubin, 1995, "ML estimation of the t distribution using EM and its
+  // extensions", Statistica Sinica 5): X_n | u_n ~ N(mean_sum, cov_comb /
+  // u_n), u_n ~ Gamma(df_k / 2, df_k / 2), which marginalises to exactly
+  // the t_P(mean_sum, cov_comb, df_k) density this sampler already uses
+  // everywhere else (itemLogLikelihood(), dfLogKernel(), etc.). Each sweep,
+  // for every item needing augmentation: draw u_n from its full conditional
+  // given the item's current complete row (Gamma((df_k + P)/2, (df_k +
+  // Mahalanobis^2)/2), the standard scale-mixture posterior), then draw the
+  // missing coordinates from the Gaussian conditional implied by
+  // N(mean_sum, cov_comb / u_n) - algebraically identical to the Gaussian
+  // case's conditional-mean formula (the u_n scaling cancels out of the
+  // mean, leaving only the conditional variance scaled by 1/u_n). u_n is a
+  // transient, per-sweep auxiliary variable local to this step only - it is
+  // not retained state, and every other update (clusterDFMetropolis(),
+  // clusterCovarianceMetropolis(), etc.) continues to target the true
+  // marginal t-density on the now-complete row, exactly as when X has no
+  // missing data.
+  virtual void updateLatentData() override;
   
   // The log likelihood of a item belonging to each cluster given the batch label.
   virtual arma::vec itemLogLikelihood(arma::vec x, arma::uword b) override;

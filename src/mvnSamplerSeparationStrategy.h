@@ -137,6 +137,25 @@ public:
   
   // Update the common matrix manipulations to avoid recalculating N times
   virtual void matrixCombinations();
+
+  // The Gibbs step that redraws every missing (NaN) entry of X from its
+  // full conditional given the other entries of the same item and the
+  // current parameters, item by item, coordinate by coordinate (a
+  // systematic-scan Gibbs sweep within each item), writing the result into
+  // the inherited X/X_t. Must be called once per MCMC sweep, before
+  // updateAllocation()/metropolisStep() (see the driver loop in
+  // sampleSemisupervisedMVNSeparationStrategy.cpp), so every missing entry
+  // is redrawn from the current parameter state every sweep - not imputed
+  // once and held fixed. A direct port of
+  // mvnSamplerMixed::updateLatentData() with the binary/censoring branches
+  // removed (this class has no such columns); see that function's header
+  // comment for the Albert & Chib (1993)/Dunson (2000) provenance of the
+  // conditional-Gaussian-via-precision-matrix construction. Items with
+  // nothing missing (the common case, and every item when X has no
+  // missing data at all) are skipped entirely via items_to_augment, so
+  // this draws nothing - and leaves the RNG call sequence, and hence every
+  // existing golden-master test, unaffected - whenever X is complete.
+  virtual void updateLatentData();
   
   // The likelihood for a specific batch or class
   virtual double groupLikelihood(arma::uvec inds,
