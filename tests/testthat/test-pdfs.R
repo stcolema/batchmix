@@ -1,7 +1,6 @@
 #
 # Unit tests for the log-likelihood functions implemented in C++.
 #
-context("Likelihood comparison")
 library(batchmix)
 
 test_that("Gamma log-likelihood ratios.", {

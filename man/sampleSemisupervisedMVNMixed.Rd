@@ -19,7 +19,7 @@ sampleSemisupervisedMVNMixed(
   sigma_proposal_window,
   m_proposal_window,
   S_proposal_window,
-  R,
+  n_iter,
   thin,
   concentration,
   m_scale,
@@ -46,7 +46,10 @@ sampleSemisupervisedMVNMixed(
 )
 }
 \arguments{
-\item{X}{The data matrix (items in rows); see sampleMVNMixed().}
+\item{X}{The data matrix (items in rows). Continuous columns hold the
+observed value, or NaN for a missing entry, or the known censoring
+bound for a censored entry (see censor_code). Binary columns hold 0/1,
+or NaN for a missing outcome.}
 
 \item{K}{The number of components to model.}
 
@@ -66,7 +69,7 @@ label.}
 
 \item{mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window}{Metropolis-Hastings proposal windows.}
 
-\item{R}{The number of iterations to run.}
+\item{n_iter}{The number of iterations to run.}
 
 \item{thin}{The thinning factor.}
 
@@ -81,12 +84,16 @@ priors.}
 \item{sample_m_scale}{Should the batch shift hyperparameter be sampled?}
 
 \item{auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd}{Auto-tuning, interaction-term and GP-correlated-weight options; see
-sampleMVN() for the full description of each.}
+sampleSemisupervisedMVN() for the full description of each.}
 }
 \value{
 A named list of MCMC samples and diagnostics.
 }
 \description{
-The semi-supervised (``fixed`` labels respected) counterpart
-of sampleMVNMixed. See sampleMVNMixed() for the model.
+Performs MCMC sampling for a mixture model with batch
+effects, an LKJ prior on the cluster correlation structure, and a
+shared latent Gaussian layer supporting binary (probit-linked) columns
+alongside continuous ones, plus missing-at-random and left/right
+censored continuous entries. ``fixed`` labels are respected (a ``fixed``
+vector of all zeroes gives the fully unsupervised model).
 }

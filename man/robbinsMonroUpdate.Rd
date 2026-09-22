@@ -2,12 +2,41 @@
 % Please edit documentation in R/RcppExports.R
 \name{robbinsMonroUpdate}
 \alias{robbinsMonroUpdate}
-\title{title Robbins-Monro adaptive proposal-window update
-description See header for the references and convergence argument.}
+\title{Robbins-Monro adaptive proposal-window update}
 \usage{
 robbinsMonroUpdate(window, acceptance_rate, target_rate, n, step_scale, kappa)
 }
+\arguments{
+\item{window}{Current (strictly positive) proposal window value.}
+
+\item{acceptance_rate}{The realised acceptance rate this sweep, in
+[0, 1]. May be a fraction over several components sharing one window
+(e.g. the mean acceptance indicator across K clusters), not just a
+single 0/1 draw - this is the standard "batched" extension of the
+scalar Robbins-Monro process (Garthwaite et al., 2016, Section 3).}
+
+\item{target_rate}{The target acceptance rate for this block: ~0.44 for
+a scalar (1-D) random-walk update, ~0.234 for a block update that moves
+several correlated dimensions at once (Roberts, Gelman & Gilks, 1997,
+"Weak convergence and optimal scaling of random walk Metropolis
+algorithms", Annals of Applied Probability 7(1)).}
+
+\item{n}{The adaptation step index (e.g. the current MCMC iteration
+within the burn-in window, 1-based). Larger n gives a smaller, more
+conservative update, which is what makes the total adaptation finite.}
+
+\item{step_scale}{Constant multiplying the 1/n^kappa step size.}
+
+\item{kappa}{Decay exponent; must be in (0.5, 1] for the diminishing-
+adaptation guarantee to apply. Default 0.6 follows Garthwaite et al.'s
+recommendation.}
+}
+\value{
+The updated (still strictly positive) proposal window.
+}
 \description{
-title Robbins-Monro adaptive proposal-window update
-description See header for the references and convergence argument.
+One diminishing-adaptation update of a scalar
+Metropolis-Hastings proposal window; see the section header comment for
+the references and the convergence argument. Operates in log-space so
+the window stays strictly positive.
 }

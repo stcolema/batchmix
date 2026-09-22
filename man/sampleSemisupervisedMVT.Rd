@@ -16,7 +16,7 @@ sampleSemisupervisedMVT(
   m_proposal_window,
   S_proposal_window,
   t_df_proposal_window,
-  R,
+  n_iter,
   thin,
   concentration,
   m_scale,
@@ -74,7 +74,7 @@ sampleSemisupervisedMVT(
 
 \item{t_df_proposal_window}{The rate for the Gamma proposal density of the cluster degrees of freedom.}
 
-\item{R}{The number of iterations to run for.}
+\item{n_iter}{The number of iterations to run for.}
 
 \item{thin}{thinning factor for samples recorded.}
 
@@ -120,8 +120,66 @@ prior distribution.}
 the user. If ``false`` then initial values are drawn from the prior 
 distribution.}
 
-\item{sample_m_scale}{Bool indicating if the hyperparameter on the batch 
+\item{sample_m_scale}{Bool indicating if the hyperparameter on the batch
 shift effect is sampled or given as fixed.}
+
+\item{auto_tune}{Bool; if true, every proposal window is adapted during
+the first ``n_burn`` iterations via Robbins-Monro diminishing adaptation
+(see ``robbinsMonroUpdate()``) instead of staying fixed at the value
+passed in.}
+
+\item{n_burn}{Number of iterations treated as burn-in for proposal-window
+adaptation; ignored if ``auto_tune`` is false. Adaptation is frozen after
+this many iterations so the post-burn-in chain retains the correct
+stationary distribution.}
+
+\item{include_interaction}{Bool; if true, add a batch x cluster
+interaction term to the mean, gamma_kb ~ N(0, tau2_interaction), with
+tau2_interaction ~ InvGamma(a_gamma, b_gamma) (partial pooling).}
+
+\item{gamma_proposal_window}{Proposal window (Gaussian RW SD) for the
+interaction term; ignored if ``include_interaction`` is false.}
+
+\item{a_gamma, b_gamma}{Shape/rate of the InvGamma hyperprior on the
+interaction shrinkage variance; ignored if ``include_interaction`` is
+false.}
+
+\item{weight_prior_type}{Integer; 0 = "global" (the default) - a single
+mixture weight vector shared by every batch, exactly the original
+behaviour. 1 = "partial pooling" - each batch gets its own weight
+vector, with the K-1 additive-log-ratio (ALR) coordinates drawn
+exchangeably around a shared, estimated population mean/variance (no
+assumed order, distance or covariance structure between batches - see
+``pp_tau2_shape``/``pp_tau2_rate``/``pp_mu_prior_sd``). 2 = "gp" - as
+partial pooling, but the ALR coordinates are instead linked by a
+Gaussian process over ``batch_coordinates``, for batches with a genuine
+known ordering in time or space.}
+
+\item{batch_coordinates}{A B-vector of 1-D coordinates for the batches
+(e.g. time order); if of length 0, defaults to 0, 1, ..., B - 1. Only
+used if ``weight_prior_type`` is 2.}
+
+\item{gp_tau2, gp_length_scale}{GP marginal variance and length scale for
+the batch-weight kernel; only used if ``weight_prior_type`` is 2.}
+
+\item{eta_proposal_window}{Proposal window for the ALR-coordinate
+block Metropolis-Hastings update; used if ``weight_prior_type`` is 1 or 2.}
+
+\item{sample_gp_hyperparameters}{Bool; if true, ``gp_tau2`` and
+``gp_length_scale`` are themselves updated by Metropolis-Hastings rather
+than held fixed; only used if ``weight_prior_type`` is 2.}
+
+\item{gp_hyperparameter_proposal_window}{Proposal window for the GP
+hyperparameter update; only used if ``weight_prior_type`` is 2 and
+``sample_gp_hyperparameters`` is true.}
+
+\item{pp_tau2_shape, pp_tau2_rate}{Shape/rate of the InvGamma hyperprior
+on each ALR coordinate's population variance tau2_j; only used if
+``weight_prior_type`` is 1.}
+
+\item{pp_mu_prior_sd}{Prior standard deviation for each ALR
+coordinate's population mean mu_j (prior mu_j ~ N(0, pp_mu_prior_sd^2));
+only used if ``weight_prior_type`` is 1.}
 }
 \value{
 Named list of the different quantities drawn by the sampler.

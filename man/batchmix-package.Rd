@@ -2,7 +2,6 @@
 % Please edit documentation in R/batchmix-package.R
 \docType{package}
 \name{batchmix-package}
-\alias{batchmix}
 \alias{batchmix-package}
 \alias{batchmix}
 \title{Bayesian Mixture Modelling for Joint Model-Based
@@ -36,12 +35,12 @@ fixed <- c(rep(1, 10), rep(0, 40), rep(1, 10), rep(0, 40))
 batch_vec <- sample(seq(1, 5), replace = TRUE, size = 100)
 
 # Sampling parameters
-R <- 1000
+n_iter <- 1000
 thin <- 50
 
 # Classification
 samples <- runBatchMix(X,
-  R,
+  n_iter,
   thin,
   batch_vec,
   "MVN",
@@ -50,7 +49,7 @@ samples <- runBatchMix(X,
 )
 
 # Clustering
-samples <- runBatchMix(X, R, thin, batch_vec, "MVT")
+samples <- runBatchMix(X, n_iter, thin, batch_vec, "MVT")
 
 }
 \seealso{

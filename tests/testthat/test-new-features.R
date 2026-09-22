@@ -84,17 +84,17 @@ test_that("the batch x cluster interaction term stays on the sum-to-zero subspac
   }
   X <- matrix(X, ncol = 1)
 
-  R <- 2000; thin <- 10; n_burn <- 1000
+  n_iter <- 2000; thin <- 10; n_burn <- 1000
   init_means <- matrix(c(0, 10), nrow = 1)
 
-  out <- runBatchMix(X, R, thin, batch_vec, "MVN",
+  out <- runBatchMix(X, n_iter, thin, batch_vec, "MVN",
     initial_labels = labels, fixed = rep(0, nrow(X)),
     initial_class_means = init_means,
     auto_tune = TRUE, n_burn = n_burn,
     include_interaction = TRUE, gamma_proposal_window = 0.3
   )
 
-  post_idx <- (n_burn / thin + 1):(R / thin)
+  post_idx <- (n_burn / thin + 1):(n_iter / thin)
 
   # Every individual saved draw of gamma(1, ., .) must have every row and
   # every column sum to (numerically) zero.
@@ -146,10 +146,10 @@ test_that("GP-correlated batch weights recover a smooth batch-dependent trend (r
     batch_vec <- c(batch_vec, rep(b - 1, n0 + n1))
   }
 
-  R <- 600; thin <- 10; n_burn <- 300
+  n_iter <- 600; thin <- 10; n_burn <- 300
   init_means <- matrix(c(0, 0, 6, 6), nrow = P)
 
-  out <- runBatchMix(X, R, thin, batch_vec, "MVN",
+  out <- runBatchMix(X, n_iter, thin, batch_vec, "MVN",
     initial_labels = labels_true, fixed = rep(0, nrow(X)),
     initial_class_means = init_means,
     auto_tune = TRUE, n_burn = n_burn,
@@ -157,7 +157,7 @@ test_that("GP-correlated batch weights recover a smooth batch-dependent trend (r
     eta_proposal_window = 0.3
   )
 
-  post_idx <- (n_burn / thin + 1):(R / thin)
+  post_idx <- (n_burn / thin + 1):(n_iter / thin)
   w_batch_post <- apply(out$w_batch[, 1, post_idx], 1, mean)
 
   expect_false(anyNA(w_batch_post))
@@ -190,17 +190,17 @@ test_that("partial-pooling batch weights recover per-batch proportions with no a
     batch_vec <- c(batch_vec, rep(b - 1, n0 + n1))
   }
 
-  R <- 800; thin <- 10; n_burn <- 400
+  n_iter <- 800; thin <- 10; n_burn <- 400
   init_means <- matrix(c(0, 0, 6, 6), nrow = P)
 
-  out <- runBatchMix(X, R, thin, batch_vec, "MVN",
+  out <- runBatchMix(X, n_iter, thin, batch_vec, "MVN",
     initial_labels = labels_true, fixed = rep(0, nrow(X)),
     initial_class_means = init_means,
     auto_tune = TRUE, n_burn = n_burn,
     batch_weight_prior = "partial_pooling", eta_proposal_window = 0.3
   )
 
-  post_idx <- (n_burn / thin + 1):(R / thin)
+  post_idx <- (n_burn / thin + 1):(n_iter / thin)
   w_batch_post <- apply(out$w_batch[, 1, post_idx], 1, mean)
 
   expect_false(anyNA(w_batch_post))
@@ -262,17 +262,17 @@ test_that("batch-corrected data removes the interaction term, not just the batch
   }
   X <- matrix(X, ncol = 1)
 
-  R <- 2000; thin <- 10; n_burn <- 1000
+  n_iter <- 2000; thin <- 10; n_burn <- 1000
   init_means <- matrix(c(0, 10), nrow = 1)
 
-  out <- runBatchMix(X, R, thin, batch_vec, "MVN",
+  out <- runBatchMix(X, n_iter, thin, batch_vec, "MVN",
     initial_labels = labels, fixed = rep(0, nrow(X)),
     initial_class_means = init_means,
     auto_tune = TRUE, n_burn = n_burn,
     include_interaction = TRUE, gamma_proposal_window = 0.3
   )
 
-  post_idx <- (n_burn / thin + 1):(R / thin)
+  post_idx <- (n_burn / thin + 1):(n_iter / thin)
 
   # Items in the cell with the large true interaction (cluster 2, batch 3,
   # 0-based: labels == 1, batch_vec == 2).
@@ -315,14 +315,14 @@ test_that("continueChain() preserves the batch-weight-prior/interaction model sp
   for (wp in c("partial_pooling", "gp")) {
     coords <- if (wp == "gp") time_pts else NULL
     fit1 <- runBatchMix(X = X, K_max = K, initial_labels = labels, fixed = fixed,
-      batch_vec = batch_vec, type = "MVN", R = 300, thin = 10, n_burn = 150,
+      batch_vec = batch_vec, type = "MVN", n_iter = 300, thin = 10, n_burn = 150,
       auto_tune = TRUE, batch_weight_prior = wp, batch_coordinates = coords,
       sample_gp_hyperparameters = (wp == "gp")
     )
-    fit2 <- continueChain(fit1, X, fixed, batch_vec, R = 300, keep_old_samples = TRUE)
+    fit2 <- continueChain(fit1, X, fixed, batch_vec, n_iter = 300, keep_old_samples = TRUE)
 
     expect_identical(fit2$batch_weight_prior, wp)
-    expect_equal(fit2$R, fit1$R + 300)
+    expect_equal(fit2$n_iter, fit1$n_iter + 300)
 
     n1 <- dim(fit1$w_batch)[3]
     n2 <- dim(fit2$w_batch)[3]
@@ -343,10 +343,10 @@ test_that("continueChain() preserves the batch-weight-prior/interaction model sp
   # The interaction term has the same failure mode, checked separately since
   # it is an independent flag from batch_weight_prior.
   fit3 <- runBatchMix(X = X, K_max = K, initial_labels = labels, fixed = fixed,
-    batch_vec = batch_vec, type = "MVN", R = 300, thin = 10, n_burn = 150,
+    batch_vec = batch_vec, type = "MVN", n_iter = 300, thin = 10, n_burn = 150,
     auto_tune = TRUE, include_interaction = TRUE
   )
-  fit4 <- continueChain(fit3, X, fixed, batch_vec, R = 300, keep_old_samples = TRUE)
+  fit4 <- continueChain(fit3, X, fixed, batch_vec, n_iter = 300, keep_old_samples = TRUE)
   expect_true(fit4$include_interaction)
   n3 <- dim(fit3$gamma)[3]
   n4 <- dim(fit4$gamma)[3]
@@ -355,13 +355,13 @@ test_that("continueChain() preserves the batch-weight-prior/interaction model sp
   # And the default (global weights, no interaction) path must still work
   # exactly as before - this fix must not regress the common case.
   fit5 <- runBatchMix(X = X, K_max = K, initial_labels = labels, fixed = fixed,
-    batch_vec = batch_vec, type = "MVN", R = 300, thin = 10, n_burn = 150,
+    batch_vec = batch_vec, type = "MVN", n_iter = 300, thin = 10, n_burn = 150,
     auto_tune = TRUE
   )
-  fit6 <- continueChain(fit5, X, fixed, batch_vec, R = 300, keep_old_samples = TRUE)
+  fit6 <- continueChain(fit5, X, fixed, batch_vec, n_iter = 300, keep_old_samples = TRUE)
   expect_identical(fit6$batch_weight_prior, "global")
   expect_false(fit6$include_interaction)
-  expect_equal(fit6$R, fit5$R + 300)
+  expect_equal(fit6$n_iter, fit5$n_iter + 300)
 
   # w_batch/eta_alr are returned unconditionally (batch_weight_prior =
   # "global" just makes every batch's row identical within an iteration),

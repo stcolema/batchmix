@@ -2,22 +2,22 @@
 % Please edit documentation in R/RcppExports.R
 \name{squaredExponentialKernel}
 \alias{squaredExponentialKernel}
-\title{title Squared-exponential covariance kernel
-description Builds a Gaussian process covariance matrix; see header.
-param x Vector of 1-D locations.
-param tau2 Marginal variance.
-param length_scale Correlation length scale.
-param jitter Diagonal jitter for numerical stability.
-return The covariance matrix.}
+\title{Squared-exponential covariance kernel}
 \usage{
 squaredExponentialKernel(x, tau2, length_scale, jitter)
 }
+\arguments{
+\item{x}{Vector of 1-D locations.}
+
+\item{tau2}{Marginal variance.}
+
+\item{length_scale}{Correlation length scale.}
+
+\item{jitter}{Diagonal jitter for numerical stability.}
+}
+\value{
+The covariance matrix.
+}
 \description{
-title Squared-exponential covariance kernel
-description Builds a Gaussian process covariance matrix; see header.
-param x Vector of 1-D locations.
-param tau2 Marginal variance.
-param length_scale Correlation length scale.
-param jitter Diagonal jitter for numerical stability.
-return The covariance matrix.
+Builds a Gaussian process covariance matrix; see header.
 }

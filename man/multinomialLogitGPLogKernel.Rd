@@ -2,23 +2,7 @@
 % Please edit documentation in R/RcppExports.R
 \name{multinomialLogitGPLogKernel}
 \alias{multinomialLogitGPLogKernel}
-\title{title Multinomial-logit Gaussian process log-kernel
-description The unnormalised log-posterior-kernel for one ALR
-coordinate of batch-dependent multinomial weights under a GP prior
-over the batch index; see header for the full derivation and
-references.
-param eta B-vector, this ALR coordinate for each batch.
-param eta_other_sum B-vector, the softmax normalising contribution of
-every other non-pivot category, held fixed this step.
-param class_counts_j B-vector, per-batch counts in this category.
-param class_counts_total B-vector, per-batch total item counts.
-param gp_cov The GP covariance matrix for this coordinate (unused
-directly here beyond documenting the pairing with gp_cov_inv, kept for
-interface symmetry with the rest of the package's *LogKernel
-functions, several of which likewise take both a matrix and its
-precomputed inverse).
-param gp_cov_inv The inverse of gp_cov.
-return The unnormalised log-posterior-kernel value for eta.}
+\title{Multinomial-logit Gaussian process log-kernel}
 \usage{
 multinomialLogitGPLogKernel(
   eta,
@@ -29,22 +13,30 @@ multinomialLogitGPLogKernel(
   gp_cov_inv
 )
 }
-\description{
-title Multinomial-logit Gaussian process log-kernel
-description The unnormalised log-posterior-kernel for one ALR
-coordinate of batch-dependent multinomial weights under a GP prior
-over the batch index; see header for the full derivation and
-references.
-param eta B-vector, this ALR coordinate for each batch.
-param eta_other_sum B-vector, the softmax normalising contribution of
-every other non-pivot category, held fixed this step.
-param class_counts_j B-vector, per-batch counts in this category.
-param class_counts_total B-vector, per-batch total item counts.
-param gp_cov The GP covariance matrix for this coordinate (unused
+\arguments{
+\item{eta}{B-vector, this ALR coordinate for each batch.}
+
+\item{eta_other_sum}{B-vector, the softmax normalising contribution of
+every other non-pivot category, held fixed this step.}
+
+\item{class_counts_j}{B-vector, per-batch counts in this category.}
+
+\item{class_counts_total}{B-vector, per-batch total item counts.}
+
+\item{gp_cov}{The GP covariance matrix for this coordinate (unused
 directly here beyond documenting the pairing with gp_cov_inv, kept for
 interface symmetry with the rest of the package's *LogKernel
 functions, several of which likewise take both a matrix and its
-precomputed inverse).
-param gp_cov_inv The inverse of gp_cov.
-return The unnormalised log-posterior-kernel value for eta.
+precomputed inverse).}
+
+\item{gp_cov_inv}{The inverse of gp_cov.}
+}
+\value{
+The unnormalised log-posterior-kernel value for eta.
+}
+\description{
+The unnormalised log-posterior-kernel for one ALR
+coordinate of batch-dependent multinomial weights under a GP prior
+over the batch index; see header for the full derivation and
+references.
 }

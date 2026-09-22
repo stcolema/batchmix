@@ -74,12 +74,12 @@ fixed <- c(rep(1, 10), rep(0, 40), rep(1, 10), rep(0, 40))
 batch_vec <- sample(seq(1, 5), replace = TRUE, size = 100)
 
 # Sampling parameters
-R <- 1000
+n_iter <- 1000
 burn <- 250
 thin <- 50
 
 # MCMC samples
-samples <- runBatchMix(X, R, thin, batch_vec, "MVN",
+samples <- runBatchMix(X, n_iter, thin, batch_vec, "MVN",
   initial_labels = labels,
   fixed = fixed
 )

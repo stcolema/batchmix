@@ -16,7 +16,7 @@ sampleSemisupervisedMVNSeparationStrategy(
   sigma_proposal_window,
   m_proposal_window,
   S_proposal_window,
-  R,
+  n_iter,
   thin,
   concentration,
   m_scale,
@@ -67,7 +67,7 @@ label.}
 
 \item{mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window}{Metropolis-Hastings proposal windows.}
 
-\item{R}{The number of iterations to run for.}
+\item{n_iter}{The number of iterations to run for.}
 
 \item{thin}{thinning factor for samples recorded.}
 
@@ -84,7 +84,7 @@ sampled or fixed.}
 correlation matrices.}
 
 \item{auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd}{Auto-tuning, interaction-term and GP-correlated-weight options; see
-sampleMVN() for the full description of each.}
+sampleSemisupervisedMVN() for the full description of each.}
 }
 \value{
 Named list of the different quantities drawn by the sampler.

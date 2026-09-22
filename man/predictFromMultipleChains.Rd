@@ -44,7 +44,13 @@ A named list of quantities related to prediction/clustering:
 }
 \description{
 Applies a burn in to and finds a point estimate by combining
-multiple chains of ``callMDI``.
+multiple chains of ``callMDI``. Pools every chain unconditionally - this
+is usually preferable once ``runMCMCChains``'s reported Rhat/ESS confirm
+the chains have converged, since it uses more posterior draws than any
+one chain alone. If a single representative chain is wanted instead
+(e.g. to inspect directly or to ``continueChain()``), use
+``getBestChain(mcmc_outputs)``, which returns the chain with the best
+(highest post-burn-in mean) BIC.
 }
 \examples{
 \donttest{
@@ -89,7 +95,7 @@ alpha <- 1
 initial_labels <- generateInitialLabels(alpha, K, fixed, true_labels)
 
 # Sampling parameters
-R <- 1000
+n_iter <- 1000
 thin <- 25
 burn <- 100
 n_chains <- 2
@@ -98,10 +104,10 @@ n_chains <- 2
 type <- "MVT"
 
 # MCMC samples and BIC vector
-mcmc_outputs <- runMCMCChains(
+mcmc_outputs <- fitBatchMix(
   X,
   n_chains,
-  R,
+  n_iter,
   thin,
   batch_vec,
   type,
