@@ -33,6 +33,7 @@ importFrom(tidyr,
 importFrom(Rcpp, evalCpp, sourceCpp)
 
 export(
+  assessConvergence,
   calcAllocProb,
   collectAcceptanceRates,
   continueChain,
@@ -43,13 +44,16 @@ export(
   generateBatchDataMVT,
   generateBatchDataVaryingRepresentation,
   generateInitialLabels,
+  getBestChain,
   getLikelihood,
   getSampledBatchScale,
   getSampledBatchShift,
   getSampledClusterMeans,
   minVI,
   plotAcceptanceRates,
+  plotBatchCorrection,
   plotLikelihoods,
+  plotPredictiveCheck,
   plotSampledBatchMeans,
   plotSampledBatchScales,
   plotSampledClusterMeans,
@@ -58,10 +62,13 @@ export(
   predictFromMultipleChains,
   processMCMCChain,
   processMCMCChains,
+  rankNormalizedRhat,
   rStickBreakingPrior,
   runBatchMix,
   runMCMCChains,
-  samplePriorLabels
+  samplePriorLabels,
+  simulatePosteriorPredictive,
+  simulatePriorPredictive
 )
 
 exportPattern("^[[:alpha:]]+")
