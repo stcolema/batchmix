@@ -54,13 +54,22 @@ runBatchMix(
 }
 \arguments{
 \item{X}{Data to cluster as a matrix with the items to cluster held in
-rows. Missing entries (\code{NA}/\code{NaN}) are only supported when
-\code{type = "MVN_MIXED"}, which models them via proper data augmentation
-(see \code{column_type}/\code{censor_code} below and the
-'probit_missing_censored' vignette); for every other \code{type}, X must
-be complete - the empirical-Bayes prior setup for those samplers uses
-\code{mean(X)}/\code{cov(X)} directly and does not tolerate missing
-values.}
+rows. Missing entries (\code{NA}/\code{NaN}) are supported for every
+\code{type}: each is modelled via proper per-sweep Gibbs data
+augmentation (the missing entries of a row are redrawn from their full
+conditional, given the other entries of that row and the current
+cluster/batch parameters, every MCMC iteration - never imputed once and
+held fixed, and never written back to \code{X} itself). This assumes the
+missingness is at most Missing At Random given the modelled cluster/batch
+structure and the other observed columns (MCAR is a special case) - not
+Missing Not At Random (e.g. values missing because they are large/small),
+which none of these sampler types attempt to model. The posterior draws
+of the completed data are returned separately as
+\code{mcmc_output$latent_data} (an N x P x saved-iterations array); the
+original \code{X} you pass in is never modified. \code{type = "MVN_MIXED"}
+additionally supports binary/probit columns and (non-missing) left/right
+censored entries via \code{column_type}/\code{censor_code} - see the
+'probit_missing_censored' vignette.}
 
 \item{n_iter}{The number of iterations in the sampler.}
 

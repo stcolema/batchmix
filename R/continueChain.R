@@ -405,6 +405,20 @@ continueChain <- function(mcmc_output,
       dim = c(N, P, n_iter_comb_eff)
     )
 
+    # latent_data: the per-sweep completed-data draw (identical to X where
+    # nothing is missing/censored/binary for that type) returned by every
+    # sampler type. A proper per-iteration trace like batch_corrected_data,
+    # so combined the same way.
+    if (!is.null(mcmc_output$latent_data) && !is.null(new_samples$latent_data)) {
+      new_samples$latent_data <- array(
+        c(
+          mcmc_output$latent_data,
+          new_samples$latent_data
+        ),
+        dim = c(N, P, n_iter_comb_eff)
+      )
+    }
+
     new_samples$n_iter <- n_iter_comb
 
     new_samples$means <- combined_means

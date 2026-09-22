@@ -26,7 +26,12 @@ simulatePriorPredictive(
 empirical-Bayes prior location/scale (its own values are never reused
 directly) - the same summary statistics
 (\code{colMeans(X)}/\code{cov(X)}) that \code{batchSemiSupervisedMixtureModel()}
-computes internally when \code{type} is 'MVN', 'MVT' or 'MVN_LKJ'.}
+computes internally when \code{type} is 'MVN', 'MVT' or 'MVN_LKJ'. Missing
+entries (\code{NA}/\code{NaN}) are allowed here too - they are replaced by
+their column mean only for this hyperparameter derivation (mirroring the
+C++ samplers' own empirical-Bayes setup exactly), never imputed via the
+real per-sweep data augmentation used in an actual fit, since a prior
+predictive draw does not condition on any observed data at all.}
 
 \item{batch_vec}{Observed batch label for each row of X.}
 

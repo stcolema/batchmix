@@ -216,15 +216,18 @@ assessConvergence <- function(mcmc_chains,
     mean(ch$BIC[min(first_retained, n_saved):n_saved])
   }, numeric(1))
 
-  list(
-    rhat = diag$rhat,
-    rhat_bulk = diag$rhat_bulk,
-    rhat_tail = diag$rhat_tail,
-    ess_bulk = diag$ess_bulk,
-    ess_tail = diag$ess_tail,
-    chain_bic = chain_bic,
-    best_chain = which.max(chain_bic),
-    statistic = statistic
+  structure(
+    list(
+      rhat = diag$rhat,
+      rhat_bulk = diag$rhat_bulk,
+      rhat_tail = diag$rhat_tail,
+      ess_bulk = diag$ess_bulk,
+      ess_tail = diag$ess_tail,
+      chain_bic = chain_bic,
+      best_chain = which.max(chain_bic),
+      statistic = statistic
+    ),
+    class = "batchmix_convergence"
   )
 }
 

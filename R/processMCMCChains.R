@@ -88,6 +88,11 @@ processMCMCChains <- function(mcmc_lst, burn, point_estimate_method = "median") 
     attr(new_output, "best_chain") <- attr(mcmc_lst, "best_chain")
   }
 
+  # lapply() drops the batchmix_fit_list class along with the attributes
+  # handled above; restore it (each element is still a classed batchmix_fit)
+  # - see R/batchmixFitMethods.R.
+  class(new_output) <- c("batchmix_fit_list", class(new_output))
+
   # Return the MCMC object with burn in applied and point estimates found
   new_output
 }

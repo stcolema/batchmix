@@ -103,5 +103,11 @@ continueChains <- function(mcmc_output,
     }
   }
 
+  # lapply() (above) drops the batchmix_fit_list class of the input list;
+  # each element is still a classed batchmix_fit though (continueChain()
+  # builds its output from batchSemiSupervisedMixtureModel()), so restore it
+  # on the outer list too - see R/batchmixFitMethods.R.
+  class(new_output) <- c("batchmix_fit_list", class(new_output))
+
   new_output
 }
