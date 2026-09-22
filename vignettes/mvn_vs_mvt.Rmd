@@ -123,7 +123,7 @@ thin <- 5
 n_chains <- 2
 
 bic_by_k <- sapply(2:5, function(K) {
-  out <- runMCMCChains(X, n_chains, R_iter, thin, batch_vec, "MVN", K = K)
+  out <- fitBatchMix(X, n_chains, R_iter, thin, batch_vec, "MVN", K = K)
   mean(sapply(out, function(o) {
     n <- length(o$BIC)
     mean(o$BIC[(n / 2):n])
@@ -149,7 +149,7 @@ the label-switching that any unsupervised mixture sampler exhibits — do
 directly):
 
 ```{r salsoA}
-out3 <- runMCMCChains(X, n_chains, R_iter, thin, batch_vec, "MVN", K = K_true)
+out3 <- fitBatchMix(X, n_chains, R_iter, thin, batch_vec, "MVN", K = K_true)
 samp <- out3[[1]]$samples
 n_saved <- nrow(samp)
 post_labels <- samp[(n_saved / 2 + 1):n_saved, ]
@@ -204,8 +204,8 @@ R_iter <- 1500
 thin <- 5
 n_chains <- 2
 
-out_mvn <- runMCMCChains(X, n_chains, R_iter, thin, batch_vec + 1, "MVN", K = K)
-out_mvt <- runMCMCChains(X, n_chains, R_iter, thin, batch_vec + 1, "MVT", K = K)
+out_mvn <- fitBatchMix(X, n_chains, R_iter, thin, batch_vec + 1, "MVN", K = K)
+out_mvt <- fitBatchMix(X, n_chains, R_iter, thin, batch_vec + 1, "MVT", K = K)
 
 proc_mvn <- processMCMCChains(out_mvn, burn = R_iter / 2)[[1]]
 proc_mvt <- processMCMCChains(out_mvt, burn = R_iter / 2)[[1]]
