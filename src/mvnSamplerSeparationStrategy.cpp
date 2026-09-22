@@ -42,15 +42,25 @@ _fixed) {
 
   eta = _eta;
 
-  rowvec X_min = min(X), X_max = max(X);
-  mat global_cov = arma::cov(X);
-  
+  // Empirical-Bayes prior hyperparameters below need a finite matrix -
+  // mean()/cov() do not skip NaN - so use a column-mean-imputed copy for
+  // this one-off calculation only. It has no bearing on the actual
+  // per-sweep missing-data augmentation carried out by updateLatentData(),
+  // which works from the untouched X_raw/items_to_augment (see sampler.h)
+  // instead; X/X_t themselves are also given the same starting fill-in
+  // below, purely as a safe placeholder until updateLatentData() first
+  // runs (see the driver loop in sampleSemisupervisedMVNSeparationStrategy.cpp).
+  mat X_imputed = imputeColumnMeans(X);
+
+  rowvec X_min = min(X_imputed), X_max = max(X_imputed);
+  mat global_cov = arma::cov(X_imputed);
+
   // Mean
-  mat mean_mat = mean(_X, 0).t();
+  mat mean_mat = mean(X_imputed, 0).t();
   mu_0 = mean_mat.col(0);
-  
+
   // Empirical Bayes fora diagonal covariance matrix
-  mat scale_param = _X.each_row() - mu_0.t();
+  mat scale_param = X_imputed.each_row() - mu_0.t();
   vec diag_entries(P);
   // double scale_entry = accu(scale_param % scale_param, 0) / (N * std::pow(K, 1.0 / (double) P));
   
@@ -140,7 +150,23 @@ _fixed) {
   // The batch corrected data
   Y.set_size(N, P);
   Y.zeros();
-  
+
+  // Working complete-data copy: seed missing (NaN) entries of X/X_t with
+  // the observed column mean as a safe placeholder. updateLatentData()
+  // (called at the top of every MCMC sweep - see the driver loop in
+  // sampleSemisupervisedMVNSeparationStrategy.cpp) replaces this with a
+  // proper draw from the full conditional before it is ever used in a
+  // likelihood; this fill-in only guards against reading uninitialised/NaN
+  // memory before that first call.
+  for(uword p = 0; p < P; p++) {
+    for(uword n = 0; n < N; n++) {
+      if(!std::isfinite(X(n, p))) {
+        X(n, p) = X_imputed(n, p);
+      }
+    }
+  }
+  X_t = X.t();
+
   // The proposal windows for the cluster and batch parameters
   mu_proposal_window = _mu_proposal_window;
   r_proposal_window = _r_proposal_window;
@@ -234,6 +260,46 @@ void mvnSamplerSeparationStrategy::matrixCombinations() {
       }
     }
   }
+};
+
+// See the header comment for the provenance/derivation; this is a direct
+// port of mvnSamplerMixed::updateLatentData() with the binary/censoring
+// branches removed.
+void mvnSamplerSeparationStrategy::updateLatentData() {
+
+  vec z_i(P), eta_mean(P);
+  double cond_mean = 0.0, cond_var = 0.0, cond_sd = 0.0, lambda_pp = 0.0;
+  uword k = 0, b = 0, kb = 0;
+
+  for(auto& n : items_to_augment) {
+
+    k = labels(n);
+    b = batch_vec(n);
+    kb = k * B + b;
+
+    z_i = X_t.col(n);
+    eta_mean = mean_sum.col(kb);
+
+    for(uword p = 0; p < P; p++) {
+
+      if(std::isfinite(X_raw_t(p, n))) {
+        continue;
+      }
+
+      lambda_pp = cov_comb_inv(p, p, kb);
+      cond_var = 1.0 / lambda_pp;
+      cond_mean = eta_mean(p) - cond_var * (
+        dot(cov_comb_inv.slice(kb).row(p), z_i - eta_mean) - lambda_pp * (z_i(p) - eta_mean(p))
+      );
+      cond_sd = std::sqrt(cond_var);
+
+      z_i(p) = cond_mean + cond_sd * randn();
+    }
+
+    X_t.col(n) = z_i;
+  }
+
+  X = X_t.t();
 };
 
 // The log likelihood of a item belonging to each cluster given the batch label.

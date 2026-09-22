@@ -118,6 +118,56 @@ void mvtSampler::matrixCombinations() {
   }
 };
 
+// See the header comment for the Gaussian-scale-mixture derivation.
+void mvtSampler::updateLatentData() {
+
+  arma::vec z_i(P), eta_mean(P);
+  double cond_mean = 0.0, cond_var = 0.0, cond_sd = 0.0, lambda_pp = 0.0,
+    maha_sq = 0.0, u_n = 0.0;
+  arma::uword k = 0, b = 0, kb = 0;
+
+  for(auto& n : items_to_augment) {
+
+    k = labels(n);
+    b = batch_vec(n);
+    kb = k * B + b;
+
+    z_i = X_t.col(n);
+    eta_mean = mean_sum.col(kb);
+
+    // Full conditional of the scale-mixture weight given the item's
+    // current complete row (a mix of observed entries and last sweep's
+    // imputed values): Gamma((df + P) / 2, (df + Mahalanobis^2) / 2) - the
+    // standard conjugate update for a Gaussian scale mixture (Liu & Rubin,
+    // 1995; see the header comment).
+    maha_sq = arma::as_scalar((z_i - eta_mean).t() * cov_comb_inv.slice(kb) * (z_i - eta_mean));
+    u_n = rGamma((t_df(k) + (double) P) / 2.0, (t_df(k) + maha_sq) / 2.0);
+
+    for(arma::uword p = 0; p < P; p++) {
+
+      if(std::isfinite(X_raw_t(p, n))) {
+        continue;
+      }
+
+      // Conditional mean is exactly the Gaussian-case formula (the u_n
+      // scale factor cancels out of it algebraically); only the
+      // conditional variance carries the 1/u_n scaling of the N(mean_sum,
+      // cov_comb / u_n) representation.
+      lambda_pp = cov_comb_inv(p, p, kb);
+      cond_var = 1.0 / (lambda_pp * u_n);
+      cond_mean = eta_mean(p) - (1.0 / lambda_pp) * (
+        arma::dot(cov_comb_inv.slice(kb).row(p), z_i - eta_mean) - lambda_pp * (z_i(p) - eta_mean(p))
+      );
+      cond_sd = std::sqrt(cond_var);
+
+      z_i(p) = cond_mean + cond_sd * arma::randn();
+    }
+
+    X_t.col(n) = z_i;
+  }
+
+  X = X_t.t();
+};
 
 // The log likelihood of a item belonging to each cluster given the batch label.
 arma::vec mvtSampler::itemLogLikelihood(arma::vec x, arma::uword b) {

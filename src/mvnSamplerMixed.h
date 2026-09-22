@@ -58,18 +58,13 @@ public:
   // binary columns and for missing (NaN) entries.
   arma::umat censor_code;
 
-  // The data as supplied by the user: NaN for missing entries, the
-  // recorded bound for censored entries, {0, 1} for binary columns,
-  // otherwise the observed value. Unlike the inherited X/X_t (which this
-  // class overwrites every sweep with the current complete-data draw of
-  // the shared latent vector), X_raw/X_raw_t never change after
-  // construction.
-  arma::mat X_raw, X_raw_t;
-
-  // Indices of items requiring at least one entry to be augmented (i.e.
-  // that have a missing, censored, or binary entry); items that are fully
-  // observed and continuous are skipped entirely in updateLatentData().
-  arma::uvec items_to_augment;
+  // items_to_augment (indices of items requiring at least one entry to be
+  // augmented) and X_raw/X_raw_t (the data as supplied, NaN preserved) are
+  // inherited from `sampler` (see sampler.h); this class overwrites both
+  // in its own constructor body with its broader definition, since it also
+  // has censored and binary entries to augment on top of plain NaN
+  // missingness (the generic NaN-only definition `sampler`'s constructor
+  // computes first is a strict subset of what's needed here).
 
   // A simple column-mean imputation of X, used ONLY to give the base
   // class's empirical-Bayes prior-hyperparameter calculations (mu_0,

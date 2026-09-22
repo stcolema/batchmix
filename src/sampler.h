@@ -65,6 +65,31 @@ public:
   arma::mat X, X_t, w, alloc;
   arma::field<arma::uvec> batch_ind;
 
+  // Missing-data bookkeeping, shared by every concrete sampler (see
+  // updateLatentData() in mvnSampler/mvtSampler/mvnSamplerSeparationStrategy,
+  // and mvnSamplerMixed which additionally augments binary/censored entries
+  // on top of this same NaN-driven baseline).
+  //
+  // X_raw/X_raw_t: the data exactly as supplied by the user - NaN at every
+  // missing entry - and never modified after construction. X/X_t are the
+  // *working* complete-data copy every likelihood/kernel actually reads;
+  // a concrete sampler's updateLatentData() overwrites the missing entries
+  // of X/X_t in place every MCMC sweep (see the *::updateLatentData()
+  // implementations), but X_raw/X_raw_t are never touched again, and the
+  // user's original R-level X object is never touched at all (Rcpp passes
+  // this constructor a copy). Posterior draws of the imputed values are
+  // exposed as a separate `latent_data` trace by the driver functions, not
+  // by mutating X_raw.
+  //
+  // items_to_augment: indices of rows with at least one non-finite (NaN)
+  // entry in X_raw, i.e. requiring imputation every sweep. Fully-observed
+  // rows are skipped entirely by updateLatentData(), and if X has no
+  // missing data at all this is empty, so updateLatentData() draws nothing
+  // and every RNG call sequence - and hence every existing golden-master
+  // test - is unaffected.
+  arma::mat X_raw, X_raw_t;
+  arma::uvec items_to_augment;
+
   // ===========================================================================
   // Batch x cluster interaction term in the mean (opt-in; see
   // sampleTauInteractionPosterior()/the *::interactionMetropolis()

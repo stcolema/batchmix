@@ -19,17 +19,7 @@ using namespace arma ;
 // raw data) a finite matrix, before this class's own constructor body has
 // a chance to run and set up the real (properly augmented) starting data.
 arma::mat mvnSamplerMixed::imputeForPriorSetup(arma::mat X) {
-  for(uword p = 0; p < X.n_cols; p++) {
-    vec col_p = X.col(p);
-    uvec observed = find_finite(col_p);
-    double col_mean = observed.n_elem > 0 ? mean(col_p.elem(observed)) : 0.0;
-    for(uword n = 0; n < X.n_rows; n++) {
-      if(std::isnan(X(n, p))) {
-        X(n, p) = col_mean;
-      }
-    }
-  }
-  return X;
+  return imputeColumnMeans(X);
 };
 
 mvnSamplerMixed::mvnSamplerMixed(
