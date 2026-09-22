@@ -2,20 +2,19 @@
 % Please edit documentation in R/RcppExports.R
 \name{sampleLKJCorrelationMatrix}
 \alias{sampleLKJCorrelationMatrix}
-\title{title The LKJ distribution
-description Random generation of a correlation matrix from LKJ(eta) by
-rejection sampling; see the header for the derivation.
-param P Dimension of the correlation matrix.
-param eta Concentration parameter, eta >= 1.
-return A P x P correlation matrix sampled from LKJ(eta).}
+\title{The LKJ distribution}
 \usage{
 sampleLKJCorrelationMatrix(P, eta)
 }
+\arguments{
+\item{P}{Dimension of the correlation matrix.}
+
+\item{eta}{Concentration parameter, eta >= 1.}
+}
+\value{
+A P x P correlation matrix sampled from LKJ(eta).
+}
 \description{
-title The LKJ distribution
-description Random generation of a correlation matrix from LKJ(eta) by
+Random generation of a correlation matrix from LKJ(eta) by
 rejection sampling; see the header for the derivation.
-param P Dimension of the correlation matrix.
-param eta Concentration parameter, eta >= 1.
-return A P x P correlation matrix sampled from LKJ(eta).
 }

@@ -2,11 +2,11 @@
 % Please edit documentation in R/batchSemiSupervisedMixtureModel.R
 \name{batchSemiSupervisedMixtureModel}
 \alias{batchSemiSupervisedMixtureModel}
-\title{Batch semisupervised mixture model}
+\title{Batch semi-supervised/unsupervised mixture model (low-level engine)}
 \usage{
 batchSemiSupervisedMixtureModel(
   X,
-  R,
+  n_iter,
   thin,
   initial_labels,
   fixed,
@@ -15,6 +15,9 @@ batchSemiSupervisedMixtureModel(
   K_max = length(unique(initial_labels)),
   alpha = NULL,
   concentration = NULL,
+  auto_tune = TRUE,
+  n_burn = NULL,
+  verbose = TRUE,
   mu_proposal_window = 0.5^2,
   cov_proposal_window = 0.002,
   r_proposal_window = 0.1,
@@ -22,47 +25,56 @@ batchSemiSupervisedMixtureModel(
   m_proposal_window = 0.3^2,
   S_proposal_window = 0.01,
   t_df_proposal_window = 0.015,
+  gamma_proposal_window = 0.1,
+  eta_proposal_window = 0.1,
+  gp_hyperparameter_proposal_window = 0.1,
   m_scale = NULL,
   rho = 3,
   theta = 1,
+  eta = 1,
+  a_gamma = 2,
+  b_gamma = 1,
   initial_class_means = NULL,
   initial_class_covariance = NULL,
   initial_batch_shift = NULL,
   initial_batch_scale = NULL,
   initial_class_df = NULL,
-  verbose = TRUE,
-  eta = 1,
-  column_type = NULL,
-  censor_code = NULL,
-  auto_tune = TRUE,
-  n_burn = NULL,
   include_interaction = FALSE,
-  gamma_proposal_window = 0.1,
-  a_gamma = 2,
-  b_gamma = 1,
   batch_weight_prior = c("global", "partial_pooling", "gp"),
   batch_coordinates = NULL,
   gp_tau2 = 1,
   gp_length_scale = 1,
-  eta_proposal_window = 0.1,
   sample_gp_hyperparameters = FALSE,
-  gp_hyperparameter_proposal_window = 0.1,
   pp_tau2_shape = 2,
   pp_tau2_rate = 1,
-  pp_mu_prior_sd = 10
+  pp_mu_prior_sd = 10,
+  column_type = NULL,
+  censor_code = NULL,
+  ...
 )
 }
 \arguments{
-\item{X}{Data to cluster as a matrix with the items to cluster held in rows.}
+\item{X}{Data to cluster as a matrix with the items to cluster held in
+rows. Missing entries (\code{NA}/\code{NaN}) are only supported when
+\code{type = "MVN_MIXED"}, which models them via proper data augmentation
+(see \code{column_type}/\code{censor_code} below and the
+'probit_missing_censored' vignette); for every other \code{type}, X must
+be complete - the empirical-Bayes prior setup for those samplers uses
+\code{mean(X)}/\code{cov(X)} directly and does not tolerate missing
+values.}
 
-\item{R}{The number of iterations in the sampler.}
+\item{n_iter}{The number of iterations in the sampler.}
 
 \item{thin}{The factor by which the samples generated are thinned, e.g. if
 ``thin=50`` only every 50th sample is kept.}
 
-\item{initial_labels}{Initial clustering.}
+\item{initial_labels}{Initial clustering. If not given, defaults to a
+k-means partition of \code{X} for a fully unsupervised fit, or a random
+draw from the stick-breaking prior otherwise - see
+\code{\link{generateInitialLabels}}.}
 
-\item{fixed}{Which items are fixed in their initial label.}
+\item{fixed}{Which items are fixed in their initial label. If not given,
+defaults to a vector of 0 meaning the model is run unsupervised.}
 
 \item{batch_vec}{Labels identifying which batch each item being clustered is
 from.}
@@ -80,21 +92,41 @@ missing/censored continuous entries - see
 
 \item{K_max}{The number of components to include (the upper bound on the
 number of clusters in each sample). Defaults to the number of unique labels
-in ``initial_labels``.}
+in ``initial_labels`` if given, else \code{min(floor(N / 2), 50)}.}
 
-\item{alpha}{The concentration parameter for the stick-breaking prior and the
-weights in the model.}
+\item{alpha}{The concentration parameter for the stick-breaking prior and
+the weights in the model. Only used if \code{concentration} (only
+available on \code{\link{batchSemiSupervisedMixtureModel}} directly) is
+not given.}
 
-\item{concentration}{Initial concentration vector for component weights.}
+\item{concentration}{Initial concentration vector for component weights;
+alternative to \code{alpha} (only one of the two should be given) for
+directly specifying an asymmetric concentration per component.}
+
+\item{auto_tune}{Logical; if \code{TRUE} (the default), every proposal
+window is adapted during the first \code{n_burn} iterations via
+Robbins-Monro diminishing adaptation, instead of staying fixed at the
+value passed in. Adaptation is frozen after \code{n_burn} iterations so
+the post-burn-in chain retains the correct stationary distribution.}
+
+\item{n_burn}{Number of iterations treated as burn-in for proposal-window
+adaptation; ignored if \code{auto_tune} is \code{FALSE}. Defaults to half
+of \code{n_iter}.}
+
+\item{verbose}{Logical indicating if warnings about proposal windows should
+be printed.}
 
 \item{mu_proposal_window}{The proposal window for the cluster mean proposal
 kernel. The proposal density is a Gaussian distribution, the window is the
-variance.}
+variance. Making this smaller will normally increase the acceptance rate.}
 
 \item{cov_proposal_window}{The proposal window for the cluster covariance
 proposal kernel when \code{type} is 'MVN' or 'MVT'. The proposal density
 is a Wishart distribution, this argument is the reciprocal of the degree
-of freedom.}
+of freedom. It is recommended to aim for acceptance rates greater than
+0.5 (e.g. between 2e-03 and 1e-04 is a good range to consider initially) -
+as the entire covariance matrix is sampled at once, exploration is
+difficult.}
 
 \item{r_proposal_window}{Only used if \code{type} is 'MVN_LKJ' or
 'MVN_MIXED': the standard deviation of the (unconstrained-space) Gaussian
@@ -112,20 +144,44 @@ variance.}
 
 \item{S_proposal_window}{The proposal window for the batch standard deviation
  proposal kernel. The proposal density is a Gamma distribution, this
-argument is the reciprocal of the rate.}
+argument is the reciprocal of the rate. Recommended range to initially
+consider is 0.015 to 2e-03, though smaller values might be necessary
+particularly in higher dimensional data.}
 
 \item{t_df_proposal_window}{The proposal window for the degrees of freedom
 for the multivariate t distribution (not used if type is not 'MVT'). The
 proposal density is a Gamma distribution, this argument is the reciprocal of
-the rate.}
+the rate. If the data is more Gaussian than the degrees of freedom might have
+high acceptance rates regardless of the value chosen.}
+
+\item{gamma_proposal_window}{Proposal window (Gaussian random-walk SD)
+for the interaction term; ignored if \code{include_interaction} is
+\code{FALSE}.}
+
+\item{eta_proposal_window}{Proposal window for the batch-weight
+Metropolis-Hastings update; used if \code{batch_weight_prior} is
+\code{"partial_pooling"} or \code{"gp"}.}
+
+\item{gp_hyperparameter_proposal_window}{Proposal window for the GP
+hyperparameter update; only used if \code{batch_weight_prior} is
+\code{"gp"} and \code{sample_gp_hyperparameters} is \code{TRUE}.}
 
 \item{m_scale}{The scale hyperparameter for the batch shift prior
 distribution. This defines the scale of the batch effect upon the mean and
-should be in (0, 1].}
+should be in (0, 1]. If `NULL`, this quantity is sampled rather then fixed.}
 
 \item{rho}{The shape of the prior distribution for the batch scale.}
 
 \item{theta}{The scale of the prior distribution for the batch scale.}
+
+\item{eta}{The LKJ concentration parameter for the cluster correlation
+prior; only used if \code{type} is 'MVN_LKJ' or 'MVN_MIXED'. eta = 1 is
+uniform over the space of correlation matrices, eta > 1 shrinks
+correlations towards 0.}
+
+\item{a_gamma, b_gamma}{Shape/rate of the InvGamma hyperprior on the
+interaction shrinkage variance; ignored if \code{include_interaction} is
+\code{FALSE}.}
 
 \item{initial_class_means}{A $P x K$ matrix of initial values for the class
 means. Defaults to draws from the prior distribution.}
@@ -142,35 +198,6 @@ scales Defaults to draws from the prior distribution.}
 \item{initial_class_df}{A $K$ vector of initial values for the class degrees
 of freedom. Defaults to draws from the prior distribution.}
 
-\item{verbose}{Logiccal indicating if warning about proposal windows should
-be printed.}
-
-\item{eta}{The LKJ concentration parameter for the cluster correlation
-prior; only used if \code{type} is 'MVN_LKJ' or 'MVN_MIXED'. eta = 1 is
-uniform over the space of correlation matrices, eta > 1 shrinks
-correlations towards 0.}
-
-\item{column_type}{Only used if \code{type} is 'MVN_MIXED': a P-vector, 0
-for a continuous column, 1 for a binary column observed via a probit
-link. Defaults to all-continuous.}
-
-\item{censor_code}{Only used if \code{type} is 'MVN_MIXED': an N x P
-matrix, meaningful only for continuous columns: 0 = not censored,
-1 = left-censored (true value below the recorded X entry), 2 =
-right-censored (true value above the recorded X entry). Defaults to no
-censoring. Missing entries are indicated by \code{NA}/\code{NaN} in
-\code{X} directly, for both continuous and binary columns.}
-
-\item{auto_tune}{Logical; if \code{TRUE} (the default), every proposal
-window is adapted during the first \code{n_burn} iterations via
-Robbins-Monro diminishing adaptation, instead of staying fixed at the
-value passed in. Adaptation is frozen after \code{n_burn} iterations so
-the post-burn-in chain retains the correct stationary distribution.}
-
-\item{n_burn}{Number of iterations treated as burn-in for proposal-window
-adaptation; ignored if \code{auto_tune} is \code{FALSE}. Defaults to half
-of \code{R}.}
-
 \item{include_interaction}{Logical; if \code{TRUE}, add a batch x cluster
 interaction term to the mean, \eqn{\gamma_{k,b} \sim N(0,
 \tau^2_{\mathrm{interaction}})}, with \eqn{\tau^2_{\mathrm{interaction}}
@@ -178,14 +205,6 @@ interaction term to the mean, \eqn{\gamma_{k,b} \sim N(0,
 prior, shrinking towards the purely-additive model when the data don't
 support an interaction). Defaults to \code{FALSE} (the original,
 purely-additive mean).}
-
-\item{gamma_proposal_window}{Proposal window (Gaussian random-walk SD)
-for the interaction term; ignored if \code{include_interaction} is
-\code{FALSE}.}
-
-\item{a_gamma, b_gamma}{Shape/rate of the InvGamma hyperprior on the
-interaction shrinkage variance; ignored if \code{include_interaction} is
-\code{FALSE}.}
 
 \item{batch_weight_prior}{One of \code{"global"} (the default),
 \code{"partial_pooling"} or \code{"gp"}, controlling whether/how mixture
@@ -220,18 +239,10 @@ order 0, 1, ..., B - 1. Only used if \code{batch_weight_prior} is
 squared-exponential Gaussian process kernel over \code{batch_coordinates};
 only used if \code{batch_weight_prior} is \code{"gp"}.}
 
-\item{eta_proposal_window}{Proposal window for the batch-weight
-Metropolis-Hastings update; used if \code{batch_weight_prior} is
-\code{"partial_pooling"} or \code{"gp"}.}
-
 \item{sample_gp_hyperparameters}{Logical; if \code{TRUE}, \code{gp_tau2}
 and \code{gp_length_scale} are themselves updated by Metropolis-Hastings
 rather than held fixed at the values passed in; only used if
 \code{batch_weight_prior} is \code{"gp"}.}
-
-\item{gp_hyperparameter_proposal_window}{Proposal window for the GP
-hyperparameter update; only used if \code{batch_weight_prior} is
-\code{"gp"} and \code{sample_gp_hyperparameters} is \code{TRUE}.}
 
 \item{pp_tau2_shape, pp_tau2_rate}{Shape/rate of the InvGamma hyperprior
 on each ALR coordinate's population variance (how much pooling there is
@@ -243,13 +254,41 @@ independently); only used if \code{batch_weight_prior} is
 \item{pp_mu_prior_sd}{Prior standard deviation for each ALR coordinate's
 population mean (the shared value batches are pooled towards); only used
 if \code{batch_weight_prior} is \code{"partial_pooling"}.}
+
+\item{column_type}{Only used if \code{type} is 'MVN_MIXED': a P-vector, 0
+for a continuous column, 1 for a binary column observed via a probit
+link. Defaults to all-continuous.}
+
+\item{censor_code}{Only used if \code{type} is 'MVN_MIXED': an N x P
+matrix, meaningful only for continuous columns: 0 = not censored,
+1 = left-censored (true value below the recorded X entry), 2 =
+right-censored (true value above the recorded X entry). Defaults to no
+censoring. Missing entries are indicated by \code{NA}/\code{NaN} in
+\code{X} directly, for both continuous and binary columns.}
+
+\item{...}{Accepts only the deprecated \code{R} argument (renamed to
+\code{n_iter}; still works, with a warning, for this release, when
+passed positionally in its original slot or when every other argument is
+also named - naming \code{R} while leaving later arguments positional is
+not supported, since there is no way to bind two names to the same
+argument slot). Anything else is an "unused argument" error.}
 }
 \value{
 A named list containing the sampled partitions, cluster and batch
 parameters, model fit measures and some details on the model call.
 }
 \description{
-A Bayesian mixture model with batch effects.
+The low-level engine that \code{\link{runBatchMix}} and
+(through it) \code{\link{fitBatchMix}} build on - despite the name, it
+handles both the semi-supervised (\code{fixed} has any 1s) and fully
+unsupervised (\code{fixed} all 0, the default) case identically to those
+wrappers. Most users should call \code{\link{fitBatchMix}} (fits multiple
+chains, the recommended entry point) or \code{\link{runBatchMix}} (a
+single chain, with convenience defaults for \code{K_max}/\code{initial_labels}
+this function does not provide) instead of this function directly - see
+\code{?runBatchMix} for the full, canonical description of every argument
+below (inherited via \code{@inheritParams}, not repeated here, so there is
+exactly one place to read about them).
 }
 \examples{
 
@@ -273,13 +312,13 @@ batch_vec <- sample(seq(1, 5), replace = TRUE, size = 100)
 type <- "MVN"
 
 # Sampling parameters
-R <- 1000
+n_iter <- 1000
 thin <- 50
 
 # MCMC samples and BIC vector
 samples <- batchSemiSupervisedMixtureModel(
   X,
-  R,
+  n_iter,
   thin,
   labels,
   fixed,
@@ -294,14 +333,14 @@ initial_class_covariance <- array(c(1, 0, 0, 1, 1, 0, 0, 1),
 )
 
 # We can use values from a previous chain
-initial_batch_shift <- samples$batch_shift[, , R / thin]
+initial_batch_shift <- samples$batch_shift[, , n_iter / thin]
 initial_batch_scale <- matrix(
   c(1.2, 1.3, 1.7, 1.1, 1.4, 1.3, 1.2, 1.2, 1.1, 2.0),
   nrow = 2
 )
 
 samples <- batchSemiSupervisedMixtureModel(X,
-  R,
+  n_iter,
   thin,
   labels,
   fixed,

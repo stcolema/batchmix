@@ -2,20 +2,19 @@
 % Please edit documentation in R/RcppExports.R
 \name{logJacobianZToR}
 \alias{logJacobianZToR}
-\title{title Jacobian of the partial-correlation to correlation-matrix map
-description log|dR/dZ|; see header for verification against
-finite-difference Jacobians.
-param Z A P x P matrix; only strictly-lower-triangular entries used.
-param P The dimension.
-return The log-Jacobian determinant.}
+\title{Jacobian of the partial-correlation to correlation-matrix map}
 \usage{
 logJacobianZToR(Z, P)
 }
+\arguments{
+\item{Z}{A P x P matrix; only strictly-lower-triangular entries used.}
+
+\item{P}{The dimension.}
+}
+\value{
+The log-Jacobian determinant.
+}
 \description{
-title Jacobian of the partial-correlation to correlation-matrix map
-description log|dR/dZ|; see header for verification against
+log|dR/dZ|; see header for verification against
 finite-difference Jacobians.
-param Z A P x P matrix; only strictly-lower-triangular entries used.
-param P The dimension.
-return The log-Jacobian determinant.
 }

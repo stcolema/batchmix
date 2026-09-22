@@ -29,11 +29,11 @@ X <- matrix(c(rnorm(100, 0, 1), rnorm(100, 3, 1)), ncol = 2, byrow = TRUE)
 batch_vec <- sample(seq(1, 5), replace = TRUE, size = 100)
 
 # Sampling parameters
-R <- 100
+n_iter <- 100
 thin <- 5
 
 # MCMC samples and BIC vector
-samples <- runBatchMix(X, R, thin, batch_vec, "MVN")
+samples <- runBatchMix(X, n_iter, thin, batch_vec, "MVN")
 
 lkl_df <- getLikelihood(samples)
 

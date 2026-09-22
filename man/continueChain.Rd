@@ -4,7 +4,15 @@
 \alias{continueChain}
 \title{Continue chain}
 \usage{
-continueChain(mcmc_output, X, fixed, batch_vec, R, keep_old_samples = TRUE)
+continueChain(
+  mcmc_output,
+  X,
+  fixed,
+  batch_vec,
+  n_iter,
+  keep_old_samples = TRUE,
+  ...
+)
 }
 \arguments{
 \item{mcmc_output}{Chain to be continued.}
@@ -15,11 +23,18 @@ continueChain(mcmc_output, X, fixed, batch_vec, R, keep_old_samples = TRUE)
 
 \item{batch_vec}{The vector of the batch labels for the data.}
 
-\item{R}{The number of iterations to run in this continuation (thinning
+\item{n_iter}{The number of iterations to run in this continuation (thinning
 factor is the same as initial chain).}
 
 \item{keep_old_samples}{Logical indicating if the original samples should be
 kept or only the new samples returned. Defaults to TRUE.}
+
+\item{...}{Accepts only the deprecated \code{R} argument (renamed to
+\code{n_iter}; still works, with a warning, for this release, when
+passed positionally in its original slot or when every other argument is
+also named - naming \code{R} while leaving later arguments positional is
+not supported, since there is no way to bind two names to the same
+argument slot). Anything else is an "unused argument" error.}
 }
 \value{
 A named list containing the sampled partitions, cluster and batch
@@ -50,13 +65,13 @@ batch_vec <- sample(seq(1, 5), replace = TRUE, size = 100)
 type <- "MVT"
 
 # Sampling parameters
-R <- 1000
+n_iter <- 1000
 thin <- 50
 
 # MCMC samples and BIC vector
 mcmc_output <- runBatchMix(
   X,
-  R,
+  n_iter,
   thin,
   batch_vec,
   type,
@@ -70,7 +85,7 @@ mcmc_output <- continueChain(
   X,
   fixed,
   batch_vec,
-  R,
+  n_iter,
 )
 
 }

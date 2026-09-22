@@ -28,10 +28,10 @@ Discussion)'.
 \examples{
 \dontrun{
 # MCMC samples and BIC vector
-mcmc_outputs <- runMCMCChains(
+mcmc_outputs <- fitBatchMix(
   X,
   n_chains,
-  R,
+  n_iter,
   thin,
   batch_vec,
   type

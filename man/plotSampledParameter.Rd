@@ -4,14 +4,14 @@
 \alias{plotSampledParameter}
 \title{Plot sampled vector parameter}
 \usage{
-plotSampledParameter(samples, parameter, R = NULL, thin = 1, burn_in = 0)
+plotSampledParameter(samples, parameter, n_iter = NULL, thin = 1, burn_in = 0)
 }
 \arguments{
 \item{samples}{The output of the ``mixtureModel`` function.}
 
 \item{parameter}{The name of the parameter to be plotted (a string).}
 
-\item{R}{The number of iterations run. Defaults to the number of samples for
+\item{n_iter}{The number of iterations run. Defaults to the number of samples for
 the cluster membership.}
 
 \item{thin}{The thinning factor of the sampler. Defaults to 1.}
@@ -33,13 +33,13 @@ X <- matrix(c(rnorm(100, 0, 1), rnorm(100, 3, 1)), ncol = 2, byrow = TRUE)
 batch_vec <- sample(seq(1, 3), size = 100, replace = TRUE)
 
 # MCMC iterations (this is too low for real use)
-R <- 50
+n_iter <- 50
 thin <- 1
 
 # MCMC samples and BIC vector
-samples <- runBatchMix(X, R, thin, batch_vec, "MVN", K_max = 8)
+samples <- runBatchMix(X, n_iter, thin, batch_vec, "MVN", K_max = 8)
 
 # Plot the sampled value of the cluster means against MCMC iteration
 parameter <- "means"
-plotSampledParameter(samples, parameter, R, thin)
+plotSampledParameter(samples, parameter, n_iter, thin)
 }

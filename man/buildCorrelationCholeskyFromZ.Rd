@@ -2,20 +2,19 @@
 % Please edit documentation in R/RcppExports.R
 \name{buildCorrelationCholeskyFromZ}
 \alias{buildCorrelationCholeskyFromZ}
-\title{title Build a correlation-matrix Cholesky factor from partial
-correlations
-description See header for the construction and its provenance.
-param Z A P x P matrix; only strictly-lower-triangular entries used.
-param P The dimension.
-return The P x P lower-triangular Cholesky factor L.}
+\title{Build a correlation-matrix Cholesky factor from partial
+correlations}
 \usage{
 buildCorrelationCholeskyFromZ(Z, P)
 }
+\arguments{
+\item{Z}{A P x P matrix; only strictly-lower-triangular entries used.}
+
+\item{P}{The dimension.}
+}
+\value{
+The P x P lower-triangular Cholesky factor L.
+}
 \description{
-title Build a correlation-matrix Cholesky factor from partial
-correlations
-description See header for the construction and its provenance.
-param Z A P x P matrix; only strictly-lower-triangular entries used.
-param P The dimension.
-return The P x P lower-triangular Cholesky factor L.
+See header for the construction and its provenance.
 }

@@ -33,7 +33,7 @@ context("Unit test for MVT posterior kernels.") {
       rho = 3.0,
       theta = 1.0;
   
-  uvec labels(10), batch_vec(10);
+  uvec labels(10), batch_vec(10), fixed(10, fill::zeros);
   vec concentration(K);
 
   labels = {0, 1, 1, 0, 1, 1, 1, 0, 0, 1};
@@ -64,6 +64,7 @@ context("Unit test for MVT posterior kernels.") {
     batch_vec,
     concentration,
     X,
+    fixed,
     m_scale,
     rho,
     theta,

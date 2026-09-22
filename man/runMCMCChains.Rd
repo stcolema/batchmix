@@ -2,155 +2,20 @@
 % Please edit documentation in R/runMCMCChains.R
 \name{runMCMCChains}
 \alias{runMCMCChains}
-\title{Run MCMC Chains}
+\title{Run MCMC Chains (deprecated)}
 \usage{
-runMCMCChains(
-  X,
-  n_chains,
-  R,
-  thin,
-  batch_vec,
-  type,
-  K_max = NULL,
-  initial_labels = NULL,
-  fixed = NULL,
-  alpha = 1,
-  mu_proposal_window = 0.5^2,
-  cov_proposal_window = 0.002,
-  m_proposal_window = 0.3^2,
-  S_proposal_window = 0.01,
-  t_df_proposal_window = 0.015,
-  m_scale = NULL,
-  rho = 3,
-  theta = 1,
-  initial_class_means = NULL,
-  initial_class_covariance = NULL,
-  initial_batch_shift = NULL,
-  initial_batch_scale = NULL,
-  initial_class_df = NULL,
-  verbose = TRUE,
-  ...
-)
+runMCMCChains(...)
 }
 \arguments{
-\item{X}{Data to cluster as a matrix with the items to cluster held in rows.}
-
-\item{n_chains}{Integer. Number of MCMC chains to run.}
-
-\item{R}{The number of iterations in the sampler.}
-
-\item{thin}{The factor by which the samples generated are thinned, e.g. if
-``thin=50`` only every 50th sample is kept.}
-
-\item{batch_vec}{Labels identifying which batch each item being clustered is
-from.}
-
-\item{type}{Character indicating density type to use. One of 'MVN'
-(multivariate normal distribution) or 'MVT' (multivariate t distribution).
-``weights`` which is a matrix with K x B columns. The columns are ordered by
-batch, i.e. the first K columns contain the class weights in the first batch,
-the second K are the class weights in the second batch, etc. If generic
-weights are used then this matrix has K columns, one for each component weight.}
-
-\item{K_max}{The number of components to include (the upper bound on the
-number of clusters in each sample). Defaults to the number of unique labels
-in ``initial_labels``.}
-
-\item{initial_labels}{Initial clustering, if none given defaults to a random draw.}
-
-\item{fixed}{Which items are fixed in their initial label. If not given,
-defaults to a vector of 0 meaning the model is run unsupervised.}
-
-\item{alpha}{The concentration parameter for the stick-breaking prior and the
-weights in the model.}
-
-\item{mu_proposal_window}{The proposal window for the cluster mean proposal
-kernel. The proposal density is a Gaussian distribution, the window is the
-variance.}
-
-\item{cov_proposal_window}{The proposal window for the cluster covariance
-proposal kernel. The proposal density is a Wishart distribution, this
-argument is the reciprocal of the degree of freedom.}
-
-\item{m_proposal_window}{The proposal window for the batch mean proposal
- kernel. The proposal density is a Gaussian distribution, the window is the
-variance.}
-
-\item{S_proposal_window}{The proposal window for the batch standard deviation
- proposal kernel. The proposal density is a Gamma distribution, this
-argument is the reciprocal of the rate.}
-
-\item{t_df_proposal_window}{The proposal window for the degrees of freedom
-for the multivariate t distribution (not used if type is not 'MVT'). The
-proposal density is a Gamma distribution, this argument is the reciprocal of
-the rate.}
-
-\item{m_scale}{The scale hyperparameter for the batch shift prior
-distribution. This defines the scale of the batch effect upon the mean and
-should be in (0, 1]. If `NULL`, this quantity is sampled rather then fixed.}
-
-\item{rho}{The shape of the prior distribution for the batch scale.}
-
-\item{theta}{The scale of the prior distribution for the batch scale.}
-
-\item{initial_class_means}{A $P x K$ matrix of initial values for the class
-means. Defaults to draws from the prior distribution.}
-
-\item{initial_class_covariance}{A $P x P x K$ array of initial values for
-the class covariance matrices. Defaults to draws from the prior distribution.}
-
-\item{initial_batch_shift}{A $P x B$ matrix of initial values for the batch
-shift effect Defaults to draws from the prior distribution.}
-
-\item{initial_batch_scale}{A $P x B$ matrix of initial values for the batch
-scales Defaults to draws from the prior distribution.}
-
-\item{initial_class_df}{A $K$ vector of initial values for the class degrees
-of freedom. Defaults to draws from the prior distribution.}
-
-\item{verbose}{Logiccal indicating if warning about proposal windows should
-be printed.}
-
-\item{...}{Further arguments passed to ``runBatchMix`` (e.g.
-``auto_tune``, ``n_burn``, ``include_interaction``, ``batch_weight_prior``
-and their associated options, or ``r_proposal_window``/
-``sigma_proposal_window``/``eta``/``column_type``/``censor_code`` for
-``type`` ``'MVN_LKJ'``/``'MVN_MIXED'``).}
+\item{...}{Forwarded to \code{\link{fitBatchMix}}.}
 }
 \value{
-A list of named lists. Each entry is the output of
-``runBatchMix``.
+See \code{\link{fitBatchMix}}.
 }
 \description{
-Run multiple chains of the batch mixture model of the same type.
-}
-\examples{
-
-# Data in a matrix format
-X <- matrix(c(rnorm(100, 0, 1), rnorm(100, 3, 1)), ncol = 2, byrow = TRUE)
-
-# Initial labelling
-labels <- c(
-  rep(1, 10),
-  sample(c(1, 2), size = 40, replace = TRUE),
-  rep(2, 10),
-  sample(c(1, 2), size = 40, replace = TRUE)
-)
-
-fixed <- c(rep(1, 10), rep(0, 40), rep(1, 10), rep(0, 40))
-
-# Batch
-batch_vec <- sample(seq(1, 5), replace = TRUE, size = 100)
-
-# Sampling parameters
-R <- 1000
-thin <- 50
-n_chains <- 4
-
-# MCMC samples
-samples <- runMCMCChains(X, n_chains, R, thin, batch_vec, "MVN",
-  initial_labels = labels,
-  fixed = fixed
-)
-
+Deprecated alias for \code{\link{fitBatchMix}} - kept for
+backwards compatibility only, and will be removed in a future release.
+Every argument is forwarded unchanged (including the deprecated \code{R}
+argument, which \code{fitBatchMix()} itself still handles); see
+\code{?fitBatchMix} for the full, current documentation.
 }

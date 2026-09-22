@@ -2,20 +2,19 @@
 % Please edit documentation in R/RcppExports.R
 \name{choleskyToPartialCorrelations}
 \alias{choleskyToPartialCorrelations}
-\title{title Invert buildCorrelationCholeskyFromZ()
-description Recovers the partial correlations Z from a valid
-correlation-matrix Cholesky factor L.
-param L The P x P Cholesky factor.
-param P The dimension.
-return The P x P matrix Z.}
+\title{Invert buildCorrelationCholeskyFromZ()}
 \usage{
 choleskyToPartialCorrelations(L, P)
 }
+\arguments{
+\item{L}{The P x P Cholesky factor.}
+
+\item{P}{The dimension.}
+}
+\value{
+The P x P matrix Z.
+}
 \description{
-title Invert buildCorrelationCholeskyFromZ()
-description Recovers the partial correlations Z from a valid
+Recovers the partial correlations Z from a valid
 correlation-matrix Cholesky factor L.
-param L The P x P Cholesky factor.
-param P The dimension.
-return The P x P matrix Z.
 }

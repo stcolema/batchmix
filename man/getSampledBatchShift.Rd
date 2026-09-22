@@ -8,7 +8,7 @@ getSampledBatchShift(
   sampled_batch_shift,
   B = dim(sampled_batch_shift)[2],
   P = dim(sampled_batch_shift)[1],
-  R = dim(sampled_batch_shift)[3],
+  n_iter = dim(sampled_batch_shift)[3],
   thin = 1
 )
 }
@@ -21,7 +21,7 @@ the batch mean matrix from the first sample.}
 \item{P}{The dimension of the batch mean shifts. Defaults to the number of
 rows in the batch mean matrix from the first sample.}
 
-\item{R}{The number of iterations run. Defaults to the number of slices in
+\item{n_iter}{The number of iterations run. Defaults to the number of slices in
 the sampled batch mean array.}
 
 \item{thin}{The thinning factor of the sampler. Defaults to 1.}
@@ -42,14 +42,14 @@ X <- matrix(c(rnorm(100, 0, 1), rnorm(100, 3, 1)), ncol = 2, byrow = TRUE)
 batch_vec <- sample(seq(1, 5), size = 100, replace = TRUE)
 
 # MCMC iterations (this is too low for real use)
-R <- 100
+n_iter <- 100
 thin <- 5
 
 # MCMC samples
-samples <- runBatchMix(X, R, thin, batch_vec, "MVN")
+samples <- runBatchMix(X, n_iter, thin, batch_vec, "MVN")
 
 batch_shift_df <- getSampledBatchShift(samples$batch_shift,
-  R = R,
+  n_iter = n_iter,
   thin = thin
 )
 
