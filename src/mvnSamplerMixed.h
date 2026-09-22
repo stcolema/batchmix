@@ -44,7 +44,7 @@
 // only the shared correlation matrix R and the location parameters
 // (mu, m) are estimated for those columns. Continuous columns are
 // unaffected and keep their usual free sigma/S.
-class mvnSamplerMixed: virtual public mvnSamplerSeparationStrategy {
+class mvnSamplerMixed: public mvnSamplerSeparationStrategy {
 
 public:
 
@@ -94,6 +94,7 @@ public:
     arma::uvec _batch_vec,
     arma::vec _concentration,
     arma::mat _X,
+    arma::uvec _fixed,
     double _m_scale,
     double _rho,
     double _theta,

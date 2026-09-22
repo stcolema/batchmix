@@ -26,7 +26,7 @@ Rcpp::List sampleSemisupervisedMVNMixed(
     double sigma_proposal_window,
     double m_proposal_window,
     double S_proposal_window,
-    arma::uword R,
+    arma::uword n_iter,
     arma::uword thin,
     arma::vec concentration,
     double m_scale,
@@ -52,7 +52,7 @@ Rcpp::List sampleSemisupervisedMVNMixed(
     double pp_mu_prior_sd
 ) {
 
-  mvnPredictiveMixed my_sampler(K,
+  mvnSamplerMixed my_sampler(K,
     B,
     mu_proposal_window,
     r_proposal_window,
@@ -79,7 +79,7 @@ Rcpp::List sampleSemisupervisedMVNMixed(
   my_sampler.initialiseInteraction(include_interaction, gamma_proposal_window, a_gamma, b_gamma);
   my_sampler.initialiseBatchWeightPrior(weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd);
 
-  arma::uword P = X.n_cols, N = X.n_rows, n_saved = std::floor(R / thin);
+  arma::uword P = X.n_cols, N = X.n_rows, n_saved = std::floor(n_iter / thin);
 
   arma::umat class_record(n_saved, N);
   class_record.zeros();
@@ -129,12 +129,12 @@ Rcpp::List sampleSemisupervisedMVNMixed(
   arma::uvec prev_eta_count = my_sampler.eta_count;
   arma::uword prev_gp_hyperparameter_count = my_sampler.gp_hyperparameter_count;
 
-  for(arma::uword r = 0; r < R; r++){
+  for(arma::uword r = 0; r < n_iter; r++){
 
     Rcpp::checkUserInterrupt();
 
     // Complete the data given the current parameters (see mvnSamplerMixed);
-    // this runs for fixed (label-known) items too - see mvnPredictiveMixed.h.
+    // this runs for fixed (label-known) items too - see mvnSamplerMixed.h.
     my_sampler.updateLatentData();
 
     my_sampler.updateWeights();
@@ -220,27 +220,27 @@ Rcpp::List sampleSemisupervisedMVNMixed(
       Named("alloc") = alloc,
       Named("latent_data") = latent_data,
       Named("batch_corrected_data") = batch_corrected_data,
-      Named("r_acceptance_rate") = arma::conv_to< arma::vec >::from(my_sampler.r_count) / R,
-      Named("sigma_acceptance_rate") = arma::conv_to< arma::vec >::from(my_sampler.sigma_count) / R,
-      Named("mu_acceptance_rate") = arma::conv_to< arma::vec >::from(my_sampler.mu_count) / R,
-      Named("S_acceptance_rate") = arma::conv_to< arma::vec >::from(my_sampler.S_count) / R,
-      Named("m_acceptance_rate") = arma::conv_to< arma::vec >::from(my_sampler.m_count) / R,
+      Named("r_acceptance_rate") = arma::conv_to< arma::vec >::from(my_sampler.r_count) / n_iter,
+      Named("sigma_acceptance_rate") = arma::conv_to< arma::vec >::from(my_sampler.sigma_count) / n_iter,
+      Named("mu_acceptance_rate") = arma::conv_to< arma::vec >::from(my_sampler.mu_count) / n_iter,
+      Named("S_acceptance_rate") = arma::conv_to< arma::vec >::from(my_sampler.S_count) / n_iter,
+      Named("m_acceptance_rate") = arma::conv_to< arma::vec >::from(my_sampler.m_count) / n_iter,
       Named("complete_likelihood") = complete_likelihood,
       Named("observed_likelihood") = observed_likelihood,
       Named("BIC") = BIC_record,
       Named("lambda_2") = lambda_2_saved,
       Named("gamma") = gamma_saved,
       Named("tau2_interaction") = my_sampler.tau2_interaction,
-      Named("gamma_acceptance_rate") = arma::conv_to< arma::vec >::from(arma::vectorise(my_sampler.gamma_count)) / R,
+      Named("gamma_acceptance_rate") = arma::conv_to< arma::vec >::from(arma::vectorise(my_sampler.gamma_count)) / n_iter,
       Named("w_batch") = w_batch_saved,
       Named("eta_alr") = eta_alr_saved,
-      Named("eta_acceptance_rate") = arma::conv_to< arma::vec >::from(my_sampler.eta_count) / R,
+      Named("eta_acceptance_rate") = arma::conv_to< arma::vec >::from(my_sampler.eta_count) / n_iter,
       Named("gp_tau2") = gp_tau2_saved,
       Named("gp_length_scale") = gp_length_scale_saved,
       Named("pp_mu") = pp_mu_saved,
       Named("pp_tau2") = pp_tau2_saved,
       Named("weight_prior_type") = weight_prior_type,
-      Named("gp_hyperparameter_acceptance_rate") = (double) my_sampler.gp_hyperparameter_count / R,
+      Named("gp_hyperparameter_acceptance_rate") = (double) my_sampler.gp_hyperparameter_count / n_iter,
       Named("final_mu_proposal_window") = my_sampler.mu_proposal_window,
       Named("final_r_proposal_window") = my_sampler.r_proposal_window,
       Named("final_sigma_proposal_window") = my_sampler.sigma_proposal_window,

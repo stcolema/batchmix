@@ -20,7 +20,8 @@ sampler::sampler(
     arma::uvec _labels,
     arma::uvec _batch_vec,
     arma::vec _concentration,
-    arma::mat _X)
+    arma::mat _X,
+    arma::uvec _fixed)
   {
 
     K = _K;
@@ -61,14 +62,26 @@ sampler::sampler(
     members.set_size(N, K);
     members.zeros();
 
-    // // Allocation probability matrix (only makes sense in predictive models)
-    // alloc.set_size(N, K);
-    // alloc.zeros();
-
     // The indices of the members of each batch in the dataset
     batch_ind.set_size(B);
     for(uword b = 0; b < B; b++) {
       batch_ind(b) = find(batch_vec == b);
+    }
+
+    // Fixed (semi-supervised) labels. A fixed vector of all zeroes gives the
+    // fully unsupervised model.
+    fixed = _fixed;
+    N_fixed = arma::sum(fixed);
+    uvec fixed_ind = find(fixed == 1);
+    unfixed_ind = find(fixed == 0);
+
+    // Allocation probability matrix. For fixed items this holds a one-hot
+    // encoding of the known label; for unfixed items it is populated by
+    // updateAllocation().
+    alloc.set_size(N, K);
+    alloc.zeros();
+    for (auto& n : fixed_ind) {
+      alloc(n, labels(n)) = 1.0;
     }
 
     // Interaction term and batch-specific weights default to entirely inert
@@ -167,20 +180,22 @@ void sampler::updateAllocation() {
     comp_prob = exp(comp_prob - max_comp_prob);
     comp_prob = comp_prob / sum(comp_prob);
 
-    // Prediction and update
+    // Prediction and update. The uniform draw is made unconditionally (even
+    // for fixed items) so that the RNG draw sequence - and therefore the
+    // sampled values for every other parameter - does not depend on which
+    // items happen to be fixed.
     u = randu<double>( );
 
-    labels(n) = sum(u > cumsum(comp_prob));
+    if(fixed(n) == 0) {
+      labels(n) = sum(u > cumsum(comp_prob));
 
-    // // The allocation really only makes sen
-    // alloc.row(n) = comp_prob.t();
-    
+      // The allocation probability for each class
+      alloc.row(n) = comp_prob.t();
+    }
+
     // Update the complete likelihood based on the new labelling
     complete_likelihood += ll(labels(n));
   }
-
-  // // The model log likelihood
-  // observed_likelihood = accu(likelihood);
 
   // Number of occupied components (used in BIC calculation)
   uniqueK = unique(labels);

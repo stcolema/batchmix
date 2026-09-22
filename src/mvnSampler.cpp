@@ -25,6 +25,7 @@ mvnSampler::mvnSampler(
   arma::uvec _batch_vec,
   arma::vec _concentration,
   arma::mat _X,
+  arma::uvec _fixed,
   double _m_scale,
   double _rho,
   double _theta,
@@ -34,7 +35,8 @@ _B,
 _labels,
 _batch_vec,
 _concentration,
-_X) {
+_X,
+_fixed) {
   
   rowvec X_min = min(X), X_max = max(X);
   mat global_cov = arma::cov(X);
