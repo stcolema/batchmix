@@ -8,11 +8,11 @@
 using namespace Rcpp ;
 using namespace arma ;
 
-//' title Propose new non-negative value
-//' description Propose new non-negative for sampling.
-//' param x Current value to be proposed
-//' param window The proposal window
-//' return new double
+//' @title Propose new non-negative value
+//' @description Propose new non-negative for sampling.
+//' @param x Current value to be proposed
+//' @param window The proposal window
+//' @return new double
 double proposeNewNonNegativeValue(double x, double window, 
                                   bool use_log_norm,
                                   double tolerance
@@ -34,55 +34,55 @@ double proposeNewNonNegativeValue(double x, double window,
   return proposed_value;
 };
 
-//' title The Inverse Gamma Distribution
-//' description Random generation from the inverse Gamma distribution.
-//' param shape Shape parameter.
-//' param rate Rate parameter.
-//' return Sample from invGamma(shape, rate).
+//' @title The Inverse Gamma Distribution
+//' @description Random generation from the inverse Gamma distribution.
+//' @param shape Shape parameter.
+//' @param rate Rate parameter.
+//' @return Sample from invGamma(shape, rate).
 double rInvGamma(double shape, double rate) {
   double x = arma::randg( distr_param(shape, 1.0 / rate) );
   return (1 / x);
 };
 
-//' title The Inverse Gamma Distribution
-//' description Random generation from the inverse Gamma distribution.
-//' param N Number of samples to draw.
-//' param shape Shape parameter.
-//' param rate Rate parameter.
-//' return Sample from invGamma(shape, rate).
+//' @title The Inverse Gamma Distribution
+//' @description Random generation from the inverse Gamma distribution.
+//' @param N Number of samples to draw.
+//' @param shape Shape parameter.
+//' @param rate Rate parameter.
+//' @return Sample from invGamma(shape, rate).
 arma::vec rInvGamma(uword N, double shape, double rate) {
   vec x = arma::randg(N, distr_param(shape, 1.0 / rate) );
   return (1 / x);
 };
 
 
-//' title The Gamma Distribution
-//' description Random generation from the Gamma distribution.
-//' param shape Shape parameter.
-//' param rate Rate parameter.
-//' return Sample from Gamma(shape, rate).
+//' @title The Gamma Distribution
+//' @description Random generation from the Gamma distribution.
+//' @param shape Shape parameter.
+//' @param rate Rate parameter.
+//' @return Sample from Gamma(shape, rate).
 double rGamma(double shape, double rate) {
   return arma::randg( distr_param(shape, 1.0 / rate) );
 };
 
-//' title The Gamma Distribution
-//' description Random generation from the Gamma distribution.
-//' param N Number of samples to draw.
-//' param shape Shape parameter.
-//' param rate Rate parameter.
-//' return N samples from Gamma(shape, rate).
+//' @title The Gamma Distribution
+//' @description Random generation from the Gamma distribution.
+//' @param N Number of samples to draw.
+//' @param shape Shape parameter.
+//' @param rate Rate parameter.
+//' @return N samples from Gamma(shape, rate).
 arma::vec rGamma(uword N, double shape, double rate) {
   return arma::randg(N, distr_param(shape, 1.0 / rate) );
 };
 
-//' title The Beta Distribution
-//' description Random generation from the Beta distribution.
+//' @title The Beta Distribution
+//' @description Random generation from the Beta distribution.
 //' See https://en.wikipedia.org/wiki/Beta_distribution#Related_distributions.
 //' Samples from a Beta distribution based using two independent gamma
 //' distributions.
-//' param a Shape parameter.
-//' param b Shape parameter.
-//' return Sample from Beta(a, b).
+//' @param a Shape parameter.
+//' @param b Shape parameter.
+//' @return Sample from Beta(a, b).
 double rBeta(double a, double b) { // double theta = 1.0) {
   double X = arma::randg( arma::distr_param(a, 1.0) );
   double Y = arma::randg( arma::distr_param(b, 1.0) );
@@ -90,15 +90,15 @@ double rBeta(double a, double b) { // double theta = 1.0) {
   return(beta);
 };
 
-//' title The Beta Distribution
-//' description Random generation from the Beta distribution.
+//' @title The Beta Distribution
+//' @description Random generation from the Beta distribution.
 //' See https://en.wikipedia.org/wiki/Beta_distribution#Related_distributions.
 //' Samples from a Beta distribution based using two independent gamma
 //' distributions.
-//' param n The number of samples to draw.
-//' param a Shape parameter.
-//' param b Shape parameter.
-//' return Sample from Beta(a, b).
+//' @param n The number of samples to draw.
+//' @param a Shape parameter.
+//' @param b Shape parameter.
+//' @return Sample from Beta(a, b).
 arma::vec rBeta(arma::uword n, double a, double b) {
   arma::vec X = arma::randg(n, arma::distr_param(a, 1.0) );
   arma::vec Y = arma::randg(n, arma::distr_param(b, 1.0) );
@@ -106,7 +106,7 @@ arma::vec rBeta(arma::uword n, double a, double b) {
   return(beta);
 };
 
-//' title The Log-Normal Distribution
+//' @title The Log-Normal Distribution
  //' description Random generation from the log-Normal distribution.
  //' param mu mean parameter.
  //' param sd standard deviation parameter.
@@ -125,24 +125,24 @@ arma::vec rBeta(arma::uword n, double a, double b) {
    return arma::log(arma::randn<arma::vec>( N, distr_param(mu,sd) ));
  };
 
-//' title Metropolis acceptance step
-//' description Given a probaility, randomly accepts by sampling from a uniform 
+//' @title Metropolis acceptance step
+//' @description Given a probaility, randomly accepts by sampling from a uniform 
 //' distribution.
-//' param acceptance_prob Double between 0 and 1.
-//' return Boolean indicating acceptance.
+//' @param acceptance_prob Double between 0 and 1.
+//' @return Boolean indicating acceptance.
 bool metropolisAcceptanceStep(double acceptance_prob) {
   double u = arma::randu();
   return (u < acceptance_prob);
 };
 
-//' title Accept proposal
-//' description Determines if a proposal is accepted given a log ratio of scores 
+//' @title Accept proposal
+//' @description Determines if a proposal is accepted given a log ratio of scores 
 //' for the proposed and original values.
-//' param proposed_model_score Score in the posterior kernel for the proposed 
+//' @param proposed_model_score Score in the posterior kernel for the proposed 
 //' parameter value
-//' param current_model_score Score in the posterior kernel for the current 
+//' @param current_model_score Score in the posterior kernel for the current 
 //' parameter value
-//' return Boolean indicating acceptance.
+//' @return Boolean indicating acceptance.
 bool acceptProposal(double proposed_model_score, double current_model_score) {
   double u = randu(), acceptance_prob = 0.0;
   acceptance_prob = std::min(
@@ -152,23 +152,23 @@ bool acceptProposal(double proposed_model_score, double current_model_score) {
   return u < acceptance_prob;
 };
 
-//' title Sample mean
-//' description calculate the sample mean of a matrix X.
-//' param X Matrix
-//' return Vector of the column means of X.
+//' @title Sample mean
+//' @description calculate the sample mean of a matrix X.
+//' @param X Matrix
+//' @return Vector of the column means of X.
 vec sampleMean(arma::mat X) {
   mat mu_t = mean(X);
   return mu_t.row(0).t();
 };
 
-//' title Calculate sample covariance
-//' description Returns the unnormalised sample covariance. Required as
+//' @title Calculate sample covariance
+//' @description Returns the unnormalised sample covariance. Required as
 //' arma::cov() does not work for singletons.
-//' param data Data in matrix format
-//' param sample_mean Sample mean for data
-//' param n The number of samples in data
-//' param n_col The number of columns in data
-//' return One of the parameters required to calculate the posterior of the
+//' @param data Data in matrix format
+//' @param sample_mean Sample mean for data
+//' @param n The number of samples in data
+//' @param n_col The number of columns in data
+//' @return One of the parameters required to calculate the posterior of the
 //'  Multivariate normal with uknown mean and covariance (the unnormalised
 //'  sample covariance).
 arma::mat calcSampleCov(arma::mat data,
@@ -188,12 +188,12 @@ arma::mat calcSampleCov(arma::mat data,
   return sample_covariance;
 };
 
-//' title The LKJ distribution
-//' description Random generation of a correlation matrix from LKJ(eta) by
+//' @title The LKJ distribution
+//' @description Random generation of a correlation matrix from LKJ(eta) by
 //' rejection sampling; see the header for the derivation.
-//' param P Dimension of the correlation matrix.
-//' param eta Concentration parameter, eta >= 1.
-//' return A P x P correlation matrix sampled from LKJ(eta).
+//' @param P Dimension of the correlation matrix.
+//' @param eta Concentration parameter, eta >= 1.
+//' @return A P x P correlation matrix sampled from LKJ(eta).
 // [[Rcpp::export]]
 arma::mat sampleLKJCorrelationMatrix(arma::uword P, double eta) {
 
@@ -254,8 +254,8 @@ arma::mat sampleLKJCorrelationMatrix(arma::uword P, double eta) {
   return R;
 };
 
-//' title The truncated Normal distribution (right-tail helper)
-//' description Robert (1995, "Simulation of truncated normal variables",
+//' @title The truncated Normal distribution (right-tail helper)
+//' @description Robert (1995, "Simulation of truncated normal variables",
 //' Statistics and Computing 5(2)) exponential-tilting rejection sampler
 //' for a standard Normal truncated to (alpha, infinity), used when alpha
 //' is far enough into the tail that inverse-CDF sampling loses precision
@@ -273,8 +273,8 @@ double rTruncNormRightTailStd(double alpha) {
   return z;
 };
 
-//' title The truncated Normal distribution
-//' description Random generation from a truncated Normal. Uses inverse
+//' @title The truncated Normal distribution
+//' @description Random generation from a truncated Normal. Uses inverse
 //' CDF sampling in the regime where that is numerically reliable, and
 //' falls back to Robert's (1995) exponential-tilting rejection sampler
 //' (see rTruncNormRightTailStd()) for one-sided truncation far into a
@@ -282,11 +282,11 @@ double rTruncNormRightTailStd(double alpha) {
 //' truncation boundary itself rather than a proper draw. Two-sided
 //' truncation with both bounds simultaneously far into the same tail is
 //' not specially handled and falls back to inverse CDF, per the header.
-//' param mean Mean of the untruncated Normal distribution.
-//' param sd Standard deviation of the untruncated Normal distribution.
-//' param lower Lower truncation bound (-arma::datum::inf for none).
-//' param upper Upper truncation bound (arma::datum::inf for none).
-//' return A draw from Normal(mean, sd^2) truncated to (lower, upper).
+//' @param mean Mean of the untruncated Normal distribution.
+//' @param sd Standard deviation of the untruncated Normal distribution.
+//' @param lower Lower truncation bound (-arma::datum::inf for none).
+//' @param upper Upper truncation bound (arma::datum::inf for none).
+//' @return A draw from Normal(mean, sd^2) truncated to (lower, upper).
 double rTruncNorm(double mean, double sd, double lower, double upper) {
 
   const double tail_threshold = 5.0;
@@ -329,13 +329,13 @@ double rTruncNorm(double mean, double sd, double lower, double upper) {
   return R::qnorm(u, mean, sd, 1, 0);
 };
 
-//' title Squared-exponential covariance kernel
-//' description Builds a Gaussian process covariance matrix; see header.
-//' param x Vector of 1-D locations.
-//' param tau2 Marginal variance.
-//' param length_scale Correlation length scale.
-//' param jitter Diagonal jitter for numerical stability.
-//' return The covariance matrix.
+//' @title Squared-exponential covariance kernel
+//' @description Builds a Gaussian process covariance matrix; see header.
+//' @param x Vector of 1-D locations.
+//' @param tau2 Marginal variance.
+//' @param length_scale Correlation length scale.
+//' @param jitter Diagonal jitter for numerical stability.
+//' @return The covariance matrix.
 // [[Rcpp::export]]
 arma::mat squaredExponentialKernel(arma::vec x, double tau2, double length_scale, double jitter) {
 
@@ -354,23 +354,23 @@ arma::mat squaredExponentialKernel(arma::vec x, double tau2, double length_scale
   return K;
 };
 
-//' title Multinomial-logit Gaussian process log-kernel
-//' description The unnormalised log-posterior-kernel for one ALR
+//' @title Multinomial-logit Gaussian process log-kernel
+//' @description The unnormalised log-posterior-kernel for one ALR
 //' coordinate of batch-dependent multinomial weights under a GP prior
 //' over the batch index; see header for the full derivation and
 //' references.
-//' param eta B-vector, this ALR coordinate for each batch.
-//' param eta_other_sum B-vector, the softmax normalising contribution of
+//' @param eta B-vector, this ALR coordinate for each batch.
+//' @param eta_other_sum B-vector, the softmax normalising contribution of
 //' every other non-pivot category, held fixed this step.
-//' param class_counts_j B-vector, per-batch counts in this category.
-//' param class_counts_total B-vector, per-batch total item counts.
-//' param gp_cov The GP covariance matrix for this coordinate (unused
+//' @param class_counts_j B-vector, per-batch counts in this category.
+//' @param class_counts_total B-vector, per-batch total item counts.
+//' @param gp_cov The GP covariance matrix for this coordinate (unused
 //' directly here beyond documenting the pairing with gp_cov_inv, kept for
 //' interface symmetry with the rest of the package's *LogKernel
 //' functions, several of which likewise take both a matrix and its
 //' precomputed inverse).
-//' param gp_cov_inv The inverse of gp_cov.
-//' return The unnormalised log-posterior-kernel value for eta.
+//' @param gp_cov_inv The inverse of gp_cov.
+//' @return The unnormalised log-posterior-kernel value for eta.
 // [[Rcpp::export]]
 double multinomialLogitGPLogKernel(
   arma::vec eta,
@@ -393,12 +393,12 @@ double multinomialLogitGPLogKernel(
   return log_lik + log_prior;
 };
 
-//' title Build a correlation-matrix Cholesky factor from partial
+//' @title Build a correlation-matrix Cholesky factor from partial
 //' correlations
-//' description See header for the construction and its provenance.
-//' param Z A P x P matrix; only strictly-lower-triangular entries used.
-//' param P The dimension.
-//' return The P x P lower-triangular Cholesky factor L.
+//' @description See header for the construction and its provenance.
+//' @param Z A P x P matrix; only strictly-lower-triangular entries used.
+//' @param P The dimension.
+//' @return The P x P lower-triangular Cholesky factor L.
 // [[Rcpp::export]]
 arma::mat buildCorrelationCholeskyFromZ(arma::mat Z, arma::uword P) {
 
@@ -418,12 +418,12 @@ arma::mat buildCorrelationCholeskyFromZ(arma::mat Z, arma::uword P) {
   return L;
 };
 
-//' title Invert buildCorrelationCholeskyFromZ()
-//' description Recovers the partial correlations Z from a valid
+//' @title Invert buildCorrelationCholeskyFromZ()
+//' @description Recovers the partial correlations Z from a valid
 //' correlation-matrix Cholesky factor L.
-//' param L The P x P Cholesky factor.
-//' param P The dimension.
-//' return The P x P matrix Z.
+//' @param L The P x P Cholesky factor.
+//' @param P The dimension.
+//' @return The P x P matrix Z.
 // [[Rcpp::export]]
 arma::mat choleskyToPartialCorrelations(arma::mat L, arma::uword P) {
 
@@ -441,12 +441,12 @@ arma::mat choleskyToPartialCorrelations(arma::mat L, arma::uword P) {
   return Z;
 };
 
-//' title Jacobian of the partial-correlation to correlation-matrix map
-//' description log|dR/dZ|; see header for verification against
+//' @title Jacobian of the partial-correlation to correlation-matrix map
+//' @description log|dR/dZ|; see header for verification against
 //' finite-difference Jacobians.
-//' param Z A P x P matrix; only strictly-lower-triangular entries used.
-//' param P The dimension.
-//' return The log-Jacobian determinant.
+//' @param Z A P x P matrix; only strictly-lower-triangular entries used.
+//' @param P The dimension.
+//' @return The log-Jacobian determinant.
 // [[Rcpp::export]]
 double logJacobianZToR(arma::mat Z, arma::uword P) {
 
@@ -480,8 +480,30 @@ double logJacobianZToR(arma::mat Z, arma::uword P) {
   return log_jac;
 };
 
-//' title Robbins-Monro adaptive proposal-window update
-//' description See header for the references and convergence argument.
+//' @title Robbins-Monro adaptive proposal-window update
+//' @description One diminishing-adaptation update of a scalar
+//' Metropolis-Hastings proposal window; see the section header comment for
+//' the references and the convergence argument. Operates in log-space so
+//' the window stays strictly positive.
+//' @param window Current (strictly positive) proposal window value.
+//' @param acceptance_rate The realised acceptance rate this sweep, in
+//' [0, 1]. May be a fraction over several components sharing one window
+//' (e.g. the mean acceptance indicator across K clusters), not just a
+//' single 0/1 draw - this is the standard "batched" extension of the
+//' scalar Robbins-Monro process (Garthwaite et al., 2016, Section 3).
+//' @param target_rate The target acceptance rate for this block: ~0.44 for
+//' a scalar (1-D) random-walk update, ~0.234 for a block update that moves
+//' several correlated dimensions at once (Roberts, Gelman & Gilks, 1997,
+//' "Weak convergence and optimal scaling of random walk Metropolis
+//' algorithms", Annals of Applied Probability 7(1)).
+//' @param n The adaptation step index (e.g. the current MCMC iteration
+//' within the burn-in window, 1-based). Larger n gives a smaller, more
+//' conservative update, which is what makes the total adaptation finite.
+//' @param step_scale Constant multiplying the 1/n^kappa step size.
+//' @param kappa Decay exponent; must be in (0.5, 1] for the diminishing-
+//' adaptation guarantee to apply. Default 0.6 follows Garthwaite et al.'s
+//' recommendation.
+//' @return The updated (still strictly positive) proposal window.
 // [[Rcpp::export]]
 double robbinsMonroUpdate(
   double window,

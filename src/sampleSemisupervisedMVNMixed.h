@@ -7,16 +7,23 @@
 // =============================================================================
 // included dependencies
 # include <RcppArmadillo.h>
-# include "mvnPredictiveMixed.h"
+# include "mvnSamplerMixed.h"
 
 // =============================================================================
 // sampleSemisupervisedMVNMixed function header
 
 //' @title Sample semi-supervised mixed continuous/binary/missing/censored
 //' MVN mixture model
-//' @description The semi-supervised (``fixed`` labels respected) counterpart
-//' of sampleMVNMixed. See sampleMVNMixed() for the model.
-//' @param X The data matrix (items in rows); see sampleMVNMixed().
+//' @description Performs MCMC sampling for a mixture model with batch
+//' effects, an LKJ prior on the cluster correlation structure, and a
+//' shared latent Gaussian layer supporting binary (probit-linked) columns
+//' alongside continuous ones, plus missing-at-random and left/right
+//' censored continuous entries. ``fixed`` labels are respected (a ``fixed``
+//' vector of all zeroes gives the fully unsupervised model).
+//' @param X The data matrix (items in rows). Continuous columns hold the
+//' observed value, or NaN for a missing entry, or the known censoring
+//' bound for a censored entry (see censor_code). Binary columns hold 0/1,
+//' or NaN for a missing outcome.
 //' @param K The number of components to model.
 //' @param B The number of batches to model.
 //' @param labels Vector item labels to initialise from.
@@ -28,7 +35,7 @@
 //' 2 = right-censored.
 //' @param mu_proposal_window,r_proposal_window,sigma_proposal_window,m_proposal_window,S_proposal_window
 //' Metropolis-Hastings proposal windows.
-//' @param R The number of iterations to run.
+//' @param n_iter The number of iterations to run.
 //' @param thin The thinning factor.
 //' @param concentration K-vector, the prior concentration for the class
 //' weights.
@@ -38,7 +45,7 @@
 //' @param sample_m_scale Should the batch shift hyperparameter be sampled?
 //' @param auto_tune,n_burn,include_interaction,gamma_proposal_window,a_gamma,b_gamma,weight_prior_type,batch_coordinates,gp_tau2,gp_length_scale,eta_proposal_window,sample_gp_hyperparameters,gp_hyperparameter_proposal_window,pp_tau2_shape,pp_tau2_rate,pp_mu_prior_sd
 //' Auto-tuning, interaction-term and GP-correlated-weight options; see
-//' sampleMVN() for the full description of each.
+//' sampleSemisupervisedMVN() for the full description of each.
 //' @return A named list of MCMC samples and diagnostics.
 // [[Rcpp::export]]
 Rcpp::List sampleSemisupervisedMVNMixed(
@@ -55,7 +62,7 @@ Rcpp::List sampleSemisupervisedMVNMixed(
     double sigma_proposal_window,
     double m_proposal_window,
     double S_proposal_window,
-    arma::uword R,
+    arma::uword n_iter,
     arma::uword thin,
     arma::vec concentration,
     double m_scale,

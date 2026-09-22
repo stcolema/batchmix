@@ -46,17 +46,23 @@ private:
 public:
 
 
-  arma::uword K = 0, B = 0, N = 0, P = 0, K_occ = 0, accepted = 0;
+  arma::uword K = 0, B = 0, N = 0, P = 0, K_occ = 0, accepted = 0, N_fixed = 0;
 
 
   double observed_likelihood = 0.0,
     BIC = 0.0,
     complete_likelihood = 0.0;
 
-  arma::uvec labels, N_k, batch_vec, N_b, KB_inds, B_inds;
+  // fixed/unfixed_ind: which labels are observed (semi-supervised) vs. to be
+  // sampled. A fixed vector of all zeroes gives the fully unsupervised model
+  // - see updateAllocation().
+  arma::uvec labels, N_k, batch_vec, N_b, KB_inds, B_inds, fixed, unfixed_ind;
   arma::vec concentration, ll, likelihood;
   arma::umat members;
-  arma::mat X, X_t, w; //, alloc;
+  // alloc: the per-item allocation probability matrix. For fixed items this
+  // holds a one-hot encoding of the known label; for unfixed items it is
+  // populated by updateAllocation().
+  arma::mat X, X_t, w, alloc;
   arma::field<arma::uvec> batch_ind;
 
   // ===========================================================================
@@ -160,7 +166,8 @@ public:
     arma::uvec _labels,
     arma::uvec _batch_vec,
     arma::vec _concentration,
-    arma::mat _X);
+    arma::mat _X,
+    arma::uvec _fixed);
 
   // Destructor (I haven't found a way of defining destructors outside headers)
   virtual ~sampler() { };

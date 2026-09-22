@@ -43,7 +43,7 @@
 // //' @field updateBatchCorrectedData Transform the observed dataset based on 
 // //' sampled parameter values to a batch-corrected dataset.
 // //' @return mvtsampler class.
-class mvtSampler: virtual public mvnSampler {
+class mvtSampler: public mvnSampler {
   
 public:
   
@@ -82,6 +82,7 @@ public:
     arma::uvec _batch_vec,
     arma::vec _concentration,
     arma::mat _X,
+    arma::uvec _fixed,
     double _m_scale,
     double _rho,
     double _theta,

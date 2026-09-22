@@ -97,14 +97,14 @@ arma::vec rLogNormal(arma::uword N, double mu, double sd);
 bool metropolisAcceptanceStep(double acceptance_prob);
 
 
-//' title Accept proposal
-//' description Determines if a proposal is accepted given a log ratio of scores 
+//' @title Accept proposal
+//' @description Determines if a proposal is accepted given a log ratio of scores 
 //' for the proposed and original values.
-//' param proposed_model_score Score in the posterior kernel for the proposed 
+//' @param proposed_model_score Score in the posterior kernel for the proposed 
 //' parameter value
-//' param current_model_score Score in the posterior kernel for the current 
+//' @param current_model_score Score in the posterior kernel for the current 
 //' parameter value
-//' return Boolean indicating acceptance.
+//' @return Boolean indicating acceptance.
 bool acceptProposal(double proposed_model_score, double current_model_score);
 
 //' @title Sample mean

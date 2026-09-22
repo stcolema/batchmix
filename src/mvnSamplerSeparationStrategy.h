@@ -41,7 +41,7 @@
 // //' @field updateBatchCorrectedData Transform the observed dataset based on 
 // //' sampled parameter values to a batch-corrected dataset.
 // //' @return custom mvnSampler class.
-class mvnSamplerSeparationStrategy: virtual public sampler {
+class mvnSamplerSeparationStrategy: public sampler {
   
 public:
   
@@ -112,6 +112,7 @@ public:
     arma::uvec _batch_vec,
     arma::vec _concentration,
     arma::mat _X,
+    arma::uvec _fixed,
     double _m_scale,
     double _rho,
     double _theta,

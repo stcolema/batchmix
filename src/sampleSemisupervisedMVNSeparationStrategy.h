@@ -7,7 +7,7 @@
 // =============================================================================
 // included dependencies
 # include <RcppArmadillo.h>
-# include "mvnPredictiveSeparationStrategy.h"
+# include "mvnSamplerSeparationStrategy.h"
 
 // =============================================================================
 // sampleSemisupervisedMVNSeparationStrategy function header
@@ -27,7 +27,7 @@
 //' label.
 //' @param mu_proposal_window,r_proposal_window,sigma_proposal_window,m_proposal_window,S_proposal_window
 //' Metropolis-Hastings proposal windows.
-//' @param R The number of iterations to run for.
+//' @param n_iter The number of iterations to run for.
 //' @param thin thinning factor for samples recorded.
 //' @param concentration Vector of concentrations for mixture weights.
 //' @param m_scale,rho,theta Hyperparameters for the batch shift/scale priors.
@@ -39,7 +39,7 @@
 //' correlation matrices.
 //' @param auto_tune,n_burn,include_interaction,gamma_proposal_window,a_gamma,b_gamma,weight_prior_type,batch_coordinates,gp_tau2,gp_length_scale,eta_proposal_window,sample_gp_hyperparameters,gp_hyperparameter_proposal_window,pp_tau2_shape,pp_tau2_rate,pp_mu_prior_sd
 //' Auto-tuning, interaction-term and GP-correlated-weight options; see
-//' sampleMVN() for the full description of each.
+//' sampleSemisupervisedMVN() for the full description of each.
 //' @return Named list of the different quantities drawn by the sampler.
 // [[Rcpp::export]]
 Rcpp::List sampleSemisupervisedMVNSeparationStrategy (
@@ -54,7 +54,7 @@ Rcpp::List sampleSemisupervisedMVNSeparationStrategy (
     double sigma_proposal_window,
     double m_proposal_window,
     double S_proposal_window,
-    arma::uword R,
+    arma::uword n_iter,
     arma::uword thin,
     arma::vec concentration,
     double m_scale,

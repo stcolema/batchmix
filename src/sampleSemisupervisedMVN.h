@@ -7,7 +7,7 @@
 // =============================================================================
 // included dependencies
 # include <RcppArmadillo.h>
-# include "mvnPredictive.h"
+# include "mvnSampler.h"
 
 // =============================================================================
 // sampleSemisupervisedMVN function header
@@ -30,7 +30,7 @@
 //' @param m_proposal_window The standard deviation for the Gaussian proposal
 //'  density of the batch mean effects.
 //' @param S_proposal_window The rate for the Gamma proposal density of the batch scale.
-//' @param R The number of iterations to run for.
+//' @param n_iter The number of iterations to run for.
 //' @param thin thinning factor for samples recorded.
 //' @param concentration Vector of concentrations for mixture weights 
 //' (recommended to be symmetric).
@@ -56,8 +56,53 @@
 //' @param S_initialised Bool indicating if the batch scales are initialised by 
 //' the user. If ``false`` then initial values are drawn from the prior 
 //' distribution.
-//' @param sample_m_scale Bool indicating if the hyperparameter on the batch 
+//' @param sample_m_scale Bool indicating if the hyperparameter on the batch
 //' shift effect is sampled or given as fixed.
+//' @param auto_tune Bool; if true, every proposal window is adapted during
+//' the first ``n_burn`` iterations via Robbins-Monro diminishing adaptation
+//' (see ``robbinsMonroUpdate()``) instead of staying fixed at the value
+//' passed in.
+//' @param n_burn Number of iterations treated as burn-in for proposal-window
+//' adaptation; ignored if ``auto_tune`` is false. Adaptation is frozen after
+//' this many iterations so the post-burn-in chain retains the correct
+//' stationary distribution.
+//' @param include_interaction Bool; if true, add a batch x cluster
+//' interaction term to the mean, gamma_kb ~ N(0, tau2_interaction), with
+//' tau2_interaction ~ InvGamma(a_gamma, b_gamma) (partial pooling).
+//' @param gamma_proposal_window Proposal window (Gaussian RW SD) for the
+//' interaction term; ignored if ``include_interaction`` is false.
+//' @param a_gamma,b_gamma Shape/rate of the InvGamma hyperprior on the
+//' interaction shrinkage variance; ignored if ``include_interaction`` is
+//' false.
+//' @param weight_prior_type Integer; 0 = "global" (the default) - a single
+//' mixture weight vector shared by every batch, exactly the original
+//' behaviour. 1 = "partial pooling" - each batch gets its own weight
+//' vector, with the K-1 additive-log-ratio (ALR) coordinates drawn
+//' exchangeably around a shared, estimated population mean/variance (no
+//' assumed order, distance or covariance structure between batches - see
+//' ``pp_tau2_shape``/``pp_tau2_rate``/``pp_mu_prior_sd``). 2 = "gp" - as
+//' partial pooling, but the ALR coordinates are instead linked by a
+//' Gaussian process over ``batch_coordinates``, for batches with a genuine
+//' known ordering in time or space.
+//' @param batch_coordinates A B-vector of 1-D coordinates for the batches
+//' (e.g. time order); if of length 0, defaults to 0, 1, ..., B - 1. Only
+//' used if ``weight_prior_type`` is 2.
+//' @param gp_tau2,gp_length_scale GP marginal variance and length scale for
+//' the batch-weight kernel; only used if ``weight_prior_type`` is 2.
+//' @param eta_proposal_window Proposal window for the ALR-coordinate
+//' block Metropolis-Hastings update; used if ``weight_prior_type`` is 1 or 2.
+//' @param sample_gp_hyperparameters Bool; if true, ``gp_tau2`` and
+//' ``gp_length_scale`` are themselves updated by Metropolis-Hastings rather
+//' than held fixed; only used if ``weight_prior_type`` is 2.
+//' @param gp_hyperparameter_proposal_window Proposal window for the GP
+//' hyperparameter update; only used if ``weight_prior_type`` is 2 and
+//' ``sample_gp_hyperparameters`` is true.
+//' @param pp_tau2_shape,pp_tau2_rate Shape/rate of the InvGamma hyperprior
+//' on each ALR coordinate's population variance tau2_j; only used if
+//' ``weight_prior_type`` is 1.
+//' @param pp_mu_prior_sd Prior standard deviation for each ALR
+//' coordinate's population mean mu_j (prior mu_j ~ N(0, pp_mu_prior_sd^2));
+//' only used if ``weight_prior_type`` is 1.
 //' @return Named list of the different quantities drawn by the sampler.
 // [[Rcpp::export]]
 Rcpp::List sampleSemisupervisedMVN (
@@ -71,7 +116,7 @@ Rcpp::List sampleSemisupervisedMVN (
     double cov_proposal_window,
     double m_proposal_window,
     double S_proposal_window,
-    arma::uword R,
+    arma::uword n_iter,
     arma::uword thin,
     arma::vec concentration,
     double m_scale,

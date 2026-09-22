@@ -23,7 +23,7 @@ Rcpp::List sampleSemisupervisedMVN (
     double cov_proposal_window,
     double m_proposal_window,
     double S_proposal_window,
-    arma::uword R,
+    arma::uword n_iter,
     arma::uword thin,
     arma::vec concentration,
     double m_scale,
@@ -56,7 +56,7 @@ Rcpp::List sampleSemisupervisedMVN (
     double pp_mu_prior_sd
 ) {
 
-  mvnPredictive my_sampler(K,
+  mvnSampler my_sampler(K,
     B,
     mu_proposal_window,
     cov_proposal_window,
@@ -79,7 +79,7 @@ Rcpp::List sampleSemisupervisedMVN (
   my_sampler.initialiseInteraction(include_interaction, gamma_proposal_window, a_gamma, b_gamma);
   my_sampler.initialiseBatchWeightPrior(weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd);
 
-  uword P = X.n_cols, N = X.n_rows, n_saved = std::floor(R / thin);
+  uword P = X.n_cols, N = X.n_rows, n_saved = std::floor(n_iter / thin);
 
   // The output matrix
   umat class_record(n_saved, X.n_rows);
@@ -147,7 +147,7 @@ Rcpp::List sampleSemisupervisedMVN (
   arma::uword prev_gp_hyperparameter_count = my_sampler.gp_hyperparameter_count;
 
   // Iterate over MCMC moves
-  for(uword r = 0; r < R; r++){
+  for(uword r = 0; r < n_iter; r++){
 
     Rcpp::checkUserInterrupt();
 
@@ -231,10 +231,10 @@ Rcpp::List sampleSemisupervisedMVN (
       Named("mean_sum") = mean_sum_saved,
       Named("cov_comb") = cov_comb_saved,
       Named("weights") = weights_saved,
-      Named("cov_acceptance_rate") = conv_to< vec >::from(my_sampler.cov_count) / R,
-      Named("mu_acceptance_rate") = conv_to< vec >::from(my_sampler.mu_count) / R,
-      Named("S_acceptance_rate") = conv_to< vec >::from(my_sampler.S_count) / R,
-      Named("m_acceptance_rate") = conv_to< vec >::from(my_sampler.m_count) / R,
+      Named("cov_acceptance_rate") = conv_to< vec >::from(my_sampler.cov_count) / n_iter,
+      Named("mu_acceptance_rate") = conv_to< vec >::from(my_sampler.mu_count) / n_iter,
+      Named("S_acceptance_rate") = conv_to< vec >::from(my_sampler.S_count) / n_iter,
+      Named("m_acceptance_rate") = conv_to< vec >::from(my_sampler.m_count) / n_iter,
       Named("alloc") = alloc,
       Named("observed_likelihood") = observed_likelihood,
       Named("complete_likelihood") = complete_likelihood,
@@ -243,16 +243,16 @@ Rcpp::List sampleSemisupervisedMVN (
       Named("lambda_2") = lambda_2_saved,
       Named("gamma") = gamma_saved,
       Named("tau2_interaction") = my_sampler.tau2_interaction,
-      Named("gamma_acceptance_rate") = arma::conv_to< arma::vec >::from(arma::vectorise(my_sampler.gamma_count)) / R,
+      Named("gamma_acceptance_rate") = arma::conv_to< arma::vec >::from(arma::vectorise(my_sampler.gamma_count)) / n_iter,
       Named("w_batch") = w_batch_saved,
       Named("eta_alr") = eta_alr_saved,
-      Named("eta_acceptance_rate") = arma::conv_to< arma::vec >::from(my_sampler.eta_count) / R,
+      Named("eta_acceptance_rate") = arma::conv_to< arma::vec >::from(my_sampler.eta_count) / n_iter,
       Named("gp_tau2") = gp_tau2_saved,
       Named("gp_length_scale") = gp_length_scale_saved,
       Named("pp_mu") = pp_mu_saved,
       Named("pp_tau2") = pp_tau2_saved,
       Named("weight_prior_type") = weight_prior_type,
-      Named("gp_hyperparameter_acceptance_rate") = (double) my_sampler.gp_hyperparameter_count / R,
+      Named("gp_hyperparameter_acceptance_rate") = (double) my_sampler.gp_hyperparameter_count / n_iter,
       Named("final_mu_proposal_window") = my_sampler.mu_proposal_window,
       Named("final_cov_proposal_window") = my_sampler.cov_proposal_window,
       Named("final_m_proposal_window") = my_sampler.m_proposal_window,

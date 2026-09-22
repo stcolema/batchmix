@@ -26,6 +26,7 @@ mvnSamplerSeparationStrategy::mvnSamplerSeparationStrategy(
   arma::uvec _batch_vec,
   arma::vec _concentration,
   arma::mat _X,
+  arma::uvec _fixed,
   double _m_scale,
   double _rho,
   double _theta,
@@ -36,7 +37,8 @@ _B,
 _labels,
 _batch_vec,
 _concentration,
-_X) {
+_X,
+_fixed) {
 
   eta = _eta;
 
@@ -1042,15 +1044,32 @@ void mvnSamplerSeparationStrategy::metropolisStep() {
 
 
 
+//' @title Diagnostic R/sigma-only chain (internal)
+//' @description Runs the R (correlation) and sigma (marginal SD)
+//' Metropolis-Hastings steps of \code{mvnSamplerSeparationStrategy} in
+//' isolation, for a single cluster/batch, to check their mixing/recovery
+//' independently of the rest of the sampler. Not part of the public
+//' workflow - see \code{\link{batchSemiSupervisedMixtureModel}} with
+//' \code{type = "MVN_LKJ"} for the real model.
+//' @param X The data matrix (items in rows).
+//' @param rho_true The true correlation used only for reporting/comparison
+//' by the caller; has no effect on the chain itself.
+//' @param n_iter Number of iterations to run.
+//' @param r_pw,sigma_pw Proposal windows for the R and sigma updates.
+//' @return A named list with the sampled \code{r}/\code{sigma1} traces and
+//' their acceptance rates.
+//' @keywords internal
+//' @export
 // [[Rcpp::export]]
 Rcpp::List diagRSigmaOnlyChain2(arma::mat X, double rho_true, arma::uword n_iter, double r_pw, double sigma_pw) {
   uword K = 1, B = 1, P = 2;
   uword N = X.n_rows;
   uvec labels(N, fill::zeros);
   uvec batch_vec(N, fill::zeros);
+  uvec fixed(N, fill::zeros);
   vec concentration = {1.0};
 
-  mvnSamplerSeparationStrategy s(K, B, 0.3, r_pw, sigma_pw, 0.2, 40.0, labels, batch_vec, concentration, X, 0.01, 3.0, 1.0, false, 1.0);
+  mvnSamplerSeparationStrategy s(K, B, 0.3, r_pw, sigma_pw, 0.2, 40.0, labels, batch_vec, concentration, X, fixed, 0.01, 3.0, 1.0, false, 1.0);
 
   s.mu.col(0) = zeros<vec>(P);
   s.R.slice(0) = eye<mat>(P, P);
