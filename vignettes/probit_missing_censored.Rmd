@@ -106,6 +106,7 @@ column_type <- c(0L, 0L, 1L, 1L)
 censor_code <- matrix(0L, N, P)
 labels0 <- rep(0L, N)
 batch_vec0 <- rep(0L, N)
+fixed0 <- rep(0L, N)
 ```
 
 ```{r simVizA}
@@ -121,11 +122,11 @@ ggplot(viz_df, aes(X1, X2, colour = binary4)) +
 ```
 
 ```{r fitA}
-out <- sampleMVNMixed(
-  X, 1, 1, labels0, batch_vec0, column_type, censor_code,
+out <- sampleSemisupervisedMVNMixed(
+  X, 1, 1, labels0, batch_vec0, fixed0, column_type, censor_code,
   mu_proposal_window = 0.3, r_proposal_window = 0.03, sigma_proposal_window = 40,
   m_proposal_window = 0.2, S_proposal_window = 40,
-  R = 8000, thin = 20, concentration = 1,
+  n_iter = 8000, thin = 20, concentration = 1,
   m_scale = 0.01, rho = 3, theta = 1, eta = 1.0, sample_m_scale = FALSE,
   auto_tune = FALSE, n_burn = 0,
   include_interaction = FALSE, gamma_proposal_window = 0.1, a_gamma = 2.0, b_gamma = 1.0,
@@ -184,11 +185,11 @@ column_type_b <- c(0L, 0L)
 ```
 
 ```{r fitB}
-out_b <- sampleMVNMixed(
-  Xb, 1, 1, labels0, batch_vec0, column_type_b, censor_code_b,
+out_b <- sampleSemisupervisedMVNMixed(
+  Xb, 1, 1, labels0, batch_vec0, fixed0, column_type_b, censor_code_b,
   mu_proposal_window = 0.2, r_proposal_window = 0.1, sigma_proposal_window = 40,
   m_proposal_window = 0.2, S_proposal_window = 40,
-  R = 8000, thin = 10, concentration = 1,
+  n_iter = 8000, thin = 10, concentration = 1,
   m_scale = 0.01, rho = 3, theta = 1, eta = 1.0, sample_m_scale = FALSE,
   auto_tune = FALSE, n_burn = 0,
   include_interaction = FALSE, gamma_proposal_window = 0.1, a_gamma = 2.0, b_gamma = 1.0,

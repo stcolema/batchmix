@@ -128,22 +128,29 @@ stuck in a poor part of the space. `auto_tune = TRUE` (the default) adapts
 every Metropolis-Hastings proposal window automatically during `n_burn`
 iterations, rather than requiring hand-tuned windows up front.
 
-```{r runMCMCChains}
-R <- 1500
+```{r fitBatchMix}
+n_iter <- 1500
 thin <- 25
 n_chains <- 4
 
 alpha <- 1
 initial_labels <- generateInitialLabels(alpha, K, fixed, true_labels)
 
-mcmc_output <- runMCMCChains(
-  X, n_chains, R, thin, batch_vec, "MVN",
+mcmc_output <- fitBatchMix(
+  X, n_chains, n_iter, thin, batch_vec, "MVN",
   initial_labels = initial_labels,
-  fixed = fixed,
-  auto_tune = TRUE,
-  n_burn = floor(R / 2)
+  fixed = fixed
 )
 ```
+
+`auto_tune = TRUE` and `n_burn = floor(n_iter / 2)` are the defaults for
+every entry point in this package (`runBatchMix()`,
+`batchSemiSupervisedMixtureModel()`, `fitBatchMix()`) - every
+Metropolis-Hastings proposal window is adapted automatically during the
+first half of the chain via Robbins-Monro diminishing adaptation, then
+frozen. Manually tuning `mu_proposal_window` and friends is not something
+you need to do for typical use; they only matter as starting values for
+that adaptation.
 
 ## 4. MCMC diagnostics
 
@@ -167,80 +174,72 @@ other, not still trending or visibly separated.
 plotLikelihoods(mcmc_output)
 ```
 
-**Multi-chain agreement (Gelman-Rubin R-hat).** A visual check is a good
-start but is easy to kid yourself with; the standard quantitative check is
-the potential scale reduction factor (Gelman & Rubin, 1992, *Statistical
-Science* 7(4)): compare the variance of a quantity *within* each chain to
-its variance pooling *across* chains, for the second half of each chain
-(to let early-chain differences burn off). Values close to 1 (rule of
-thumb: below ~1.1) indicate the chains agree; values well above 1 mean at
-least one chain hasn't converged to the same place as the others.
+**Multi-chain agreement (Rhat).** A visual check is a good start but is easy
+to kid yourself with. `fitBatchMix()` already computed the standard
+quantitative check automatically above (`n_chains >= 2`, so no extra call is
+needed): rank-normalized, folded, split-Rhat (Vehtari, Gelman, Simpson,
+Carpenter & Bürkner, 2021, *Bayesian Analysis* 16(2)) - the diagnostic that
+superseded the classical Gelman & Rubin (1992) potential scale reduction
+factor, because the classical version can fail to catch chains that agree
+on location but disagree on scale, or in the tails. It's computed on the
+**complete-data log-likelihood trace**, not raw parameters like
+`batch_shift`, because mixture models are only identified up to a
+permutation of the cluster labels - a naive Rhat on a raw parameter would
+confuse harmless label-switching between chains with genuine
+non-convergence (see `?assessConvergence`). Values close to 1 (rule of
+thumb: below ~1.01) indicate the chains agree; values well above 1 mean at
+least one chain hasn't converged to the same place as the others - pull it
+out directly rather than recomputing it:
 
 ```{r rhat}
-gelmanRubinRhat <- function(chain_matrix) {
-  # chain_matrix: iterations x chains, already restricted to the second
-  # half of each chain.
-  n <- nrow(chain_matrix)
-  m <- ncol(chain_matrix)
-  chain_means <- colMeans(chain_matrix)
-  grand_mean <- mean(chain_means)
-
-  # Between-chain variance (scaled as in Gelman & Rubin, 1992).
-  B <- n / (m - 1) * sum((chain_means - grand_mean)^2)
-  # Within-chain variance.
-  W <- mean(apply(chain_matrix, 2, var))
-
-  var_hat <- ((n - 1) / n) * W + B / n
-  sqrt(var_hat / W)
-}
-
-complete_lkl <- sapply(mcmc_output, function(chain) chain$complete_likelihood)
-second_half <- seq(floor(nrow(complete_lkl) / 2) + 1, nrow(complete_lkl))
-
-cat("R-hat for complete_likelihood:", round(gelmanRubinRhat(complete_lkl[second_half, ]), 3), "\n")
-
-# The same check for a specific, interpretable parameter: the first batch's
-# shift on the first feature.
-batch1_shift_p1 <- sapply(mcmc_output, function(chain) chain$batch_shift[1, 1, ])
-cat("R-hat for batch 1's shift (feature 1):", round(gelmanRubinRhat(batch1_shift_p1[second_half, ]), 3), "\n")
+attr(mcmc_output, "convergence")
 ```
 
-If either diagnostic looks bad - trending likelihoods, R-hat well above
-1.1, or acceptance rates stuck near 0 or 1 - the right move is to run
-longer before trusting anything downstream, via `continueChains()`:
+If that looks bad - trending likelihoods, Rhat well above 1.01, or
+acceptance rates stuck near 0 or 1 - simply running longer is often *not*
+enough by itself: with well-separated clusters, a chain that starts from a
+poor random partition can get stuck in a persistently worse-fitting local
+optimum that single-site Metropolis-Hastings essentially never escapes, no
+matter how long it runs (this is what a high Rhat that does not improve
+with a longer chain is telling you). `runBatchMix()`/`fitBatchMix()`
+mitigate this automatically for a fully unsupervised fit by seeding from a
+k-means partition of the data instead of a random draw (see
+`?generateInitialLabels`) - here the fit is semi-supervised, so the labelled
+points already anchor cluster identity and this failure mode is much less
+likely, but it is still worth increasing `n_chains` (more chances at least
+one lands well) as well as chain length. When it *is* just a matter of
+needing more samples, extend every chain with `continueChains()`:
 
 ```{r continueChains}
-R_new <- 6000
+n_iter_new <- 6000
 
 new_output <- continueChains(
-  mcmc_output, X, fixed, batch_vec, R_new,
+  mcmc_output, X, fixed, batch_vec, n_iter_new,
   keep_old_samples = TRUE
 )
 
 plotLikelihoods(new_output)
-
-rhat_after <- gelmanRubinRhat(
-  sapply(new_output, function(chain) chain$complete_likelihood)[
-    seq(floor(R_new / thin / 2) + 1, floor((R + R_new) / thin)),
-  ]
-)
-cat("R-hat for complete_likelihood after continuing:", round(rhat_after, 3), "\n")
+attr(new_output, "convergence")
 ```
 
-R-hat has moved closer to 1 than the first check, but this vignette is kept
-deliberately short so it builds quickly - in real use, keep calling
-`continueChains()` (each call picks up exactly where the last left off)
-until R-hat is comfortably below ~1.1 for every quantity you care about,
-not just the one or two checked here, before trusting any point estimate
-from `processMCMCChains()` below.
+This vignette is kept deliberately short so it builds quickly - in real use,
+keep calling `continueChains()` (each call picks up exactly where the last
+left off, and recomputes convergence on the extended chains) until Rhat is
+comfortably below ~1.01, before trusting any point estimate from
+`processMCMCChains()` below.
 
 ## 5. Process the chains
 
 ```{r processChains}
-burn <- floor((R + R_new) / 2)
-processed_samples <- processMCMCChains(new_output, burn)
-chain_used <- processed_samples[[1]]
+burn <- floor((n_iter + n_iter_new) / 2)
+chain_used <- processMCMCChain(getBestChain(new_output), burn)
 ```
+
+`getBestChain()` picks the chain with the best (highest post-burn-in mean)
+BIC rather than an arbitrary one - reasonable as a single representative
+chain once Rhat/ESS above confirm the chains agree; pool every chain
+instead via `predictFromMultipleChains()` when a single chain isn't needed
+(see the `bayesian_workflow` vignette for that path in more detail).
 
 ## 6. Parameter recovery
 

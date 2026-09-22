@@ -218,19 +218,19 @@ n_burn0 <- 3000
 init_labels <- labels_true
 init_labels[fixed == 0] <- sample(0:(K - 1), sum(fixed == 0), replace = TRUE)
 
-out_global <- runMCMCChains(X_obs, n_chains, R0, thin, batch_vec + 1, "MVN",
+out_global <- fitBatchMix(X_obs, n_chains, R0, thin, batch_vec + 1, "MVN",
   initial_labels = init_labels, fixed = fixed,
   auto_tune = TRUE, n_burn = n_burn0,
   batch_weight_prior = "global"
 )
 
-out_pp <- runMCMCChains(X_obs, n_chains, R0, thin, batch_vec + 1, "MVN",
+out_pp <- fitBatchMix(X_obs, n_chains, R0, thin, batch_vec + 1, "MVN",
   initial_labels = init_labels, fixed = fixed,
   auto_tune = TRUE, n_burn = n_burn0,
   batch_weight_prior = "partial_pooling"
 )
 
-out_gp <- runMCMCChains(X_obs, n_chains, R0, thin, batch_vec + 1, "MVN",
+out_gp <- fitBatchMix(X_obs, n_chains, R0, thin, batch_vec + 1, "MVN",
   initial_labels = init_labels, fixed = fixed,
   auto_tune = TRUE, n_burn = n_burn0,
   batch_weight_prior = "gp", batch_coordinates = time_points,

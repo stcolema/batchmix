@@ -120,18 +120,19 @@ The separation-strategy sampler is available at the top level as
 `type = "MVN_LKJ"` in `runBatchMix()`/`batchSemiSupervisedMixtureModel()`
 (with the LKJ concentration passed via `eta`, and `r_proposal_window`/
 `sigma_proposal_window` in place of `cov_proposal_window`). This vignette
-uses the lower-level `sampleMVNSeparationStrategy()` export directly instead,
+uses the lower-level `sampleSemisupervisedMVNSeparationStrategy()` export
+directly instead (with an all-zero `fixed` vector, i.e. fully unsupervised),
 since it lets us pass hand-tuned proposal windows for this specific
 simulation without going through the reciprocal-scaled
 `sigma_proposal_window` convention `runBatchMix()` applies for consistency
 with the original MVN/MVT samplers (see `?batchSemiSupervisedMixtureModel`).
 
 ```{r fit}
-out <- sampleMVNSeparationStrategy(
-  X, K, B, labels, batch_vec,
+out <- sampleSemisupervisedMVNSeparationStrategy(
+  X, K, B, labels, batch_vec, fixed = rep(0L, N),
   mu_proposal_window = 0.3, r_proposal_window = 0.05, sigma_proposal_window = 40,
   m_proposal_window = 0.2, S_proposal_window = 40,
-  R = num_mcmc_samples, thin = 25, concentration = rep(1, K),
+  n_iter = num_mcmc_samples, thin = 25, concentration = rep(1, K),
   m_scale = 0.01, rho = 3, theta = 1,
   initial_mu = matrix(0, P, K), initial_cov = array(0, c(P, P, K)),
   initial_m = matrix(0, P, B), initial_S = matrix(0, P, B),
@@ -182,11 +183,11 @@ spurious apparent correlation.
 ## The effect of $\eta$
 
 ```{r eta_effect}
-out_eta5 <- sampleMVNSeparationStrategy(
-  X, K, B, labels, batch_vec,
+out_eta5 <- sampleSemisupervisedMVNSeparationStrategy(
+  X, K, B, labels, batch_vec, fixed = rep(0L, N),
   mu_proposal_window = 0.3, r_proposal_window = 0.05, sigma_proposal_window = 40,
   m_proposal_window = 0.2, S_proposal_window = 40,
-  R = num_mcmc_samples, thin = 10, concentration = rep(1, K),
+  n_iter = num_mcmc_samples, thin = 10, concentration = rep(1, K),
   m_scale = 0.01, rho = 3, theta = 1,
   initial_mu = matrix(0, P, K), initial_cov = array(0, c(P, P, K)),
   initial_m = matrix(0, P, B), initial_S = matrix(0, P, B),
