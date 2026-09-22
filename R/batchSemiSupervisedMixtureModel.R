@@ -144,21 +144,18 @@ batchSemiSupervisedMixtureModel <- function(X,
     stop("The number of rows in X and the number of batch labels are not equal.")
   }
 
-  # Only the "MVN_MIXED" sampler (mvnSamplerMixed) implements missing-data
-  # augmentation. The other three types set up their priors from raw
-  # mean(X)/cov(X) with no NA-handling, so a missing entry silently poisons
-  # every downstream calculation and the sampler will fail deep inside the
-  # C++ layer (e.g. an "not symmetric positive definite" error from the
-  # Inverse-Wishart prior) rather than at this, more informative, entry
-  # point. Catch it here instead.
-  if (type != "MVN_MIXED" && anyNA(X)) {
-    stop(paste0(
-      "X contains missing values (NA/NaN), but type = '", type, "' does not ",
-      "support missing data. Use type = 'MVN_MIXED' instead, which models ",
-      "missing (and censored) entries via proper data augmentation - see ",
-      "?sampleSemisupervisedMVNMixed and the 'probit_missing_censored' vignette."
-    ))
-  }
+  # Every sampler type now models missing (NaN) entries of X via proper
+  # per-sweep Gibbs data augmentation (see mvnSampler::updateLatentData(),
+  # mvtSampler::updateLatentData(), mvnSamplerSeparationStrategy::
+  # updateLatentData(), and mvnSamplerMixed::updateLatentData(), the
+  # original implementation these are generalised from) - missing entries
+  # are redrawn from their full conditional every iteration, never imputed
+  # once and held fixed, and never overwrite X itself (the untouched
+  # NA-containing matrix passed in here); the posterior draws are returned
+  # separately as mcmc_output$latent_data. `type = 'MVN_MIXED'` remains the
+  # only type additionally supporting censored and binary/probit columns
+  # (via `column_type`/`censor_code`) - see
+  # vignette("probit_missing_censored", package = "batchmix").
 
   if (n_iter < thin) {
     warning("Iterations to run less than thinning factor. No samples recorded.")
@@ -495,6 +492,12 @@ batchSemiSupervisedMixtureModel <- function(X,
   
   # Indicate if lambda^2 was sampled
   mcmc_output$sample_m_scale <- sample_m_scale
-  
+
+  # A thin S3 wrapper (this is still a plain list - every existing `$`
+  # access keeps working unchanged) so the console shows a short
+  # print.batchmix_fit()/summary.batchmix_fit() report instead of dumping
+  # every sampled array - see R/batchmixFitMethods.R.
+  class(mcmc_output) <- c("batchmix_fit", class(mcmc_output))
+
   mcmc_output
 }

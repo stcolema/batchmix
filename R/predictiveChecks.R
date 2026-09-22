@@ -28,7 +28,12 @@
 #' empirical-Bayes prior location/scale (its own values are never reused
 #' directly) - the same summary statistics
 #' (\code{colMeans(X)}/\code{cov(X)}) that \code{batchSemiSupervisedMixtureModel()}
-#' computes internally when \code{type} is 'MVN', 'MVT' or 'MVN_LKJ'.
+#' computes internally when \code{type} is 'MVN', 'MVT' or 'MVN_LKJ'. Missing
+#' entries (\code{NA}/\code{NaN}) are allowed here too - they are replaced by
+#' their column mean only for this hyperparameter derivation (mirroring the
+#' C++ samplers' own empirical-Bayes setup exactly), never imputed via the
+#' real per-sweep data augmentation used in an actual fit, since a prior
+#' predictive draw does not condition on any observed data at all.
 #' @param batch_vec Observed batch label for each row of X.
 #' @param K The number of clusters to simulate.
 #' @param type One of 'MVN', 'MVT', 'MVN_LKJ' (see
@@ -77,13 +82,6 @@ simulatePriorPredictive <- function(X,
   if (!is.matrix(X)) {
     stop("X is not a matrix. Data should be in matrix format.")
   }
-  if (anyNA(X)) {
-    stop(paste0(
-      "simulatePriorPredictive() does not support missing data (X contains ",
-      "NA/NaN) for type = '", type, "' - this mirrors the same limitation ",
-      "'MVN_MIXED' alone lifts in batchSemiSupervisedMixtureModel()."
-    ))
-  }
   if (length(batch_vec) != nrow(X)) {
     stop("The number of rows in X and the number of batch labels are not equal.")
   }
@@ -103,11 +101,23 @@ simulatePriorPredictive <- function(X,
   # Empirical-Bayes hyperparameters. Mirrors mvnSampler::mvnSampler() /
   # mvnSamplerSeparationStrategy::mvnSamplerSeparationStrategy() exactly
   # (kappa is a fixed constant in both, never user-configurable - if that
-  # ever changes there, it must change here too).
+  # ever changes there, it must change here too), including their
+  # column-mean imputation of any missing entry for this one-off
+  # calculation only (see imputeColumnMeans() in
+  # src/genericFunctions.cpp) - this function never fits a model to X, so
+  # there is no per-sweep augmentation step to mirror beyond that.
   kappa <- 0.01
   nu <- P + 2
-  xi <- colMeans(X)
-  global_cov <- stats::cov(X)
+  X_imputed <- X
+  if (anyNA(X_imputed)) {
+    col_means <- colMeans(X_imputed, na.rm = TRUE)
+    for (p in seq_len(P)) {
+      na_idx <- is.na(X_imputed[, p])
+      X_imputed[na_idx, p] <- col_means[p]
+    }
+  }
+  xi <- colMeans(X_imputed)
+  global_cov <- stats::cov(X_imputed)
   iw_scale <- global_cov / K^(2 / P)
   delta_2 <- mean(diag(global_cov))
   lambda_2 <- m_scale

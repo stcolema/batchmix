@@ -171,34 +171,19 @@ fitBatchMix <- function(X,
       attr(mcmc_lst, "best_chain") <- convergence$best_chain
 
       if (verbose) {
-        message(sprintf(
-          paste0(
-            "\n%d chains run. Convergence (rank-normalized split-Rhat on %s, ",
-            "post burn-in): Rhat = %.3f (bulk = %.3f, tail = %.3f), ",
-            "ESS bulk = %.0f, ESS tail = %.0f.%s\nBest chain by mean BIC: #%d ",
-            "(use getBestChain() to extract it).\n"
-          ),
-          n_chains, convergence$statistic,
-          convergence$rhat, convergence$rhat_bulk, convergence$rhat_tail,
-          convergence$ess_bulk, convergence$ess_tail,
-          if (convergence$rhat > 1.01) {
-            paste0(
-              " Rhat > 1.01: these chains have likely NOT converged/mixed. A longer ",
-              "chain sometimes helps, but persistent disagreement between chains ",
-              "(especially unsupervised, well-separated clusters) is often a sign ",
-              "that one or more chains are stuck in a different, worse-fitting local ",
-              "optimum rather than merely under-run - re-fitting with more chains ",
-              "(more chances at least one finds the better mode) is usually more ",
-              "effective than simply lengthening the run."
-            )
-          } else {
-            ""
-          },
-          convergence$best_chain
-        ))
+        # format.batchmix_convergence() (R/batchmixFitMethods.R) owns this
+        # wording - also used by print.batchmix_convergence()/
+        # print.batchmix_fit_list(), so the two never drift apart.
+        message("\n", format(convergence, n_chains = n_chains))
       }
     }
   }
+
+  # A thin S3 wrapper (still a plain list of batchmix_fit chains - every
+  # existing `$`/`[[` access keeps working unchanged) so the console shows
+  # a short report instead of dumping every chain's sampled arrays - see
+  # R/batchmixFitMethods.R.
+  class(mcmc_lst) <- c("batchmix_fit_list", class(mcmc_lst))
 
   mcmc_lst
 }
