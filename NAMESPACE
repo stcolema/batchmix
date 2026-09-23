@@ -72,3 +72,19 @@ export(
 )
 
 exportPattern("^[[:alpha:]]+")
+
+# S3 methods for the classes fitBatchMix()/runBatchMix()/
+# batchSemiSupervisedMixtureModel()/assessConvergence() attach to their
+# return values (see R/batchmixFitMethods.R) - registered explicitly
+# (rather than relying on exportPattern() above alone) so dispatch on
+# print()/summary()/format() works correctly from other packages/contexts,
+# not just at the top-level prompt with batchmix attached.
+S3method(print, batchmix_fit)
+S3method(summary, batchmix_fit)
+S3method(print, summary.batchmix_fit)
+S3method(print, batchmix_fit_list)
+S3method(summary, batchmix_fit_list)
+S3method(print, summary.batchmix_fit_list)
+S3method(format, batchmix_convergence)
+S3method(print, batchmix_convergence)
+S3method(print, batchmix_control)

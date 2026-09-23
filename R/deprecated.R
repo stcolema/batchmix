@@ -14,18 +14,29 @@
 # dots: the caller's list(...).
 # fn_name: the calling function's name, for the "unused argument" error
 # message (mimics base R's own wording).
-.resolveDeprecatedNIter <- function(n_iter_missing, n_iter_value, dots, fn_name) {
+# strict_dots: TRUE (default) for the four functions whose `...` accepts
+# ONLY the deprecated `R` (anything else is a genuine "unused argument").
+# fitBatchMix()'s `...` has a wider, documented contract - forwarding
+# arbitrary extra arguments on to runBatchMix() - so it passes FALSE here:
+# `R` is still resolved/warned about the same way, but an unrecognized name
+# is left in `dots` for the caller to forward on rather than rejected here
+# (runBatchMix()'s own formals/```...`` resolve or reject it correctly once
+# it gets there).
+.resolveDeprecatedNIter <- function(n_iter_missing, n_iter_value, dots, fn_name, strict_dots = TRUE) {
   has_R <- "R" %in% names(dots)
-  extra <- setdiff(names(dots), "R")
-  if (length(extra) > 0) {
-    stop(
-      sprintf(
-        "unused argument%s in %s(): %s",
-        if (length(extra) > 1) "s" else "", fn_name,
-        paste(sprintf("`%s`", extra), collapse = ", ")
-      ),
-      call. = FALSE
-    )
+
+  if (strict_dots) {
+    extra <- setdiff(names(dots), "R")
+    if (length(extra) > 0) {
+      stop(
+        sprintf(
+          "unused argument%s in %s(): %s",
+          if (length(extra) > 1) "s" else "", fn_name,
+          paste(sprintf("`%s`", extra), collapse = ", ")
+        ),
+        call. = FALSE
+      )
+    }
   }
 
   if (!has_R) {

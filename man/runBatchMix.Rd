@@ -14,6 +14,7 @@ runBatchMix(
   initial_labels = NULL,
   fixed = NULL,
   alpha = 1,
+  control = batchmixControl(),
   auto_tune = TRUE,
   n_burn = NULL,
   mu_proposal_window = 0.5^2,
@@ -107,65 +108,22 @@ the weights in the model. Only used if \code{concentration} (only
 available on \code{\link{batchSemiSupervisedMixtureModel}} directly) is
 not given.}
 
-\item{auto_tune}{Logical; if \code{TRUE} (the default), every proposal
-window is adapted during the first \code{n_burn} iterations via
-Robbins-Monro diminishing adaptation, instead of staying fixed at the
-value passed in. Adaptation is frozen after \code{n_burn} iterations so
-the post-burn-in chain retains the correct stationary distribution.}
+\item{control}{A \code{\link{batchmixControl}} object bundling every
+Metropolis-Hastings proposal window and the auto-tuning schedule
+(\code{auto_tune}/\code{n_burn}) - the sampler-tuning knobs that rarely
+need attention, as opposed to the prior/model-structure hyperparameters
+below (\code{rho}, \code{theta}, \code{eta}, ...), which stay as
+ordinary named arguments since they change what is being fitted, not how
+hard the sampler works to fit it. See \code{?batchmixControl} for every
+field and its default.}
 
-\item{n_burn}{Number of iterations treated as burn-in for proposal-window
-adaptation; ignored if \code{auto_tune} is \code{FALSE}. Defaults to half
-of \code{n_iter}.}
-
-\item{mu_proposal_window}{The proposal window for the cluster mean proposal
-kernel. The proposal density is a Gaussian distribution, the window is the
-variance. Making this smaller will normally increase the acceptance rate.}
-
-\item{cov_proposal_window}{The proposal window for the cluster covariance
-proposal kernel when \code{type} is 'MVN' or 'MVT'. The proposal density
-is a Wishart distribution, this argument is the reciprocal of the degree
-of freedom. It is recommended to aim for acceptance rates greater than
-0.5 (e.g. between 2e-03 and 1e-04 is a good range to consider initially) -
-as the entire covariance matrix is sampled at once, exploration is
-difficult.}
-
-\item{r_proposal_window}{Only used if \code{type} is 'MVN_LKJ' or
-'MVN_MIXED': the standard deviation of the (unconstrained-space) Gaussian
-random walk proposal for the cluster correlation matrix R. Smaller values
-give a tighter proposal (higher acceptance, smaller steps).}
-
-\item{sigma_proposal_window}{Only used if \code{type} is 'MVN_LKJ' or
-'MVN_MIXED': the proposal window for the cluster marginal standard
-deviations. As with \code{S_proposal_window}, the proposal density is a
-Gamma distribution and this argument is the reciprocal of the rate.}
-
-\item{m_proposal_window}{The proposal window for the batch mean proposal
- kernel. The proposal density is a Gaussian distribution, the window is the
-variance.}
-
-\item{S_proposal_window}{The proposal window for the batch standard deviation
- proposal kernel. The proposal density is a Gamma distribution, this
-argument is the reciprocal of the rate. Recommended range to initially
-consider is 0.015 to 2e-03, though smaller values might be necessary
-particularly in higher dimensional data.}
-
-\item{t_df_proposal_window}{The proposal window for the degrees of freedom
-for the multivariate t distribution (not used if type is not 'MVT'). The
-proposal density is a Gamma distribution, this argument is the reciprocal of
-the rate. If the data is more Gaussian than the degrees of freedom might have
-high acceptance rates regardless of the value chosen.}
-
-\item{gamma_proposal_window}{Proposal window (Gaussian random-walk SD)
-for the interaction term; ignored if \code{include_interaction} is
-\code{FALSE}.}
-
-\item{eta_proposal_window}{Proposal window for the batch-weight
-Metropolis-Hastings update; used if \code{batch_weight_prior} is
-\code{"partial_pooling"} or \code{"gp"}.}
-
-\item{gp_hyperparameter_proposal_window}{Proposal window for the GP
-hyperparameter update; only used if \code{batch_weight_prior} is
-\code{"gp"} and \code{sample_gp_hyperparameters} is \code{TRUE}.}
+\item{auto_tune, n_burn, mu_proposal_window, cov_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, gamma_proposal_window, eta_proposal_window, gp_hyperparameter_proposal_window}{\strong{Deprecated}: pass these inside \code{control =
+batchmixControl(...)} instead (e.g. \code{control =
+batchmixControl(auto_tune = FALSE)} rather than \code{auto_tune =
+FALSE}). Still work this release (with a warning); see
+\code{?batchmixControl} for what each one does. If both \code{control}
+and one of these are supplied, \code{control} wins and the deprecated
+argument is ignored (with a warning).}
 
 \item{m_scale}{The scale hyperparameter for the batch shift prior
 distribution. This defines the scale of the batch effect upon the mean and
@@ -289,16 +247,17 @@ should call) and \code{\link{batchSemiSupervisedMixtureModel}} (the
 low-level engine underlying both, rarely called directly) document their
 shared arguments by inheriting the descriptions below (\code{@inheritParams
 runBatchMix}) rather than repeating them, so there is exactly one place to
-read about e.g. \code{mu_proposal_window} - here. Runs a single MCMC chain
+read about e.g. \code{control} - here. Runs a single MCMC chain
 for a Bayesian mixture model which models both batch effects and
 class/cluster structure (unsupervised if \code{fixed} is all 0 or not
 given, semi-supervised otherwise). Every Metropolis-Hastings proposal
-window is auto-tuned by default (\code{auto_tune = TRUE}, via
-Robbins-Monro diminishing adaptation over the first \code{n_burn}
-iterations, frozen thereafter) - manually tuning \code{mu_proposal_window}
-and friends is not required for typical use, and the proposal-window
-arguments below are only starting values for that adaptation, not fixed
-settings you need to get right yourself.
+window (bundled into \code{control}, see \code{\link{batchmixControl}})
+is auto-tuned by default (\code{control$auto_tune = TRUE}, via
+Robbins-Monro diminishing adaptation over the first \code{control$n_burn}
+iterations, frozen thereafter) - manually tuning proposal windows is not
+required for typical use, and \code{control}'s fields are only starting
+values for that adaptation, not fixed settings you need to get right
+yourself.
 }
 \examples{
 

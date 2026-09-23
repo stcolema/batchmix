@@ -6,16 +6,17 @@
 #' low-level engine underlying both, rarely called directly) document their
 #' shared arguments by inheriting the descriptions below (\code{@@inheritParams
 #' runBatchMix}) rather than repeating them, so there is exactly one place to
-#' read about e.g. \code{mu_proposal_window} - here. Runs a single MCMC chain
+#' read about e.g. \code{control} - here. Runs a single MCMC chain
 #' for a Bayesian mixture model which models both batch effects and
 #' class/cluster structure (unsupervised if \code{fixed} is all 0 or not
 #' given, semi-supervised otherwise). Every Metropolis-Hastings proposal
-#' window is auto-tuned by default (\code{auto_tune = TRUE}, via
-#' Robbins-Monro diminishing adaptation over the first \code{n_burn}
-#' iterations, frozen thereafter) - manually tuning \code{mu_proposal_window}
-#' and friends is not required for typical use, and the proposal-window
-#' arguments below are only starting values for that adaptation, not fixed
-#' settings you need to get right yourself.
+#' window (bundled into \code{control}, see \code{\link{batchmixControl}})
+#' is auto-tuned by default (\code{control$auto_tune = TRUE}, via
+#' Robbins-Monro diminishing adaptation over the first \code{control$n_burn}
+#' iterations, frozen thereafter) - manually tuning proposal windows is not
+#' required for typical use, and \code{control}'s fields are only starting
+#' values for that adaptation, not fixed settings you need to get right
+#' yourself.
 #' @param X Data to cluster as a matrix with the items to cluster held in
 #' rows. Missing entries (\code{NA}/\code{NaN}) are supported for every
 #' \code{type}: each is modelled via proper per-sweep Gibbs data
@@ -43,7 +44,7 @@
 #' 'MVT' (multivariate t distribution), 'MVN_LKJ' (multivariate normal with
 #' an LKJ prior on the cluster correlation structure and log-normal marginal
 #' scales, decoupling correlation and scale beliefs - see
-#' \code{vignette("lkj_correlation_recovery", package = "batchmix")}), or
+#' \code{vignette("covariance_models", package = "batchmix")}), or
 #' 'MVN_MIXED' (as 'MVN_LKJ', extended to support binary/probit columns and
 #' missing/censored continuous entries - see
 #' \code{vignette("probit_missing_censored", package = "batchmix")}, and the
@@ -61,56 +62,24 @@
 #' the weights in the model. Only used if \code{concentration} (only
 #' available on \code{\link{batchSemiSupervisedMixtureModel}} directly) is
 #' not given.
-#' @param auto_tune Logical; if \code{TRUE} (the default), every proposal
-#' window is adapted during the first \code{n_burn} iterations via
-#' Robbins-Monro diminishing adaptation, instead of staying fixed at the
-#' value passed in. Adaptation is frozen after \code{n_burn} iterations so
-#' the post-burn-in chain retains the correct stationary distribution.
-#' @param n_burn Number of iterations treated as burn-in for proposal-window
-#' adaptation; ignored if \code{auto_tune} is \code{FALSE}. Defaults to half
-#' of \code{n_iter}.
+#' @param control A \code{\link{batchmixControl}} object bundling every
+#' Metropolis-Hastings proposal window and the auto-tuning schedule
+#' (\code{auto_tune}/\code{n_burn}) - the sampler-tuning knobs that rarely
+#' need attention, as opposed to the prior/model-structure hyperparameters
+#' below (\code{rho}, \code{theta}, \code{eta}, ...), which stay as
+#' ordinary named arguments since they change what is being fitted, not how
+#' hard the sampler works to fit it. See \code{?batchmixControl} for every
+#' field and its default.
+#' @param auto_tune,n_burn,mu_proposal_window,cov_proposal_window,r_proposal_window,sigma_proposal_window,m_proposal_window,S_proposal_window,t_df_proposal_window,gamma_proposal_window,eta_proposal_window,gp_hyperparameter_proposal_window
+#' \strong{Deprecated}: pass these inside \code{control =
+#' batchmixControl(...)} instead (e.g. \code{control =
+#' batchmixControl(auto_tune = FALSE)} rather than \code{auto_tune =
+#' FALSE}). Still work this release (with a warning); see
+#' \code{?batchmixControl} for what each one does. If both \code{control}
+#' and one of these are supplied, \code{control} wins and the deprecated
+#' argument is ignored (with a warning).
 #' @param verbose Logical indicating if warnings about proposal windows should
 #' be printed.
-#' @param mu_proposal_window The proposal window for the cluster mean proposal
-#' kernel. The proposal density is a Gaussian distribution, the window is the
-#' variance. Making this smaller will normally increase the acceptance rate.
-#' @param cov_proposal_window The proposal window for the cluster covariance
-#' proposal kernel when \code{type} is 'MVN' or 'MVT'. The proposal density
-#' is a Wishart distribution, this argument is the reciprocal of the degree
-#' of freedom. It is recommended to aim for acceptance rates greater than
-#' 0.5 (e.g. between 2e-03 and 1e-04 is a good range to consider initially) -
-#' as the entire covariance matrix is sampled at once, exploration is
-#' difficult.
-#' @param r_proposal_window Only used if \code{type} is 'MVN_LKJ' or
-#' 'MVN_MIXED': the standard deviation of the (unconstrained-space) Gaussian
-#' random walk proposal for the cluster correlation matrix R. Smaller values
-#' give a tighter proposal (higher acceptance, smaller steps).
-#' @param sigma_proposal_window Only used if \code{type} is 'MVN_LKJ' or
-#' 'MVN_MIXED': the proposal window for the cluster marginal standard
-#' deviations. As with \code{S_proposal_window}, the proposal density is a
-#' Gamma distribution and this argument is the reciprocal of the rate.
-#' @param m_proposal_window The proposal window for the batch mean proposal
-#'  kernel. The proposal density is a Gaussian distribution, the window is the
-#' variance.
-#' @param S_proposal_window The proposal window for the batch standard deviation
-#'  proposal kernel. The proposal density is a Gamma distribution, this
-#' argument is the reciprocal of the rate. Recommended range to initially
-#' consider is 0.015 to 2e-03, though smaller values might be necessary
-#' particularly in higher dimensional data.
-#' @param t_df_proposal_window The proposal window for the degrees of freedom
-#' for the multivariate t distribution (not used if type is not 'MVT'). The
-#' proposal density is a Gamma distribution, this argument is the reciprocal of
-#' the rate. If the data is more Gaussian than the degrees of freedom might have
-#' high acceptance rates regardless of the value chosen.
-#' @param gamma_proposal_window Proposal window (Gaussian random-walk SD)
-#' for the interaction term; ignored if \code{include_interaction} is
-#' \code{FALSE}.
-#' @param eta_proposal_window Proposal window for the batch-weight
-#' Metropolis-Hastings update; used if \code{batch_weight_prior} is
-#' \code{"partial_pooling"} or \code{"gp"}.
-#' @param gp_hyperparameter_proposal_window Proposal window for the GP
-#' hyperparameter update; only used if \code{batch_weight_prior} is
-#' \code{"gp"} and \code{sample_gp_hyperparameters} is \code{TRUE}.
 #' @param m_scale The scale hyperparameter for the batch shift prior
 #' distribution. This defines the scale of the batch effect upon the mean and
 #' should be in (0, 1]. If `NULL`, this quantity is sampled rather then fixed.
@@ -274,9 +243,11 @@ runBatchMix <- function(X,
                         fixed = NULL,
                         alpha = 1,
                         # -- MCMC control (auto-tuning is on by default - see Description) --
+                        control = batchmixControl(),
                         auto_tune = TRUE,
                         n_burn = NULL,
-                        # -- proposal windows (only matter if auto_tune = FALSE) --
+                        # -- proposal windows (deprecated - use `control` instead; only
+                        # matter if auto_tune = FALSE) --
                         mu_proposal_window = 0.5**2,
                         cov_proposal_window = 0.002,
                         r_proposal_window = 0.1,
@@ -318,6 +289,23 @@ runBatchMix <- function(X,
   n_iter <- .resolveDeprecatedNIter(
     missing(n_iter), if (missing(n_iter)) NULL else n_iter, list(...), "runBatchMix"
   )
+
+  deprecated_control_args <- list()
+  if (!missing(auto_tune)) deprecated_control_args$auto_tune <- auto_tune
+  if (!missing(n_burn)) deprecated_control_args$n_burn <- n_burn
+  if (!missing(mu_proposal_window)) deprecated_control_args$mu_proposal_window <- mu_proposal_window
+  if (!missing(cov_proposal_window)) deprecated_control_args$cov_proposal_window <- cov_proposal_window
+  if (!missing(r_proposal_window)) deprecated_control_args$r_proposal_window <- r_proposal_window
+  if (!missing(sigma_proposal_window)) deprecated_control_args$sigma_proposal_window <- sigma_proposal_window
+  if (!missing(m_proposal_window)) deprecated_control_args$m_proposal_window <- m_proposal_window
+  if (!missing(S_proposal_window)) deprecated_control_args$S_proposal_window <- S_proposal_window
+  if (!missing(t_df_proposal_window)) deprecated_control_args$t_df_proposal_window <- t_df_proposal_window
+  if (!missing(gamma_proposal_window)) deprecated_control_args$gamma_proposal_window <- gamma_proposal_window
+  if (!missing(eta_proposal_window)) deprecated_control_args$eta_proposal_window <- eta_proposal_window
+  if (!missing(gp_hyperparameter_proposal_window)) {
+    deprecated_control_args$gp_hyperparameter_proposal_window <- gp_hyperparameter_proposal_window
+  }
+  control <- .resolveControlArgs(missing(control), control, deprecated_control_args, "runBatchMix")
 
   unsupervised <- is.null(fixed)
   no_initial_partition_given <- is.null(initial_labels)
@@ -362,13 +350,7 @@ runBatchMix <- function(X,
     type,
     K_max = K_max,
     alpha = alpha,
-    mu_proposal_window = mu_proposal_window,
-    cov_proposal_window = cov_proposal_window,
-    r_proposal_window = r_proposal_window,
-    sigma_proposal_window = sigma_proposal_window,
-    m_proposal_window = m_proposal_window,
-    S_proposal_window = S_proposal_window,
-    t_df_proposal_window = t_df_proposal_window,
+    control = control,
     m_scale = m_scale,
     rho = rho,
     theta = theta,
@@ -381,19 +363,14 @@ runBatchMix <- function(X,
     eta = eta,
     column_type = column_type,
     censor_code = censor_code,
-    auto_tune = auto_tune,
-    n_burn = n_burn,
     include_interaction = include_interaction,
-    gamma_proposal_window = gamma_proposal_window,
     a_gamma = a_gamma,
     b_gamma = b_gamma,
     batch_weight_prior = batch_weight_prior,
     batch_coordinates = batch_coordinates,
     gp_tau2 = gp_tau2,
     gp_length_scale = gp_length_scale,
-    eta_proposal_window = eta_proposal_window,
     sample_gp_hyperparameters = sample_gp_hyperparameters,
-    gp_hyperparameter_proposal_window = gp_hyperparameter_proposal_window,
     pp_tau2_shape = pp_tau2_shape,
     pp_tau2_rate = pp_tau2_rate,
     pp_mu_prior_sd = pp_mu_prior_sd

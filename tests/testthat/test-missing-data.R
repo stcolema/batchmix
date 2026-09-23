@@ -119,7 +119,7 @@ test_that("MVN: missing entries in X are recovered by per-sweep Gibbs augmentati
   out <- runBatchMix(scenario$X_missing, n_iter, thin, scenario$batch_vec, "MVN",
     initial_labels = scenario$labels_true, fixed = scenario$fixed,
     initial_class_means = scenario$init_means,
-    auto_tune = TRUE, n_burn = n_burn
+    control = batchmixControl(n_burn = n_burn)
   )
 
   check_missing_data_recovery(out, scenario, n_iter, thin, n_burn, mean_tolerance = 1.0)
@@ -133,7 +133,7 @@ test_that("MVT: missing entries in X are recovered via the Gaussian-scale-mixtur
   out <- runBatchMix(scenario$X_missing, n_iter, thin, scenario$batch_vec, "MVT",
     initial_labels = scenario$labels_true, fixed = scenario$fixed,
     initial_class_means = scenario$init_means,
-    auto_tune = TRUE, n_burn = n_burn
+    control = batchmixControl(n_burn = n_burn)
   )
 
   check_missing_data_recovery(out, scenario, n_iter, thin, n_burn, mean_tolerance = 1.0)
@@ -147,7 +147,7 @@ test_that("MVN_LKJ: missing entries in X are recovered by the separation-strateg
   out <- runBatchMix(scenario$X_missing, n_iter, thin, scenario$batch_vec, "MVN_LKJ",
     initial_labels = scenario$labels_true, fixed = scenario$fixed,
     initial_class_means = scenario$init_means,
-    auto_tune = TRUE, n_burn = n_burn
+    control = batchmixControl(n_burn = n_burn)
   )
 
   # A looser tolerance than MVN/MVT above: this scenario/seed shows a
@@ -170,7 +170,7 @@ test_that("continueChain() combines the latent_data trace across the original an
   out <- runBatchMix(scenario$X_missing, n_iter, thin, scenario$batch_vec, "MVN",
     initial_labels = scenario$labels_true, fixed = scenario$fixed,
     initial_class_means = scenario$init_means,
-    auto_tune = TRUE, n_burn = 150
+    control = batchmixControl(n_burn = 150)
   )
 
   n_iter_2 <- 200

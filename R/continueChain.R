@@ -174,6 +174,24 @@ continueChain <- function(mcmc_output,
   gp_tau2 <- if (!is.null(mcmc_output$gp_tau2)) mcmc_output$gp_tau2[last_sample] else 1.0
   gp_length_scale <- if (!is.null(mcmc_output$gp_length_scale)) mcmc_output$gp_length_scale[last_sample] else 1.0
 
+  # Bundle the resumed proposal windows into `control` (see
+  # ?batchmixControl) rather than forwarding them as individual, now-
+  # deprecated arguments - this is an ordinary continuation, not a call
+  # site that should warn on every use. `auto_tune = FALSE`: the previous
+  # chain already tuned these (if it was tuning at all - see above),
+  # further adaptation is not restarted.
+  resumed_control <- batchmixControl(
+    mu_proposal_window = mu_proposal_window,
+    cov_proposal_window = cov_proposal_window,
+    m_proposal_window = m_proposal_window,
+    S_proposal_window = S_proposal_window,
+    t_df_proposal_window = t_df_proposal_window,
+    gamma_proposal_window = gamma_proposal_window,
+    eta_proposal_window = eta_proposal_window,
+    gp_hyperparameter_proposal_window = gp_hyperparameter_proposal_window,
+    auto_tune = FALSE
+  )
+
   new_samples <- batchSemiSupervisedMixtureModel(X,
     n_iter,
     thin,
@@ -183,11 +201,7 @@ continueChain <- function(mcmc_output,
     type,
     K_max = K_max,
     concentration = initial_concentration,
-    mu_proposal_window = mu_proposal_window,
-    cov_proposal_window = cov_proposal_window,
-    m_proposal_window = m_proposal_window,
-    S_proposal_window = S_proposal_window,
-    t_df_proposal_window = t_df_proposal_window,
+    control = resumed_control,
     m_scale = m_scale,
     rho = rho,
     theta = theta,
@@ -196,18 +210,14 @@ continueChain <- function(mcmc_output,
     initial_class_df = initial_class_df,
     initial_batch_shift = initial_batch_shift,
     initial_batch_scale = initial_batch_scale,
-    auto_tune = FALSE,
     include_interaction = include_interaction,
-    gamma_proposal_window = gamma_proposal_window,
     a_gamma = a_gamma,
     b_gamma = b_gamma,
     batch_weight_prior = batch_weight_prior,
     batch_coordinates = batch_coordinates,
     gp_tau2 = gp_tau2,
     gp_length_scale = gp_length_scale,
-    eta_proposal_window = eta_proposal_window,
     sample_gp_hyperparameters = sample_gp_hyperparameters,
-    gp_hyperparameter_proposal_window = gp_hyperparameter_proposal_window,
     pp_tau2_shape = pp_tau2_shape,
     pp_tau2_rate = pp_tau2_rate,
     pp_mu_prior_sd = pp_mu_prior_sd
