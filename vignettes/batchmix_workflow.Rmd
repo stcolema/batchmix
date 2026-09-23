@@ -1,11 +1,14 @@
 ---
-title: "batchmix workflow"
-author: "Stephen Coleman"
+title: "Getting started: an end-to-end batchmix workflow"
+author: "batchmix"
 output: rmarkdown::html_vignette
 description: |
-  Tutorial for clustering/classifying with batchmix.
+  A complete, self-contained batchmix analysis: simulate data with a known
+  batch effect, check the model's priors before fitting, fit and diagnose
+  multiple MCMC chains, check the fitted model's predictions, and verify
+  that both the clustering and the batch correction recovered the truth.
 vignette: >
-  %\VignetteIndexEntry{Introduction to batchmix}
+  %\VignetteIndexEntry{Getting started: an end-to-end batchmix workflow}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -17,15 +20,38 @@ set.seed(1)
 
 ## Introduction
 
-This is the end-to-end workflow for `batchmix`: simulate data with a known
-batch effect, confirm the batch effect is actually there (and check what the
-data would look like without it), fit the semi-supervised model, check that
-the MCMC chains have actually converged before trusting anything they say,
-and finally check that the fitted model recovered the parameters used to
-generate the data and removed the batch effect. Each step matters on its own
-- a model fit from a chain that hasn't converged, or accepted without
-checking whether the batch correction did anything, is not a result you can
-trust.
+Fitting a model and reading off a point estimate of the clustering is only
+the middle of a Bayesian analysis. This vignette works through the full
+loop on a single simulated dataset:
+
+1. **Simulate** data with a known, deliberately visible batch effect, so
+   every later step can be checked against ground truth.
+2. **Prior predictive check**: before the model sees the real
+   clustering/batch structure, do datasets simulated from its priors alone
+   resemble plausible data?
+3. **Fit** several independent MCMC chains.
+4. **MCMC diagnostics**: acceptance rates, likelihood traces, and
+   rank-normalized split-\(\hat{R}\)/effective sample size across chains,
+   checked before the chains are trusted.
+5. **Posterior predictive check**: does the fitted model reproduce the
+   features of the observed data, overall and for the per-batch statistics
+   the batch correction is meant to equalise?
+6. **Point estimate and parameter recovery**: does the fitted model recover
+   the cluster means and batch effects used to generate the data?
+7. **Did the batch correction work?**: comparing the model's inferred
+   batch-corrected data against the simulator's batch-free ground truth.
+
+Steps 2 and 5 are standard Bayesian workflow, not specific to this
+package: Gelman, Carlin, Stern, Dunson, Vehtari & Rubin (2013), *Bayesian
+Data Analysis*, 3rd ed. ("BDA3"), devote Chapter 6 to this pair of checks;
+Gelman, Vehtari, Simpson, Margossian, Carpenter, Yao, Kennedy, Gabry,
+Bürkner & Modrák (2020), "Bayesian Workflow" (arXiv:2011.01808), Section 2,
+frame both as the two ends of the modelling loop - simulate before
+fitting, criticise after. Step 5 matters particularly here because a batch
+effect is an unobservable confound by construction: real data has no
+batch-free ground truth to check the correction against directly, so
+predictive checks are among the few tools available for detecting a
+correction that is systematically wrong.
 
 ```{r libraries, message=FALSE}
 library(batchmix)
@@ -34,11 +60,11 @@ library(ggplot2)
 
 ## 1. Simulate data with a known batch effect
 
-`generateBatchData()` returns both the `observed_data` (what you would
-actually measure, batch effect included) and the `corrected_data` (the same
-draws with the batch effect never applied) for the same items, which is what
-makes it possible to check, on this simulation, whether a fitted model's
-batch correction actually recovers the right thing rather than just
+`generateBatchData()` returns both the `observed_data` (what would be
+measured, batch effect included) and the `corrected_data` (the same
+draws with the batch effect never applied) for the same items - this is
+what makes it possible to check, on this simulation, whether a fitted
+model's batch correction recovers the right thing, rather than just
 producing *some* transformation of the data.
 
 ```{r dataGen}
@@ -51,10 +77,10 @@ group_means <- c(0, 5, 10)
 group_sds <- rep(1, K)
 
 # A deliberately obvious batch effect: shifts of very different sizes, and
-# scales further from 1 than you would want in practice, so that its effect
-# on the raw data is unambiguous in the plots below. (The model's batch
-# scale has support (1, Inf) - see S_loc in the package's C++ sources - so
-# generateBatchData() requires batch_scale >= 1 too.)
+# scales further from 1 than would be typical in practice, so that its
+# effect on the raw data is unambiguous in the plots below. (The model's
+# batch scale has support (1, Inf), so generateBatchData() requires
+# batch_scale >= 1 too.)
 batch_shift <- c(-4, -2, 0, 2, 4)
 batch_scale <- c(1.0, 1.3, 1.6, 2.0, 2.6)
 
@@ -80,11 +106,11 @@ fixed <- my_data$fixed
 about 20% of items, `frac_known` in `generateBatchData()`); the rest are
 what the model has to cluster.
 
-## 2. Confirm the batch effect is actually present
+## 2. Confirm the batch effect is present
 
 Before fitting anything, look at the raw data. Colouring the *same*
 `observed_data` by batch and then by true group shows whether the batch
-effect is visible at all, and whether it's large enough to matter relative
+effect is visible at all, and whether it is large enough to matter relative
 to the group structure; colouring the batch-free `corrected_data` by group
 shows what the data would look like if the batch effect were successfully
 removed - the target the model fit is aiming for.
@@ -106,8 +132,8 @@ ggplot(plot_df, aes(X1, X2, colour = batch)) +
   theme_minimal()
 
 # The same observed data, coloured by the true group instead: batch noise
-# make the group structure noisier/harder to see than in the corrected data
-# below.
+# makes the group structure noisier/harder to see than in the corrected
+# data below.
 ggplot(plot_df, aes(X1, X2, colour = group)) +
   geom_point(alpha = 0.7) +
   labs(title = "Observed data, coloured by true group", subtitle = "Batch effect blurs the group separation") +
@@ -120,17 +146,61 @@ ggplot(plot_df, aes(X1_true, X2_true, colour = group)) +
   theme_minimal()
 ```
 
-## 3. Fit the model
+## 3. Prior predictive check
 
-We run several chains in parallel so we can check they agree (Section 4) -
-a single chain can look perfectly converged and still be wrong if it's
-stuck in a poor part of the space. `auto_tune = TRUE` (the default) adapts
-every Metropolis-Hastings proposal window automatically during `n_burn`
-iterations, rather than requiring hand-tuned windows up front.
+Simulate datasets purely from the model's priors (empirical-Bayes priors
+centred/scaled from `X`'s own summary statistics, exactly as the real
+fit's constructor computes them - see `?simulatePriorPredictive`) and look
+at whether they resemble the kind of data expected here. This is
+deliberately done at the *default* hyperparameters - the ones every call
+to `fitBatchMix()`/`runBatchMix()` uses unless overridden - since those are
+the ones being checked.
+
+```{r priorPC}
+prior_sims <- simulatePriorPredictive(
+  X, batch_vec,
+  K = K, type = "MVN",
+  n_datasets = 30
+)
+
+plotPredictiveCheck(X, prior_sims, style = "density", column = 1)
+```
+
+The observed density (black) should sit comfortably *inside* the envelope
+of prior-simulated densities (blue) - not because the prior should match
+the data closely (it has not seen the clustering yet, so it should not),
+but because the *scale* of variation it is prepared to generate should be
+plausible for data of this kind. A prior predictive envelope that is
+wildly wider or narrower than anything like the observed data is a sign to
+reconsider the prior (or its empirical-Bayes hyperparameters,
+e.g. `rho`/`theta`/`m_scale`) before ever looking at a fit.
+
+A scalar summary makes the same check quantitative - the classical
+prior/posterior predictive check (BDA3 Eq. 6.9): compute a test statistic
+on the observed data and on every replicate, and see where the observed
+value falls in the replicated distribution.
+
+```{r priorPCStat}
+plotPredictiveCheck(X, prior_sims,
+  style = "statistic", column = 1,
+  statistic = stats::sd, statistic_name = "SD(column 1)"
+)
+```
+
+## 4. Fit multiple chains
+
+Several independent chains are run so that they can be checked against
+each other (Step 5) - a single chain can look perfectly converged and
+still be wrong if it is stuck in a poor part of the space, which is a real
+risk for mixture models specifically (see `?generateInitialLabels`).
+`auto_tune = TRUE` (the default, bundled with the other sampler-tuning
+settings into `control` - see `?batchmixControl`) adapts every
+Metropolis-Hastings proposal window automatically during burn-in, rather
+than requiring hand-tuned windows up front.
 
 ```{r fitBatchMix}
-n_iter <- 1500
-thin <- 25
+n_iter <- 2000
+thin <- 20
 n_chains <- 4
 
 alpha <- 1
@@ -143,112 +213,163 @@ mcmc_output <- fitBatchMix(
 )
 ```
 
-`auto_tune = TRUE` and `n_burn = floor(n_iter / 2)` are the defaults for
-every entry point in this package (`runBatchMix()`,
-`batchSemiSupervisedMixtureModel()`, `fitBatchMix()`) - every
-Metropolis-Hastings proposal window is adapted automatically during the
-first half of the chain via Robbins-Monro diminishing adaptation, then
-frozen. Manually tuning `mu_proposal_window` and friends is not something
-you need to do for typical use; they only matter as starting values for
-that adaptation.
+`fitBatchMix()` returns a `batchmix_fit_list` and, since `n_chains >= 2`,
+has already computed the cross-chain convergence diagnostics used in Step
+5 below (shown above in the message, and reachable at any time by printing
+the fit itself):
 
-## 4. MCMC diagnostics
+```{r printFit}
+mcmc_output
+```
+
+## 5. MCMC diagnostics
 
 **Acceptance rates.** Metropolis-Hastings proposals accepted far too often
 (close to 1) or almost never (close to 0) both indicate a poorly-tuned
-chain that isn't exploring properly; `auto_tune` aims most blocks at
-~0.234-0.44 automatically, but it's still worth checking nothing pinned at
-an extreme.
+chain that is not exploring properly; `auto_tune` aims most blocks at
+~0.234-0.44 automatically, but it is still worth checking nothing pinned
+at an extreme.
 
 ```{r plotAcceptanceRatesEarly}
 plotAcceptanceRates(mcmc_output)
 ```
 
-**Likelihood traces.** `complete_likelihood` (label-dependent, most relevant
-to the clustering itself) and `observed_likelihood` (label-free, more
-relevant to density estimation) should each look like they've settled down
-to fluctuating around a stable level, with the chains agreeing with each
-other, not still trending or visibly separated.
+**Likelihood traces.** `complete_likelihood` (label-dependent, most
+relevant to the clustering itself) and `observed_likelihood` (label-free,
+more relevant to density estimation) should each look like they have
+settled down to fluctuating around a stable level, with the chains
+agreeing with each other, not still trending or visibly separated.
 
 ```{r likelihood}
 plotLikelihoods(mcmc_output)
 ```
 
-**Multi-chain agreement (Rhat).** A visual check is a good start but is easy
-to kid yourself with. `fitBatchMix()` already computed the standard
-quantitative check automatically above (`n_chains >= 2`, so no extra call is
-needed): rank-normalized, folded, split-Rhat (Vehtari, Gelman, Simpson,
-Carpenter & Bürkner, 2021, *Bayesian Analysis* 16(2)) - the diagnostic that
-superseded the classical Gelman & Rubin (1992) potential scale reduction
-factor, because the classical version can fail to catch chains that agree
-on location but disagree on scale, or in the tails. It's computed on the
-**complete-data log-likelihood trace**, not raw parameters like
-`batch_shift`, because mixture models are only identified up to a
-permutation of the cluster labels - a naive Rhat on a raw parameter would
-confuse harmless label-switching between chains with genuine
-non-convergence (see `?assessConvergence`). Values close to 1 (rule of
-thumb: below ~1.01) indicate the chains agree; values well above 1 mean at
-least one chain hasn't converged to the same place as the others - pull it
-out directly rather than recomputing it:
+**Multi-chain agreement (\(\hat{R}\)).** A visual check is a good start
+but is easy to be fooled by. The report printed above already gives the
+quantitative check: rank-normalized, folded, split-\(\hat{R}\) (Vehtari,
+Gelman, Simpson, Carpenter & Bürkner, 2021, *Bayesian Analysis* 16(2)) -
+the diagnostic that superseded the classical Gelman & Rubin (1992)
+potential scale reduction factor, because the classical version can fail
+to catch chains that agree on location but disagree on scale, or in the
+tails. It is computed on the **complete-data log-likelihood trace**, not
+raw parameters like `batch_shift`, because mixture models are only
+identified up to a permutation of the cluster labels - a naive
+\(\hat{R}\) on a raw parameter would confuse harmless label-switching
+between chains with genuine non-convergence (see `?assessConvergence`).
+Values close to 1 (rule of thumb: below ~1.01) indicate the chains agree;
+values well above 1 mean at least one chain has not converged to the same
+place as the others.
 
-```{r rhat}
-attr(mcmc_output, "convergence")
-```
-
-If that looks bad - trending likelihoods, Rhat well above 1.01, or
+If that looks bad - trending likelihoods, \(\hat{R}\) well above 1.01, or
 acceptance rates stuck near 0 or 1 - simply running longer is often *not*
 enough by itself: with well-separated clusters, a chain that starts from a
 poor random partition can get stuck in a persistently worse-fitting local
 optimum that single-site Metropolis-Hastings essentially never escapes, no
-matter how long it runs (this is what a high Rhat that does not improve
-with a longer chain is telling you). `runBatchMix()`/`fitBatchMix()`
+matter how long it runs (a high \(\hat{R}\) that does not improve with a
+longer chain is the signature of this). `runBatchMix()`/`fitBatchMix()`
 mitigate this automatically for a fully unsupervised fit by seeding from a
-k-means partition of the data instead of a random draw (see
-`?generateInitialLabels`) - here the fit is semi-supervised, so the labelled
-points already anchor cluster identity and this failure mode is much less
-likely, but it is still worth increasing `n_chains` (more chances at least
-one lands well) as well as chain length. When it *is* just a matter of
-needing more samples, extend every chain with `continueChains()`:
+k-means partition of the data instead of a random draw; here the fit is
+semi-supervised, so the labelled points already anchor cluster identity
+and this failure mode is much less likely, but it is still worth
+increasing `n_chains` (more chances at least one lands well) as well as
+chain length. When it *is* just a matter of needing more samples, extend
+every chain with `continueChains()`, which picks up exactly where each
+chain left off and recomputes convergence on the extended chains:
 
 ```{r continueChains}
-n_iter_new <- 6000
+n_iter_new <- 4000
 
 new_output <- continueChains(
   mcmc_output, X, fixed, batch_vec, n_iter_new,
   keep_old_samples = TRUE
 )
 
-plotLikelihoods(new_output)
-attr(new_output, "convergence")
+new_output
 ```
 
-This vignette is kept deliberately short so it builds quickly - in real use,
-keep calling `continueChains()` (each call picks up exactly where the last
-left off, and recomputes convergence on the extended chains) until Rhat is
-comfortably below ~1.01, before trusting any point estimate from
-`processMCMCChains()` below.
+In real use, keep calling `continueChains()` until \(\hat{R}\) is
+comfortably below ~1.01 before trusting any point estimate below.
 
-## 5. Process the chains
+## 6. Posterior predictive check
+
+Now simulate replicate datasets from the *fitted* posterior - each
+replicate uses one retained MCMC iteration's actual drawn cluster means,
+covariances, batch shifts/scales and cluster allocations (see
+`?simulatePosteriorPredictive`; no prior formula is re-derived here, so
+this cannot drift out of sync with the sampler itself). `getBestChain()`
+picks the chain with the best (highest post-burn-in mean) BIC rather than
+an arbitrary one - reasonable as a single representative chain once the
+\(\hat{R}\)/ESS above confirm the chains agree.
+
+```{r bestChain}
+mcmc_out <- getBestChain(new_output)
+summary(mcmc_out)
+```
+
+```{r postPC}
+burn <- floor((n_iter + n_iter_new) / 2)
+
+post_sims <- simulatePosteriorPredictive(
+  mcmc_out, batch_vec,
+  n_draws = 30, burn = burn
+)
+
+plotPredictiveCheck(X, post_sims, style = "density", column = 1)
+```
+
+Unlike the prior predictive check, the posterior predictive envelope
+*should* now track the observed density closely - the model has seen the
+data. A visible, systematic mismatch here (not just replicate-to-replicate
+noise) is evidence the model is missing something structural: too few
+clusters, the wrong density family (see the covariance-model vignette for
+`type = "MVT"` if the observed data has heavier tails than every
+replicate), or a batch effect the correction is not fully removing.
+
+That last case is the one specific to this package, and worth checking
+directly: compute a per-batch statistic (e.g. each batch's mean) on the
+observed data and on every replicate. If the model's batch correction is
+capturing the real batch effect, the *observed* per-batch means should
+land inside the *replicated* per-batch means' spread about as often as
+chance would suggest - not systematically outside it.
+
+```{r postPCBatch}
+batch1_mean <- function(x_col, batch, b) mean(x_col[batch == b])
+
+plotPredictiveCheck(X, post_sims,
+  style = "statistic", column = 1,
+  statistic = function(x) batch1_mean(x, batch_vec, batch_vec[1]),
+  statistic_name = paste0("Mean(column 1, batch ", batch_vec[1], ")")
+)
+```
+
+`plotBatchCorrection()` complements this numerical check with the more
+immediately readable picture: the raw data against the point-estimate
+batch-corrected data, coloured by batch. A working correction pulls the
+batch colours together from "Raw" to "Batch-corrected" while the cluster
+point-clouds stay recognisable.
+
+```{r batchCorrectionPlot}
+plotBatchCorrection(mcmc_out, X, batch_vec, burn = burn)
+```
+
+## 7. Point estimate and parameter recovery
+
+`processMCMCChain()` applies the burn-in and collapses the retained
+samples down to point estimates - `mean_est`/`shift_est` for the cluster
+means and batch shifts, `pred`/`prob` for the predicted class and its
+probability, and `inferred_dataset` for the point-estimate batch-corrected
+data.
 
 ```{r processChains}
-burn <- floor((n_iter + n_iter_new) / 2)
-chain_used <- processMCMCChain(getBestChain(new_output), burn)
+chain_used <- processMCMCChain(mcmc_out, burn)
 ```
 
-`getBestChain()` picks the chain with the best (highest post-burn-in mean)
-BIC rather than an arbitrary one - reasonable as a single representative
-chain once Rhat/ESS above confirm the chains agree; pool every chain
-instead via `predictFromMultipleChains()` when a single chain isn't needed
-(see the `bayesian_workflow` vignette for that path in more detail).
-
-## 6. Parameter recovery
-
-Because this is simulated data, we know the true group means and batch
-shifts, so we can check directly whether the model recovered them (up to
-label switching between the sampler's cluster indices and the simulator's
-group indices, and up to the usual mean/shift additive confound when
-neither is anchored - here we just match each sampled cluster to its
-closest true group mean for a readable plot).
+Because this is simulated data, the true group means and batch shifts are
+known, so they can be checked directly against the fit (up to label
+switching between the sampler's cluster indices and the simulator's group
+indices, and up to the usual mean/shift additive confound when neither is
+anchored - here each sampled cluster is simply matched to its closest true
+group mean for a readable plot).
 
 ```{r paramRecovery}
 est_means <- chain_used$mean_est # P x K
@@ -285,11 +406,11 @@ ggplot(shift_recovery_df, aes(true_shift, est_shift, colour = batch)) +
   theme_minimal()
 ```
 
-## 7. Did the batch correction work?
+## 8. Did the batch correction work?
 
 The real test: compare the model's inferred batch-corrected data
 (`inferred_dataset`, the posterior estimate) against the simulator's
-`corrected_data` ground truth from Section 2, not just against the raw
+`corrected_data` ground truth from Step 2, not just against the raw
 observed data.
 
 ```{r finalViz}
@@ -332,3 +453,31 @@ group separation, no leftover batch structure) rather than like the raw
 data, the correction worked; the classification accuracy on the unlabelled
 items gives a single-number summary of the same thing for the class
 structure specifically.
+
+## Summary
+
+- Simulate with a known ground truth first, so every later step - priors,
+  fit, and correction - can be checked against something.
+- Prior predictive check: are the *default* priors capable of generating
+  plausible-looking data at this `K`/`B`, before any fitting happens?
+- Fit several chains, not one, and check acceptance rates, likelihood
+  traces and \(\hat{R}\)/ESS (`print()`/`summary()` on the fit report all
+  three) before trusting anything downstream; extend with
+  `continueChains()` rather than restarting when more samples are needed.
+- Posterior predictive check: does the *fitted* model reproduce the
+  features of the observed data - overall, and specifically for
+  the per-batch statistics the batch correction is meant to equalise?
+  `plotBatchCorrection()` gives the same check as a picture.
+- Only then take a point estimate (`processMCMCChain()`/`getBestChain()`,
+  or pool every chain with `predictFromMultipleChains()`), and check it
+  against ground truth when it is available.
+
+Neither predictive check *proves* the model correct - as with all
+posterior predictive checks, a good result is consistent with (not proof
+of) an adequate model, and both checks are as sensitive as the test
+statistics/columns chosen to look at (BDA3 Section 6.3 discusses this
+limitation directly). But routinely looking, in both directions, is what
+turns a single point-estimate fit into a Bayesian workflow - and every
+other vignette in this package follows the same loop, adapted to whichever
+density (`type`), covariance prior, or batch-weight structure it is
+demonstrating.

@@ -15,6 +15,7 @@ fitBatchMix(
   initial_labels = NULL,
   fixed = NULL,
   alpha = 1,
+  control = batchmixControl(),
   auto_tune = TRUE,
   n_burn = NULL,
   convergence_burn = NULL,
@@ -92,49 +93,20 @@ the weights in the model. Only used if \code{concentration} (only
 available on \code{\link{batchSemiSupervisedMixtureModel}} directly) is
 not given.}
 
-\item{auto_tune}{Logical; if \code{TRUE} (the default), every proposal
-window is adapted during the first \code{n_burn} iterations via
-Robbins-Monro diminishing adaptation, instead of staying fixed at the
-value passed in. Adaptation is frozen after \code{n_burn} iterations so
-the post-burn-in chain retains the correct stationary distribution.}
-
-\item{n_burn}{Number of iterations treated as burn-in for proposal-window
-adaptation; ignored if \code{auto_tune} is \code{FALSE}. Defaults to half
-of \code{n_iter}.}
+\item{control}{A \code{\link{batchmixControl}} object bundling every
+Metropolis-Hastings proposal window and the auto-tuning schedule
+(\code{auto_tune}/\code{n_burn}) - the sampler-tuning knobs that rarely
+need attention, as opposed to the prior/model-structure hyperparameters
+below (\code{rho}, \code{theta}, \code{eta}, ...), which stay as
+ordinary named arguments since they change what is being fitted, not how
+hard the sampler works to fit it. See \code{?batchmixControl} for every
+field and its default.}
 
 \item{convergence_burn}{Number of iterations treated as burn-in when
 assessing convergence across the chains just run (see
 ``assessConvergence``); does not affect the returned chains themselves,
 only the diagnostics attached to them. Defaults to half of ``n_iter``. Only
 used if ``n_chains >= 2``.}
-
-\item{mu_proposal_window}{The proposal window for the cluster mean proposal
-kernel. The proposal density is a Gaussian distribution, the window is the
-variance. Making this smaller will normally increase the acceptance rate.}
-
-\item{cov_proposal_window}{The proposal window for the cluster covariance
-proposal kernel when \code{type} is 'MVN' or 'MVT'. The proposal density
-is a Wishart distribution, this argument is the reciprocal of the degree
-of freedom. It is recommended to aim for acceptance rates greater than
-0.5 (e.g. between 2e-03 and 1e-04 is a good range to consider initially) -
-as the entire covariance matrix is sampled at once, exploration is
-difficult.}
-
-\item{m_proposal_window}{The proposal window for the batch mean proposal
- kernel. The proposal density is a Gaussian distribution, the window is the
-variance.}
-
-\item{S_proposal_window}{The proposal window for the batch standard deviation
- proposal kernel. The proposal density is a Gamma distribution, this
-argument is the reciprocal of the rate. Recommended range to initially
-consider is 0.015 to 2e-03, though smaller values might be necessary
-particularly in higher dimensional data.}
-
-\item{t_df_proposal_window}{The proposal window for the degrees of freedom
-for the multivariate t distribution (not used if type is not 'MVT'). The
-proposal density is a Gamma distribution, this argument is the reciprocal of
-the rate. If the data is more Gaussian than the degrees of freedom might have
-high acceptance rates regardless of the value chosen.}
 
 \item{m_scale}{The scale hyperparameter for the batch shift prior
 distribution. This defines the scale of the batch effect upon the mean and
@@ -164,15 +136,19 @@ be printed.}
 
 \item{...}{Further arguments passed to \code{\link{runBatchMix}} (e.g.
 \code{include_interaction}, \code{batch_weight_prior} and their
-associated options, or \code{r_proposal_window}/\code{sigma_proposal_window}/
-\code{eta}/\code{column_type}/\code{censor_code} for \code{type}
-\code{'MVN_LKJ'}/\code{'MVN_MIXED'} - see \code{?runBatchMix} for the full
-list). Also accepts the deprecated \code{R} argument (renamed to
-\code{n_iter}; still works, with a warning, for this release, when
-passed positionally in its original slot or when every other argument is
-also named - naming \code{R} while leaving later arguments positional is
-not supported, since there is no way to bind two names to the same
-argument slot).}
+associated options, or \code{eta}/\code{column_type}/\code{censor_code}
+for \code{type} \code{'MVN_LKJ'}/\code{'MVN_MIXED'} - see
+\code{?runBatchMix} for the full list). The MVN_LKJ/MVN_MIXED-only
+proposal windows (\code{r_proposal_window}, \code{sigma_proposal_window},
+\code{gamma_proposal_window}, \code{eta_proposal_window},
+\code{gp_hyperparameter_proposal_window}) are also accepted here and
+merged into \code{control} - passing them inside \code{control =
+batchmixControl(...)} directly is preferred. Also accepts the deprecated
+\code{R} argument (renamed to \code{n_iter}; still works, with a
+warning, for this release, when passed positionally in its original slot
+or when every other argument is also named - naming \code{R} while
+leaving later arguments positional is not supported, since there is no
+way to bind two names to the same argument slot).}
 }
 \value{
 A list of named lists (one per chain, each the output of
@@ -190,10 +166,11 @@ attribute; use ``getBestChain()`` when a single representative chain
 The package's main entry point: fits \code{n_chains}
 independent chains of the batch mixture model and reports whether they
 agree before handing anything back. Every Metropolis-Hastings proposal
-window is auto-tuned by default (\code{auto_tune = TRUE}, via
-Robbins-Monro diminishing adaptation over the first \code{n_burn}
-iterations, frozen thereafter) - manually tuning \code{mu_proposal_window}
-and friends is not required for typical use. Fitting more than one chain
+window (bundled into \code{control}, see \code{\link{batchmixControl}})
+is auto-tuned by default (\code{control$auto_tune = TRUE}, via
+Robbins-Monro diminishing adaptation over the first \code{control$n_burn}
+iterations, frozen thereafter) - manually tuning proposal windows is not
+required for typical use. Fitting more than one chain
 (rather than calling \code{\link{runBatchMix}} once) is not optional
 extra rigour - it is how non-convergence is detected at all: a single
 chain can look perfectly stable on its own and still have converged to a

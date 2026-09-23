@@ -90,10 +90,12 @@ batchSemiSupervisedMixtureModel <- function(X,
                                             alpha = NULL,
                                             concentration = NULL,
                                             # -- MCMC control (auto-tuning is on by default - see Description) --
+                                            control = batchmixControl(),
                                             auto_tune = TRUE,
                                             n_burn = NULL,
                                             verbose = TRUE,
-                                            # -- proposal windows (only matter if auto_tune = FALSE) --
+                                            # -- proposal windows (deprecated - use `control` instead; only
+                                            # matter if auto_tune = FALSE) --
                                             mu_proposal_window = 0.5**2,
                                             cov_proposal_window = 0.002,
                                             r_proposal_window = 0.1,
@@ -135,6 +137,43 @@ batchSemiSupervisedMixtureModel <- function(X,
     missing(n_iter), if (missing(n_iter)) NULL else n_iter, list(...),
     "batchSemiSupervisedMixtureModel"
   )
+
+  # `control` bundles every sampler-tuning argument below (see
+  # ?batchmixControl); the individual arguments are kept as deprecated,
+  # soft-working aliases (merged into `control` here) rather than removed
+  # outright - see .resolveControlArgs().
+  deprecated_control_args <- list()
+  if (!missing(auto_tune)) deprecated_control_args$auto_tune <- auto_tune
+  if (!missing(n_burn)) deprecated_control_args$n_burn <- n_burn
+  if (!missing(mu_proposal_window)) deprecated_control_args$mu_proposal_window <- mu_proposal_window
+  if (!missing(cov_proposal_window)) deprecated_control_args$cov_proposal_window <- cov_proposal_window
+  if (!missing(r_proposal_window)) deprecated_control_args$r_proposal_window <- r_proposal_window
+  if (!missing(sigma_proposal_window)) deprecated_control_args$sigma_proposal_window <- sigma_proposal_window
+  if (!missing(m_proposal_window)) deprecated_control_args$m_proposal_window <- m_proposal_window
+  if (!missing(S_proposal_window)) deprecated_control_args$S_proposal_window <- S_proposal_window
+  if (!missing(t_df_proposal_window)) deprecated_control_args$t_df_proposal_window <- t_df_proposal_window
+  if (!missing(gamma_proposal_window)) deprecated_control_args$gamma_proposal_window <- gamma_proposal_window
+  if (!missing(eta_proposal_window)) deprecated_control_args$eta_proposal_window <- eta_proposal_window
+  if (!missing(gp_hyperparameter_proposal_window)) {
+    deprecated_control_args$gp_hyperparameter_proposal_window <- gp_hyperparameter_proposal_window
+  }
+
+  control <- .resolveControlArgs(
+    missing(control), control, deprecated_control_args, "batchSemiSupervisedMixtureModel"
+  )
+
+  auto_tune <- control$auto_tune
+  n_burn <- control$n_burn
+  mu_proposal_window <- control$mu_proposal_window
+  cov_proposal_window <- control$cov_proposal_window
+  r_proposal_window <- control$r_proposal_window
+  sigma_proposal_window <- control$sigma_proposal_window
+  m_proposal_window <- control$m_proposal_window
+  S_proposal_window <- control$S_proposal_window
+  t_df_proposal_window <- control$t_df_proposal_window
+  gamma_proposal_window <- control$gamma_proposal_window
+  eta_proposal_window <- control$eta_proposal_window
+  gp_hyperparameter_proposal_window <- control$gp_hyperparameter_proposal_window
 
   if (!is.matrix(X)) {
     stop("X is not a matrix. Data should be in matrix format.")

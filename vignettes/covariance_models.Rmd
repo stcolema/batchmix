@@ -1,0 +1,427 @@
+---
+title: "Choosing a cluster covariance model: robustness and correlation"
+author: "batchmix"
+output: rmarkdown::html_vignette
+description: |
+  Comparing the three continuous-data covariance models batchmix offers -
+  MVN, MVT and MVN_LKJ - against data with a known ground truth: comparing
+  candidate cluster counts via BIC, does MVT's robustness matter for
+  heavy-tailed data, and does the LKJ prior recover a known correlation
+  structure.
+vignette: >
+  %\VignetteIndexEntry{Choosing a cluster covariance model: robustness and correlation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, collapse = TRUE, comment = "#>", fig.width = 6, fig.height = 4.5)
+```
+
+## Purpose
+
+batchmix offers three continuous-data cluster covariance models, sharing
+the same batch-correction machinery and directly comparable as fits to the
+same data:
+
+- `type = "MVN"`: multivariate normal, Inverse-Wishart covariance prior.
+  The default, and the right choice unless one of the two reasons below
+  applies.
+- `type = "MVT"`: multivariate $t$, with a per-cluster degrees-of-freedom
+  parameter learned from the data. Robust to heavy-tailed/outlier-
+  contaminated data, where MVN's Gaussian likelihood is not just imprecise
+  but actively misleading (Part B below).
+- `type = "MVN_LKJ"`: multivariate normal with an LKJ prior on the cluster
+  *correlation* matrix and independent log-normal priors on the marginal
+  *scales*, decoupling two things an Inverse-Wishart prior couples
+  together (Part C below).
+
+This vignette validates each against data with a **known ground truth**
+from simulation - for checking whether a sampler recovers a *known*
+generative model, this is the strictest possible test: the alternative (a
+real dataset with expert-assigned labels) has its own label noise, so a
+sampler could look "wrong" for reasons that have nothing to do with the
+implementation.
+
+## The hierarchical model
+
+For item $i = 1, \dots, N$, with cluster label $c_i \in \{1,\dots,K\}$ and
+batch label $b_i \in \{1,\dots,B\}$:
+
+$$
+x_i \mid c_i = k,\ b_i = b \ \sim\
+\begin{cases}
+\mathcal{N}\!\left(\mu_k + m_b,\ S_b^{1/2} \Sigma_k S_b^{1/2}\right) & \texttt{"MVN"} \\[4pt]
+t_{\nu_k}\!\left(\mu_k + m_b,\ S_b^{1/2} \Sigma_k S_b^{1/2}\right) & \texttt{"MVT"} \\[4pt]
+\mathcal{N}\!\left(\mu_k + m_b,\ S_b^{1/2} \Delta_k R_k \Delta_k S_b^{1/2}\right) & \texttt{"MVN\_LKJ"}
+\end{cases}
+$$
+
+where $S_b = \mathrm{diag}(S_{b,1}, \dots, S_{b,P})$ is a per-batch,
+per-feature multiplicative scale, $m_b$ is a per-batch additive shift, and
+for `"MVN"`/`"MVT"`, $\mu_k, \Sigma_k$ are the cluster mean and covariance
+with $\Sigma_k \sim \mathrm{IW}(\nu, \Psi)$. `"MVN_LKJ"` decomposes the
+covariance as $\Delta_k = \mathrm{diag}(\sigma_{k,1}, \dots, \sigma_{k,P})$
+with **independent** priors on the correlation matrix and the marginal
+scales,
+
+$$
+R_k \sim \mathrm{LKJ}(\eta), \qquad \log \sigma_{k,p} \sim \mathcal{N}(\beta, \xi^2),
+$$
+
+which lets a weakly-informative guess at the scales be stated without
+implying anything about the correlations, or vice versa - something an
+Inverse-Wishart prior makes hard, since it couples the two (Barnard,
+McCulloch & Meng, 2000, *Statistica Sinica*; Tokuda, Goodrich, Van
+Mechelen, Gelman & Meng, 2011, "Visualizing Distributions of Covariance
+Matrices"). $\mathrm{LKJ}(\eta)$ (Lewandowski, Kurowicka & Joe, 2009, *J.
+Multivariate Analysis*) has density $p(R \mid \eta) \propto \det(R)^{\eta -
+1}$: $\eta = 1$ is uniform over the space of valid correlation matrices,
+$\eta > 1$ concentrates mass towards the identity (shrinks correlations
+towards 0) - it is the standard modern choice for this decomposition (Stan
+and brms use it the same way).
+
+The remaining priors are shared by every type:
+
+$$
+\mu_k \mid \Sigma_k \sim \mathcal{N}\!\left(\xi, \Sigma_k / \kappa\right), \qquad
+m_b \sim \mathcal{N}(0, \delta^2 \lambda^2), \qquad
+S_{b,p} - 1 \sim \mathrm{InvGamma}(\rho, \theta), \qquad
+w \sim \mathrm{Dirichlet}(\alpha),
+$$
+
+with $\nu_k - \nu_{\min} \sim \mathrm{Gamma}(\psi, \chi)$ additionally for
+`"MVT"`. Model comparison across $K$ uses the Bayesian information
+criterion,
+
+$$
+\mathrm{BIC} = 2 \log \hat{L} - \left(p_{\text{cluster}} K_{\text{occ}} + p_{\text{batch}} B\right) \log N,
+$$
+
+with $p_{\text{cluster}} = 1 + P + P(P+1)/2$ (weight, mean, covariance) and
+$p_{\text{batch}} = 2P$ (shift, scale); higher is better in this package's
+convention.
+
+```{r libs, message=FALSE}
+library(batchmix)
+library(salso)
+library(ggplot2)
+```
+
+## Part A: comparing candidate values of K
+
+```{r simA}
+set.seed(101)
+
+N <- 600
+P <- 2
+K_true <- 3
+B <- 4
+
+group_means <- seq(1, K_true) * 4
+std_dev <- rep(1.0, K_true)
+batch_shift <- rnorm(B, mean = 0.3, sd = 0.2)
+batch_var <- rep(1.3, B)
+
+sim <- generateBatchData(
+  N, P, group_means, std_dev, batch_shift, batch_var,
+  rep(1 / K_true, K_true), rep(1 / B, B),
+  type = "MVN"
+)
+
+X <- sim$observed_data
+true_labels <- sim$group_IDs
+batch_vec <- sim$batch_IDs
+```
+
+```{r simAviz}
+ggplot(data.frame(X1 = X[, 1], X2 = X[, 2], group = factor(true_labels), batch = factor(batch_vec)),
+       aes(X1, X2, colour = group, shape = batch)) +
+  geom_point(alpha = 0.7) +
+  labs(title = "Simulated data: 3 true groups across 4 batches") +
+  theme_minimal()
+```
+
+Fit at a range of candidate $K$ (two chains each, enough to sanity-check
+agreement across this scan; see Part B below for the fuller multi-chain
+diagnostic treatment at the chosen $K$) and compare mean post-burn-in BIC:
+
+```{r bicA}
+n_iter <- 1200
+thin <- 10
+n_chains <- 2
+
+bic_by_k <- sapply(2:5, function(k) {
+  out <- fitBatchMix(X, n_chains, n_iter, thin, batch_vec, "MVN", K_max = k, verbose = FALSE)
+  mean(sapply(out, function(o) {
+    n <- length(o$BIC)
+    mean(o$BIC[(n / 2):n])
+  }))
+})
+names(bic_by_k) <- 2:5
+round(bic_by_k, 1)
+```
+
+```{r bicA_result}
+cat("K chosen by BIC:", names(which.max(bic_by_k)), " | true K:", K_true, "\n")
+```
+
+BIC's maximum here need not land exactly on the true $K=3$ - in a
+batch-corrected mixture, an extra cluster can partially absorb batch-driven
+variation the correction has not fully removed, giving it a real (not just
+noise) likelihood gain that BIC's complexity penalty does not always
+outweigh. Treat a raw BIC-vs-$K$ comparison like this as a rough guide, not
+a decisive test: cross-check any candidate $K$ against posterior cluster
+occupancy (do all $K$ clusters retain non-trivial posterior
+weight, or has the sampler already emptied some of them out on its own?)
+and against domain knowledge about how many groups are expected,
+rather than trusting a bare maximum mechanically.
+
+Fit at $K = 3$ (known here because this is simulated data) - several
+chains, checked for convergence, exactly as in the getting-started
+vignette:
+
+```{r fitTrueK}
+fit_k3 <- fitBatchMix(X, n_chains = 4, n_iter = 2000, thin = 20, batch_vec, "MVN", K_max = K_true)
+fit_k3
+```
+
+Point-estimate the clustering (via `salso`, which handles the
+label-switching that any unsupervised mixture sampler exhibits - do
+**not** compare raw per-iteration labels across chains or iterations
+directly):
+
+```{r salsoA}
+best <- getBestChain(fit_k3)
+n_saved <- nrow(best$samples)
+post_labels <- best$samples[(n_saved / 2 + 1):n_saved, ]
+
+point_est <- salso(post_labels, loss = "binder", maxNClusters = K_true)
+table(point_est, true_labels)
+```
+
+The recovered partition matches the true one almost exactly.
+
+## Part B: a case where the Gaussian assumption is insufficient
+
+Generate data whose **true** generative process is heavy-tailed (a
+multivariate $t$ with $\nu = 2.5$ degrees of freedom - few enough that
+extreme values are common), then fit both an MVN and an MVT sampler to the
+*same* data and compare.
+
+```{r simB}
+set.seed(505)
+
+N <- 500
+P <- 2
+K <- 2
+B <- 2
+mu_true <- rbind(c(0, 0), c(6, 6))
+batch_shift_true <- rbind(c(0, 0), c(0.4, 0.4))
+df_true <- 2.5
+
+labels <- sample(0:(K - 1), N, replace = TRUE)
+batch_vec <- sample(0:(B - 1), N, replace = TRUE)
+
+X <- matrix(0, N, P)
+for (i in seq_len(N)) {
+  k <- labels[i] + 1
+  b <- batch_vec[i] + 1
+  # Multivariate t via a chi-square scale mixture of a standard normal.
+  w <- rchisq(1, df_true) / df_true
+  X[i, ] <- mu_true[k, ] + batch_shift_true[b, ] + rnorm(P) / sqrt(w)
+}
+```
+
+```{r simBviz}
+ggplot(data.frame(X1 = X[, 1], X2 = X[, 2], group = factor(labels)),
+       aes(X1, X2, colour = group)) +
+  geom_point(alpha = 0.6) +
+  labs(title = "Heavy-tailed (t, df = 2.5) simulated data", subtitle = "Visible extreme values the MVN sampler will have to (mis)explain via inflated covariance") +
+  theme_minimal()
+```
+
+```{r fitB}
+n_iter <- 1500
+thin <- 10
+n_chains <- 4
+
+out_mvn <- fitBatchMix(X, n_chains, n_iter, thin, batch_vec, "MVN", K_max = K)
+out_mvt <- fitBatchMix(X, n_chains, n_iter, thin, batch_vec, "MVT", K_max = K)
+```
+
+```{r printB}
+out_mvn
+out_mvt
+```
+
+```{r processB}
+proc_mvn <- processMCMCChain(getBestChain(out_mvn), burn = n_iter / 2)
+proc_mvt <- processMCMCChain(getBestChain(out_mvt), burn = n_iter / 2)
+```
+
+```{r resultB_means}
+cat("True cluster means:\n"); print(mu_true)
+cat("MVN estimated means:\n"); print(t(proc_mvn$mean_est))
+cat("MVT estimated means:\n"); print(t(proc_mvt$mean_est))
+```
+
+```{r resultB_cov}
+cat("MVN estimated cluster covariance (diagonal):\n")
+print(sapply(1:K, function(k) diag(proc_mvn$cov_est[, , k])))
+cat("MVT estimated cluster covariance (diagonal):\n")
+print(sapply(1:K, function(k) diag(proc_mvt$cov_est[, , k])))
+cat("(true within-cluster variance of a t(df = 2.5) is df/(df-2) =", df_true / (df_true - 2), ")\n")
+```
+
+```{r resultB_labels}
+acc <- function(pred, truth) {
+  # accounts for the arbitrary label permutation at K = 2
+  tab <- table(pred, truth)
+  max(sum(diag(tab)), sum(tab) - sum(diag(tab))) / sum(tab)
+}
+
+cat("MVN label accuracy:", acc(proc_mvn$pred, labels), "\n")
+cat("MVT label accuracy:", acc(proc_mvt$pred, labels), "\n")
+```
+
+**MVN's clustering essentially fails** (label accuracy near chance for
+$K=2$) - its Gaussian likelihood tries to "explain" the heavy tails by
+inflating the estimated covariance far past the true value, which destroys
+the separation between clusters. MVT correctly attributes the extreme
+values to heavy tails via its degrees-of-freedom parameter, recovers a
+covariance close to the true value, and correctly labels the large
+majority of items. This is the concrete case where the MVN assumption is
+not just imprecise but actively misleading, and where MVT's extra
+flexibility is worth its added cost.
+
+## Part C: recovering a known correlation structure (MVN_LKJ)
+
+Unlike `generateBatchData()`, which simulates independent columns by
+design, recovering correlation needs data simulated directly. Cluster 1
+has real correlation between features 1-2 and between 3-4; cluster 2 has
+none at all, a check against false positives (finding correlation that
+isn't there).
+
+```{r simC}
+set.seed(303)
+
+N <- 500
+P <- 4
+K <- 2
+B <- 2
+
+R_true <- list(
+  matrix(c(
+    1, 0.7, 0, 0,
+    0.7, 1, 0, 0,
+    0, 0, 1, -0.5,
+    0, 0, -0.5, 1
+  ), 4, 4),
+  diag(4)
+)
+sigma_true <- rbind(c(1, 1, 1, 1), c(1.2, 1.2, 1.2, 1.2))
+mu_true <- rbind(c(0, 0, 0, 0), c(4, 4, 3, 3))
+batch_shift_true <- rbind(c(0, 0, 0, 0), c(0.4, -0.3, 0.2, 0.1))
+
+labels <- sample(0:(K - 1), N, replace = TRUE)
+batch_vec <- sample(0:(B - 1), N, replace = TRUE)
+
+X <- matrix(0, N, P)
+for (i in seq_len(N)) {
+  k <- labels[i] + 1
+  b <- batch_vec[i] + 1
+  Sigma_k <- diag(sigma_true[k, ]) %*% R_true[[k]] %*% diag(sigma_true[k, ])
+  X[i, ] <- mu_true[k, ] + batch_shift_true[b, ] +
+    as.numeric(MASS::mvrnorm(1, rep(0, P), Sigma_k))
+}
+
+ggplot(data.frame(X1 = X[, 1], X2 = X[, 2], cluster = factor(labels)), aes(X1, X2, colour = cluster)) +
+  geom_point(alpha = 0.7) +
+  labs(title = "Simulated data (features 1-2)", subtitle = "Cluster 1 has real correlation between X1/X2; cluster 2 has none") +
+  theme_minimal()
+```
+
+`type = "MVN_LKJ"` is fit the same way as `"MVN"`/`"MVT"`, through
+`fitBatchMix()`, with auto-tuning left on its default - manually tuning
+`r_proposal_window`/`sigma_proposal_window` (bundled into `control`, see
+`?batchmixControl`, in place of `cov_proposal_window`) is not required for
+typical use, including here:
+
+```{r fitC}
+fit_lkj <- fitBatchMix(
+  X, n_chains = 4, n_iter = 4000, thin = 20, batch_vec, "MVN_LKJ",
+  K_max = K, initial_labels = labels, fixed = NULL, eta = 1.0
+)
+fit_lkj
+```
+
+```{r resultsC}
+chain <- getBestChain(fit_lkj)
+n_saved <- dim(chain$covariance)[3]
+last_half <- (n_saved / 2 + 1):n_saved
+
+avg_R_by_k <- lapply(1:K, function(k) {
+  Rs <- lapply(last_half, function(s) cov2cor(chain$covariance[, ((k - 1) * P + 1):(k * P), s]))
+  Reduce(`+`, Rs) / length(Rs)
+})
+
+cat("Cluster 1 - posterior mean correlation:\n"); print(round(avg_R_by_k[[1]], 2))
+cat("Cluster 1 - TRUE correlation:\n"); print(R_true[[1]])
+
+cat("\nCluster 2 - posterior mean correlation:\n"); print(round(avg_R_by_k[[2]], 2))
+cat("Cluster 2 - TRUE correlation (identity):\n"); print(R_true[[2]])
+```
+
+Cluster 1's strong correlations (0.7, -0.5) are recovered with the correct
+sign and the correct relative ordering; cluster 2, which has **no** true
+correlation, correctly shows no spurious structure (every off-diagonal
+entry near 0) - exactly the check an Inverse-Wishart prior makes harder to
+trust, since IW's coupling between scale and correlation means a
+badly-set scale prior can leak into spurious apparent correlation.
+
+### The effect of $\eta$
+
+```{r eta_effect}
+fit_lkj_eta5 <- fitBatchMix(
+  X, n_chains = 4, n_iter = 4000, thin = 20, batch_vec, "MVN_LKJ",
+  K_max = K, initial_labels = labels, fixed = NULL, eta = 5.0, verbose = FALSE
+)
+
+chain_eta5 <- getBestChain(fit_lkj_eta5)
+avg_R_eta5_c1 <- Reduce(`+`, lapply(last_half, function(s) {
+  cov2cor(chain_eta5$covariance[, 1:P, s])
+})) / length(last_half)
+
+cat("Cluster 1, eta = 1 (uniform prior) - estimated correlation:\n")
+print(round(avg_R_by_k[[1]], 2))
+cat("Cluster 1, eta = 5 (shrinks toward independence) - estimated correlation:\n")
+print(round(avg_R_eta5_c1, 2))
+```
+
+Raising $\eta$ pulls the posterior correlation estimates towards zero, as
+the LKJ theory predicts - useful as a weakly-informative regularizer when
+$P$ is large relative to the amount of data per cluster and unconstrained
+correlation estimates would be unstable.
+
+## Summary
+
+- `type = "MVN"` is the default, and given the true $K$ recovers a
+  near-perfect partition when the data is (near-)Gaussian and the
+  cluster structure is genuinely present (Part A). Comparing raw BIC
+  across candidate $K$ values is a useful rough guide but not a decisive
+  test on its own - cross-check against posterior cluster occupancy and
+  domain knowledge.
+- `type = "MVT"` matters specifically when the data has heavier tails than
+  a Gaussian can represent - under such contamination MVN's clustering can
+  fail outright, while MVT's degrees-of-freedom parameter absorbs the
+  extreme values and recovers the correct structure (Part B).
+- `type = "MVN_LKJ"` matters when the correlation *structure* itself is of
+  interest, or when an Inverse-Wishart prior's coupling between scale and
+  correlation is a concern; its LKJ concentration `eta` trades off between
+  a uniform prior over correlation matrices (`eta = 1`) and shrinkage
+  towards independence (`eta > 1`) (Part C).
+- Every fit above was run as several chains via `fitBatchMix()` and
+  inspected with `print()`/`getBestChain()` before reading off a
+  conclusion - see the getting-started vignette for the fuller diagnostic
+  and predictive-check bracket this abbreviates.

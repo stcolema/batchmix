@@ -2,6 +2,11 @@
 title: "Mixed continuous/binary data with missing and censored observations"
 author: "batchmix"
 output: rmarkdown::html_vignette
+description: |
+  Fitting type = "MVN_MIXED": data with binary/probit columns and censored
+  continuous entries, neither of which MVN/MVT/MVN_LKJ can represent -
+  checked against a known correlation structure and against the bias a
+  naive treatment of censored data would introduce.
 vignette: >
   %\VignetteIndexEntry{Mixed continuous/binary data with missing and censored observations}
   %\VignetteEngine{knitr::rmarkdown}
@@ -9,19 +14,33 @@ vignette: >
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, collapse = TRUE, comment = "#>")
+knitr::opts_chunk$set(echo = TRUE, collapse = TRUE, comment = "#>", fig.width = 6, fig.height = 4.5)
 ```
 
 ## Purpose
 
-This is a genuinely different model from MVN/MVT, not a variant of them:
-it lets some columns be **binary** (e.g. a seropositive/negative call)
-observed through a probit link, and lets any continuous column contain
-**missing** or **censored** entries (e.g. below an assay's detection
-limit) — none of which a plain multivariate-normal likelihood can
-represent at all, no matter how it is tuned. That is the concrete sense
-in which MVN/MVT are insufficient here: this is a data-type limitation,
-not a robustness one.
+`type = "MVN_MIXED"` is a genuinely different model from MVN/MVT/MVN_LKJ,
+not a variant of them: it lets some columns be **binary** (e.g. a
+seropositive/negative call) observed through a probit link, and lets any
+continuous column contain **censored** entries (e.g. below an assay's
+detection limit) - neither of which a plain multivariate-normal likelihood
+can represent at all, no matter how it is tuned. That is the concrete
+sense in which the other three types are insufficient here: this is a
+data-type limitation, not a robustness one.
+
+Plain **missing** continuous entries (no binary columns, no censoring) are
+*not* one of those data-type limitations: `MVN`, `MVT` and `MVN_LKJ` each
+model missing entries of `X` directly, via the same per-sweep Gibbs data
+augmentation this vignette's `MVN_MIXED` examples use - so for purely
+continuous data with some missing cells, prefer whichever of those three
+densities otherwise fits the data (see the covariance-model vignette) over
+`MVN_MIXED`, and reach for `MVN_MIXED` specifically when the data
+additionally has binary/probit columns or genuinely censored (not merely
+missing) entries. Prior/posterior predictive checks (see the
+getting-started vignette) are not supported for `type = "MVN_MIXED"` -
+replicating its probit/missingness/censoring layer is out of scope for
+that check - so the MCMC convergence diagnostics in this vignette are the
+primary check on the fit here.
 
 ## The hierarchical model
 
@@ -46,26 +65,26 @@ z_{i,p} & p \text{ continuous, observed} \\
 \end{cases}
 $$
 
-**Identifiability** (Chib & Greenberg, 1998, *Biometrika*): a probit
-model is identified only up to the *correlation* matrix of $z$ — rescaling
-one coordinate's variance leaves $\mathrm{sign}(z)$, and hence the
-observed binary outcome, unchanged. So for a binary column $p$, both scale
-layers are fixed: $\sigma_{k,p} = 1$ for every cluster $k$ and
-$S_{b,p} = 1$ for every batch $b$; only $R_k$ (correlation, including
-binary-binary and binary-continuous entries — these are the classical
-tetrachoric and polyserial correlations, both identified) and the
-location parameters $\mu_{k,p}, m_{b,p}$ are estimated for that column.
+**Identifiability** (Chib & Greenberg, 1998, *Biometrika*): a probit model
+is identified only up to the *correlation* matrix of $z$ - rescaling one
+coordinate's variance leaves $\mathrm{sign}(z)$, and hence the observed
+binary outcome, unchanged. So for a binary column $p$, both scale layers
+are fixed: $\sigma_{k,p} = 1$ for every cluster $k$ and $S_{b,p} = 1$ for
+every batch $b$; only $R_k$ (correlation, including binary-binary and
+binary-continuous entries - these are the classical tetrachoric and
+polyserial correlations, both identified) and the location parameters
+$\mu_{k,p}, m_{b,p}$ are estimated for that column.
 
 Inference proceeds by Gibbs data augmentation (Albert & Chib, 1993,
 *JASA*): given the current parameters, each missing/censored/binary entry
 of $z_i$ is redrawn from its Normal conditional on every other current
 entry of the same item (via the precision matrix, already computed each
-sweep) — a plain draw if missing, truncated to the implied half-line if
+sweep) - a plain draw if missing, truncated to the implied half-line if
 binary, truncated against the recorded bound if censored. Every other
 parameter update then proceeds exactly as in the fully-continuous
 sampler, operating on the completed $z$.
 
-```{r libs}
+```{r libs, message=FALSE}
 library(batchmix)
 library(ggplot2)
 ```
@@ -73,17 +92,18 @@ library(ggplot2)
 ## Part A: correlation recovery with mixed continuous/binary columns
 
 To isolate the specific new capability being tested, this uses a single
-cluster ($K=1$) — clustering with label-switching is validated separately
-in the other vignettes, and combining every new feature into one maximally
-complex scenario would make a poor fit hard to distinguish from a genuine
-bug. Note also that vanilla Gibbs sampling for multivariate probit
-correlations is known to mix slowly (the augmented data and the
-correlation matrix are highly correlated in the posterior) — this shows up
-below as needing a smaller Metropolis step (`r_proposal_window`) and a
-longer chain than the purely continuous LKJ vignette needed. Parameter
-expansion (Imai & van Dyk, 2005, *Political Analysis*; Talhouk, Doucet &
-Murphy, 2012, *JCGS*) is the standard fix if this matters in practice; it
-is not implemented here.
+cluster and a single batch - clustering with label-switching is validated
+separately in the other vignettes, and combining every new feature into
+one maximally complex scenario would make a poor fit hard to distinguish
+from a genuine bug. Vanilla Gibbs sampling for multivariate probit
+correlations is also known to mix more slowly than the purely continuous
+samplers (the augmented data and the correlation matrix are highly
+correlated in the posterior), so this fit uses a smaller, hand-set
+`r_proposal_window` (bundled into `control`, with auto-tuning switched
+off) rather than the defaults the other vignettes leave untouched -
+`?batchmixControl` covers this as the situation manual tuning is for. Parameter expansion (Imai & van Dyk, 2005, *Political Analysis*;
+Talhouk, Doucet & Murphy, 2012, *JCGS*) is the standard fix if slow mixing
+matters in practice; it is not implemented here.
 
 ```{r simA}
 set.seed(7)
@@ -104,9 +124,7 @@ X[, 3:4] <- (Z[, 3:4] > 0) * 1
 
 column_type <- c(0L, 0L, 1L, 1L)
 censor_code <- matrix(0L, N, P)
-labels0 <- rep(0L, N)
 batch_vec0 <- rep(0L, N)
-fixed0 <- rep(0L, N)
 ```
 
 ```{r simVizA}
@@ -122,46 +140,57 @@ ggplot(viz_df, aes(X1, X2, colour = binary4)) +
 ```
 
 ```{r fitA}
-out <- sampleSemisupervisedMVNMixed(
-  X, 1, 1, labels0, batch_vec0, fixed0, column_type, censor_code,
-  mu_proposal_window = 0.3, r_proposal_window = 0.03, sigma_proposal_window = 40,
-  m_proposal_window = 0.2, S_proposal_window = 40,
-  n_iter = 8000, thin = 20, concentration = 1,
-  m_scale = 0.01, rho = 3, theta = 1, eta = 1.0, sample_m_scale = FALSE,
-  auto_tune = FALSE, n_burn = 0,
-  include_interaction = FALSE, gamma_proposal_window = 0.1, a_gamma = 2.0, b_gamma = 1.0,
-  weight_prior_type = 0, batch_coordinates = numeric(0),
-  gp_tau2 = 1.0, gp_length_scale = 1.0, eta_proposal_window = 0.1,
-  sample_gp_hyperparameters = FALSE, gp_hyperparameter_proposal_window = 0.1,
-  pp_tau2_shape = 2.0, pp_tau2_rate = 1.0, pp_mu_prior_sd = 10.0
+fit_a <- fitBatchMix(
+  X, n_chains = 4, n_iter = 8000, thin = 20, batch_vec0, "MVN_MIXED",
+  K_max = 1, fixed = NULL, m_scale = 0.01, initial_labels = rep(0L, N),
+  column_type = column_type, censor_code = censor_code,
+  control = batchmixControl(
+    mu_proposal_window = 0.3, r_proposal_window = 0.03, sigma_proposal_window = 40,
+    m_proposal_window = 0.2, S_proposal_window = 40, auto_tune = FALSE
+  )
 )
-
-n_saved <- dim(out$covariance)[3]
-last_half <- (n_saved / 2 + 1):n_saved
-r12 <- sapply(last_half, function(s) cov2cor(out$covariance[, 1:P, s])[1, 2])
-r34 <- sapply(last_half, function(s) cov2cor(out$covariance[, 1:P, s])[3, 4])
+fit_a
 ```
 
+`m_scale` is fixed small here (rather than left to its default of being
+estimated) because with a single batch there is no batch replication to
+inform it - a small fixed value keeps the batch shift near zero so the
+cluster mean, not an arbitrary mean/shift split, carries the location
+signal. `getBestChain()` (by post burn-in mean BIC) is used to select
+among the four chains below, not only as routine practice: with this
+proposal window some chains do settle on a poorer fit than others, which
+the BIC comparison correctly identifies.
+
 ```{r resultA}
-cat("r_acceptance_rate:", out$r_acceptance_rate, "\n")
+chain_a <- getBestChain(fit_a)
+n_saved <- dim(chain_a$covariance)[3]
+last_half <- (n_saved / 2 + 1):n_saved
+r12 <- sapply(last_half, function(s) cov2cor(chain_a$covariance[, 1:P, s])[1, 2])
+r34 <- sapply(last_half, function(s) cov2cor(chain_a$covariance[, 1:P, s])[3, 4])
+
 cat("Continuous-continuous correlation (cols 1-2), true = 0.6:\n")
 cat("  posterior mean:", mean(r12), " range over kept samples:", range(r12), "\n")
 cat("Binary-binary correlation (cols 3-4), true = 0.7:\n")
 cat("  posterior mean:", mean(r34), " range over kept samples:", range(r34), "\n")
 ```
 
-Both correlations are recovered with the correct sign and roughly the
-right magnitude. The binary-binary estimate is visibly noisier across the
-kept samples than the continuous-continuous one — exactly the slow-mixing
-symptom flagged above, not a separate bug; a longer chain or a smaller
-`r_proposal_window` tightens it further (verified separately, not
-reproduced here to keep this vignette's runtime reasonable).
+The binary-binary correlation is recovered with the correct sign and
+close to its true magnitude. The continuous-continuous correlation is
+recovered with the correct sign but is overestimated here relative to
+both the population value and the sample correlation of the underlying
+(unobserved) draw - a larger deviation than the slow-mixing symptom above
+alone would predict, and a rougher edge of this sampler under
+investigation. Readers relying on `type = "MVN_MIXED"` for a
+continuous-continuous correlation estimate specifically should treat a
+point estimate as indicative of sign and approximate scale rather than a
+precise value, and are encouraged to check convergence (as here) rather
+than take a single chain's answer at face value.
 
 ## Part B: does proper missing/censoring handling matter?
 
 Compare the sampler's data augmentation against the common naive
-approach — taking a censored value at its recorded (bound) value, exactly
-as it arrives in the raw data — on a case where the censoring is common
+approach - taking a censored value at its recorded (bound) value, exactly
+as it arrives in the raw data - on a case where the censoring is common
 enough that the naive approach's bias should be visible.
 
 ```{r simB}
@@ -185,38 +214,40 @@ column_type_b <- c(0L, 0L)
 ```
 
 ```{r fitB}
-out_b <- sampleSemisupervisedMVNMixed(
-  Xb, 1, 1, labels0, batch_vec0, fixed0, column_type_b, censor_code_b,
-  mu_proposal_window = 0.2, r_proposal_window = 0.1, sigma_proposal_window = 40,
-  m_proposal_window = 0.2, S_proposal_window = 40,
-  n_iter = 8000, thin = 10, concentration = 1,
-  m_scale = 0.01, rho = 3, theta = 1, eta = 1.0, sample_m_scale = FALSE,
-  auto_tune = FALSE, n_burn = 0,
-  include_interaction = FALSE, gamma_proposal_window = 0.1, a_gamma = 2.0, b_gamma = 1.0,
-  weight_prior_type = 0, batch_coordinates = numeric(0),
-  gp_tau2 = 1.0, gp_length_scale = 1.0, eta_proposal_window = 0.1,
-  sample_gp_hyperparameters = FALSE, gp_hyperparameter_proposal_window = 0.1,
-  pp_tau2_shape = 2.0, pp_tau2_rate = 1.0, pp_mu_prior_sd = 10.0
+fit_b <- fitBatchMix(
+  Xb, n_chains = 4, n_iter = 8000, thin = 10, batch_vec0, "MVN_MIXED",
+  K_max = 1, fixed = NULL, m_scale = 0.01, initial_labels = rep(0L, N),
+  column_type = column_type_b, censor_code = censor_code_b,
+  control = batchmixControl(
+    mu_proposal_window = 0.2, r_proposal_window = 0.1, sigma_proposal_window = 40,
+    m_proposal_window = 0.2, S_proposal_window = 40, auto_tune = FALSE
+  )
 )
+fit_b
+```
 
-n_saved_b <- dim(out_b$means)[3]
+As in Part A, some of the four chains settle on a poorer mean/shift split
+than others; `getBestChain()` selects the one with the best post burn-in
+BIC.
+
+```{r resultB}
+chain_b <- getBestChain(fit_b)
+n_saved_b <- dim(chain_b$means)[3]
 # A generous burn-in: the chain's initial state is a prior draw, which can
 # start a considerable distance from the posterior mode (see the trace
 # below) - the mean location prior here is deliberately diffuse (kappa is
 # small), so this is expected, not a sign of a problem.
 keep_b <- (0.75 * n_saved_b + 1):n_saved_b
-mu_proper <- rowMeans(out_b$means[, 1, keep_b])
+mu_proper <- rowMeans(chain_b$means[, 1, keep_b])
 mu_naive <- colMeans(Xb)
-```
 
-```{r resultB}
 cat("True mu:", mu_true, "\n")
 cat("Proper (augmented) estimate:", round(mu_proper, 3), "\n")
 cat("Naive (censored values taken at face value) estimate:", round(mu_naive, 3), "\n")
 ```
 
 ```{r resultB_trace, fig.width=6, fig.height=3}
-plot(out_b$means[2, 1, ], type = "l", xlab = "saved iteration", ylab = "mu (column 2)",
+plot(chain_b$means[2, 1, ], type = "l", xlab = "saved iteration", ylab = "mu (column 2)",
      main = "Convergence to the true value (dashed) from a diffuse prior start")
 abline(h = mu_true[2], lty = 2, col = "red")
 abline(v = 0.75 * n_saved_b, lty = 3, col = "grey40")
@@ -225,7 +256,24 @@ abline(v = 0.75 * n_saved_b, lty = 3, col = "grey40")
 The naive estimate is biased upward by the censoring (values below the
 bound get replaced by a value that is, on average, too high); the proper
 augmentation recovers a value much closer to the truth. The trace plot
-also makes explicit why an adequate burn-in matters here — this is
+also makes explicit why an adequate burn-in matters here - this is
 ordinary MCMC practice, not something specific to this sampler, but it is
 easy to get wrong by eye when a chain's early transient looks superficially
 like noise rather than a systematic drift towards the posterior mode.
+
+## Summary
+
+- `type = "MVN_MIXED"` is for a data-type limitation (binary/probit
+  columns, genuinely censored entries), not a robustness one - reach for
+  it specifically when the data has one of those, not merely missing
+  continuous cells (every type handles those).
+- Both new capabilities were checked against a known ground truth: the
+  correlation structure (Part A) and the bias a naive treatment of
+  censored data would introduce (Part B).
+- The probit correlation update mixes more slowly than the purely
+  continuous samplers - this is the case in this package where manually
+  tuning `control`'s proposal windows (rather than leaving `auto_tune =
+  TRUE`) is worth doing, unlike the other vignettes.
+- With no supported predictive check for this `type`, `print()`/`summary()`
+  on the fit and standard MCMC trace/acceptance-rate diagnostics are the
+  primary tools for judging whether a fit of this type can be trusted.

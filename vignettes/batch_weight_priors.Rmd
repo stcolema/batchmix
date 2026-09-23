@@ -20,9 +20,10 @@ weight vector, `"partial_pooling"` lets each batch have its own weight with
 no assumed order or structure (only exchangeable shrinkage towards a common
 mean), and `"gp"` places a Gaussian process over a batch coordinate (e.g.
 collection time), so batches close together are expected to have similar
-proportions. The other vignettes cover the mean/covariance side of batch
-correction; this one is specifically about the *proportions*, using a
-scenario designed so the three choices actually disagree with each other.
+proportions. The getting-started and covariance-model vignettes cover the
+mean/covariance side of batch correction; this one is specifically about
+the *proportions*, using a
+scenario designed so the three choices disagree with each other.
 
 **Scenario.** Six assay batches (e.g. an ELISA seropositivity panel) are
 collected at irregular points across a two-year window. Two things drift
@@ -55,7 +56,7 @@ library(ggplot2)
 time-varying batch effect or batch-specific class proportions), so the data
 is simulated directly. Batch collection times are irregular - drawn at
 random over a 24-unit window, not evenly spaced - since that is what
-`batch_weight_prior = "gp"` is actually built for and it is worth stressing
+`batch_weight_prior = "gp"` is built for, and it is worth noting
 that the model uses genuine inter-batch distances, not just batch order.
 
 ```{r simSetup}
@@ -85,7 +86,7 @@ mu_true <- rbind(c(0, 0), c(5, 5))
 class_sd <- 1.0
 
 # Smooth assay drift: both the shift and the scale grow with time. Scale
-# growth (not shift) is what actually erodes separability - an additive
+# growth (not shift) is what erodes separability - an additive
 # shift moves both classes by the same amount and so does not by itself
 # bring them closer together.
 drift_rate <- 0.09
@@ -220,25 +221,35 @@ init_labels[fixed == 0] <- sample(0:(K - 1), sum(fixed == 0), replace = TRUE)
 
 out_global <- fitBatchMix(X_obs, n_chains, R0, thin, batch_vec + 1, "MVN",
   initial_labels = init_labels, fixed = fixed,
-  auto_tune = TRUE, n_burn = n_burn0,
+  control = batchmixControl(n_burn = n_burn0),
   batch_weight_prior = "global"
 )
 
 out_pp <- fitBatchMix(X_obs, n_chains, R0, thin, batch_vec + 1, "MVN",
   initial_labels = init_labels, fixed = fixed,
-  auto_tune = TRUE, n_burn = n_burn0,
+  control = batchmixControl(n_burn = n_burn0),
   batch_weight_prior = "partial_pooling"
 )
 
 out_gp <- fitBatchMix(X_obs, n_chains, R0, thin, batch_vec + 1, "MVN",
   initial_labels = init_labels, fixed = fixed,
-  auto_tune = TRUE, n_burn = n_burn0,
+  control = batchmixControl(n_burn = n_burn0),
   batch_weight_prior = "gp", batch_coordinates = time_points,
   sample_gp_hyperparameters = TRUE
 )
 ```
 
 ## 4. MCMC diagnostics
+
+Each fit already carries its own rank-normalized split-\(\hat{R}\)/ESS
+report on the complete-data log-likelihood (`fitBatchMix()` computes this
+automatically whenever `n_chains >= 2` - see `?assessConvergence`):
+
+```{r printFits}
+out_global
+out_pp
+out_gp
+```
 
 ```{r diagPlots}
 plotAcceptanceRates(out_global)
@@ -254,42 +265,28 @@ process over irregular time points are a harder target than a single
 global weight - a batch's positive-class weight is only weakly identified
 by that batch's own (often heavily overlapping) data plus a handful of
 confirmed labels, so it is worth checking convergence explicitly for this
-quantity rather than only for the overall likelihood.
+quantity too, not only for the overall likelihood the reports above cover.
+`rankNormalizedRhat()` (the same rank-normalized, folded diagnostic behind
+the reports above) is exported and works directly on any raw sampled
+quantity such as this one:
 
 ```{r rhat}
-gelmanRubinRhat <- function(chain_matrix) {
-  # chain_matrix: iterations x chains, restricted to the second half of
-  # each chain.
-  n <- nrow(chain_matrix)
-  m <- ncol(chain_matrix)
-  chain_means <- colMeans(chain_matrix)
-  grand_mean <- mean(chain_means)
-  B_var <- n / (m - 1) * sum((chain_means - grand_mean)^2)
-  W_var <- mean(apply(chain_matrix, 2, var))
-  sqrt((((n - 1) / n) * W_var + B_var / n) / W_var)
+batch5_weight_rhat <- function(out, label) {
+  # Batch 5's positive-class weight: the batch right at the discontinuity,
+  # and so the hardest one for either of these two priors to pin down.
+  # Not checked for "global": every batch is identical by construction, so
+  # a per-batch Rhat there tests nothing beyond the likelihood report above.
+  w5 <- sapply(out, function(ch) ch$w_batch[5, 2, ])
+  half <- seq(floor(nrow(w5) / 2) + 1, nrow(w5))
+  cat(label, "Rhat, batch 5 positive-class weight:", round(rankNormalizedRhat(w5[half, ])$rhat, 3), "\n")
 }
 
-rhat_summary <- function(out, label, check_batch_weight = TRUE) {
-  lkl <- sapply(out, function(ch) ch$complete_likelihood)
-  half <- seq(floor(nrow(lkl) / 2) + 1, nrow(lkl))
-  cat(label, "R-hat, complete_likelihood:", round(gelmanRubinRhat(lkl[half, ]), 3), "\n")
-  if (check_batch_weight) {
-    # Batch 5's positive-class weight: the batch right at the discontinuity,
-    # and so the hardest one for either of these two priors to pin down.
-    # (Not checked for "global": every batch is identical by construction,
-    # so a per-batch R-hat there tests nothing beyond the likelihood check.)
-    w5 <- sapply(out, function(ch) ch$w_batch[5, 2, ])
-    cat(label, "R-hat, batch 5 positive-class weight:", round(gelmanRubinRhat(w5[half, ]), 3), "\n")
-  }
-}
-
-rhat_summary(out_global, "global", check_batch_weight = FALSE)
-rhat_summary(out_pp, "partial_pooling")
-rhat_summary(out_gp, "gp")
+batch5_weight_rhat(out_pp, "partial_pooling")
+batch5_weight_rhat(out_gp, "gp")
 ```
 
-If any of these are still well above the usual ~1.1 rule of thumb, the
-right move is to run longer via `continueChains()` before trusting
+If any diagnostic above is still well above the usual ~1.01 rule of thumb,
+the right move is to run longer via `continueChains()` before trusting
 anything downstream - not to explain it away.
 
 ```{r continueChains}
@@ -299,9 +296,12 @@ out_global <- continueChains(out_global, X_obs, fixed, batch_vec + 1, R_new, kee
 out_pp <- continueChains(out_pp, X_obs, fixed, batch_vec + 1, R_new, keep_old_samples = TRUE)
 out_gp <- continueChains(out_gp, X_obs, fixed, batch_vec + 1, R_new, keep_old_samples = TRUE)
 
-rhat_summary(out_global, "global (continued)", check_batch_weight = FALSE)
-rhat_summary(out_pp, "partial_pooling (continued)")
-rhat_summary(out_gp, "gp (continued)")
+out_global
+out_pp
+out_gp
+
+batch5_weight_rhat(out_pp, "partial_pooling (continued)")
+batch5_weight_rhat(out_gp, "gp (continued)")
 ```
 
 ```{r processChains}
@@ -321,7 +321,7 @@ Gaussian process over six irregular time points, fit to data with a real
 discontinuity in what it is modelling, is the hardest of the three targets
 to pin down. This vignette is kept to a single continuation call to keep
 its build time reasonable; in real use, keep calling `continueChains()`
-until every diagnostic you care about is comfortably below ~1.1, not just
+until every diagnostic of interest is comfortably below ~1.1, not just
 the ones checked here.
 
 ## 5. Recovered per-batch proportions vs the truth

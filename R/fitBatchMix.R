@@ -3,10 +3,11 @@
 #' @description The package's main entry point: fits \code{n_chains}
 #' independent chains of the batch mixture model and reports whether they
 #' agree before handing anything back. Every Metropolis-Hastings proposal
-#' window is auto-tuned by default (\code{auto_tune = TRUE}, via
-#' Robbins-Monro diminishing adaptation over the first \code{n_burn}
-#' iterations, frozen thereafter) - manually tuning \code{mu_proposal_window}
-#' and friends is not required for typical use. Fitting more than one chain
+#' window (bundled into \code{control}, see \code{\link{batchmixControl}})
+#' is auto-tuned by default (\code{control$auto_tune = TRUE}, via
+#' Robbins-Monro diminishing adaptation over the first \code{control$n_burn}
+#' iterations, frozen thereafter) - manually tuning proposal windows is not
+#' required for typical use. Fitting more than one chain
 #' (rather than calling \code{\link{runBatchMix}} once) is not optional
 #' extra rigour - it is how non-convergence is detected at all: a single
 #' chain can look perfectly stable on its own and still have converged to a
@@ -28,15 +29,19 @@
 #' @inheritParams runBatchMix
 #' @param ... Further arguments passed to \code{\link{runBatchMix}} (e.g.
 #' \code{include_interaction}, \code{batch_weight_prior} and their
-#' associated options, or \code{r_proposal_window}/\code{sigma_proposal_window}/
-#' \code{eta}/\code{column_type}/\code{censor_code} for \code{type}
-#' \code{'MVN_LKJ'}/\code{'MVN_MIXED'} - see \code{?runBatchMix} for the full
-#' list). Also accepts the deprecated \code{R} argument (renamed to
-#' \code{n_iter}; still works, with a warning, for this release, when
-#' passed positionally in its original slot or when every other argument is
-#' also named - naming \code{R} while leaving later arguments positional is
-#' not supported, since there is no way to bind two names to the same
-#' argument slot).
+#' associated options, or \code{eta}/\code{column_type}/\code{censor_code}
+#' for \code{type} \code{'MVN_LKJ'}/\code{'MVN_MIXED'} - see
+#' \code{?runBatchMix} for the full list). The MVN_LKJ/MVN_MIXED-only
+#' proposal windows (\code{r_proposal_window}, \code{sigma_proposal_window},
+#' \code{gamma_proposal_window}, \code{eta_proposal_window},
+#' \code{gp_hyperparameter_proposal_window}) are also accepted here and
+#' merged into \code{control} - passing them inside \code{control =
+#' batchmixControl(...)} directly is preferred. Also accepts the deprecated
+#' \code{R} argument (renamed to \code{n_iter}; still works, with a
+#' warning, for this release, when passed positionally in its original slot
+#' or when every other argument is also named - naming \code{R} while
+#' leaving later arguments positional is not supported, since there is no
+#' way to bind two names to the same argument slot).
 #' @returns A list of named lists (one per chain, each the output of
 #' ``runBatchMix``). If ``n_chains >= 2``, two attributes are attached to
 #' the returned list: ``attr(., "convergence")`` (the output of
@@ -89,10 +94,12 @@ fitBatchMix <- function(X,
                         fixed = NULL,
                         alpha = 1,
                         # -- MCMC control --
+                        control = batchmixControl(),
                         auto_tune = TRUE,
                         n_burn = NULL,
                         convergence_burn = NULL,
-                        # -- proposal windows (only matter if auto_tune = FALSE) --
+                        # -- proposal windows (deprecated - use `control` instead; only
+                        # matter if auto_tune = FALSE) --
                         mu_proposal_window = 0.5**2,
                         cov_proposal_window = 0.002,
                         m_proposal_window = 0.3**2,
@@ -111,12 +118,46 @@ fitBatchMix <- function(X,
                         verbose = TRUE,
                         ...) {
   dots <- list(...)
+  # strict_dots = FALSE: unlike runBatchMix()/batchSemiSupervisedMixtureModel()
+  # (whose `...` accepts only the deprecated `R`), fitBatchMix()'s `...` is
+  # documented to forward arbitrary extra arguments on to runBatchMix() (e.g.
+  # `include_interaction`, `batch_weight_prior`, `eta`, `column_type`) - only
+  # `R` should be resolved/consumed here, everything else stays in `dots` to
+  # be forwarded below.
   n_iter <- .resolveDeprecatedNIter(
-    missing(n_iter), if (missing(n_iter)) NULL else n_iter, dots, "fitBatchMix"
+    missing(n_iter), if (missing(n_iter)) NULL else n_iter, dots, "fitBatchMix",
+    strict_dots = FALSE
   )
   # `R`, if present, has just been resolved into `n_iter` above - drop it so
   # it is not forwarded (and re-warned about) inside runBatchMix() too.
   dots$R <- NULL
+
+  # `control` bundles every sampler-tuning argument (see ?batchmixControl).
+  # mu_/cov_/m_/S_/t_df_proposal_window/auto_tune/n_burn are deprecated
+  # formals here; r_/sigma_/gamma_/eta_/gp_hyperparameter_proposal_window
+  # (MVN_LKJ/MVN_MIXED-only) are not formals of fitBatchMix() and instead
+  # arrive via `...` - pulled out of `dots` here so they merge into
+  # `control` too, rather than being forwarded raw (which would otherwise
+  # silently override the resolved `control` once it reaches runBatchMix()).
+  deprecated_control_args <- list()
+  if (!missing(auto_tune)) deprecated_control_args$auto_tune <- auto_tune
+  if (!missing(n_burn)) deprecated_control_args$n_burn <- n_burn
+  if (!missing(mu_proposal_window)) deprecated_control_args$mu_proposal_window <- mu_proposal_window
+  if (!missing(cov_proposal_window)) deprecated_control_args$cov_proposal_window <- cov_proposal_window
+  if (!missing(m_proposal_window)) deprecated_control_args$m_proposal_window <- m_proposal_window
+  if (!missing(S_proposal_window)) deprecated_control_args$S_proposal_window <- S_proposal_window
+  if (!missing(t_df_proposal_window)) deprecated_control_args$t_df_proposal_window <- t_df_proposal_window
+
+  dots_control_fields <- c(
+    "r_proposal_window", "sigma_proposal_window", "gamma_proposal_window",
+    "eta_proposal_window", "gp_hyperparameter_proposal_window"
+  )
+  for (field in intersect(dots_control_fields, names(dots))) {
+    deprecated_control_args[[field]] <- dots[[field]]
+    dots[[field]] <- NULL
+  }
+
+  control <- .resolveControlArgs(missing(control), control, deprecated_control_args, "fitBatchMix")
 
   mcmc_lst <- vector("list", n_chains)
 
@@ -131,14 +172,8 @@ fitBatchMix <- function(X,
       initial_labels = initial_labels,
       fixed = fixed,
       alpha = alpha,
-      auto_tune = auto_tune,
-      n_burn = n_burn,
+      control = control,
       verbose = verbose,
-      mu_proposal_window = mu_proposal_window,
-      cov_proposal_window = cov_proposal_window,
-      m_proposal_window = m_proposal_window,
-      S_proposal_window = S_proposal_window,
-      t_df_proposal_window = t_df_proposal_window,
       m_scale = m_scale,
       rho = rho,
       theta = theta,
