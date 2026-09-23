@@ -9,6 +9,7 @@ plotPredictiveCheck(
   replicates,
   style = c("density", "statistic"),
   column = 1,
+  censor_code = NULL,
   statistic = mean,
   statistic_name = "statistic",
   max_replicates = 50
@@ -21,14 +22,29 @@ plotPredictiveCheck(
 or \code{\link{simulatePosteriorPredictive}} (each element has an
 \code{X} entry).}
 
-\item{style}{One of \code{"density"} or \code{"statistic"}.}
+\item{style}{One of \code{"density"} or \code{"statistic"}. For a binary/
+probit column (\code{type = "MVN_MIXED"}, \code{column_type == 1} in the
+original fit), use \code{"statistic"} with \code{statistic = mean} (the
+proportion of 1s) rather than \code{"density"}, which assumes a
+continuous column - see the "binary column" warning below.}
 
 \item{column}{Which column of X to check (used by both styles).}
+
+\item{censor_code}{Optional N x P matrix, non-zero where \code{X} was
+censored (see \code{\link{batchSemiSupervisedMixtureModel}}). When
+supplied, censored cells in \code{column} are excluded from the
+*observed* side of the comparison: \code{X}'s recorded value there is a
+censoring bound, not the true value, so it is not a fair comparison
+target for a replicate's freely-simulated draw (every replicate is fully
+observed - see \code{\link{simulatePriorPredictive}}/
+\code{\link{simulatePosteriorPredictive}}). \code{NA} entries in
+\code{X} (ordinary missingness) are always excluded from the observed
+side this way too, \code{censor_code} or not.}
 
 \item{statistic}{Only used if \code{style = "statistic"}: a function
 taking a numeric vector and returning a single number (e.g. \code{mean},
 \code{stats::sd}, or a closure over a batch-specific subset - see
-examples).}
+examples). Applied to the non-\code{NA} entries only.}
 
 \item{statistic_name}{Only used if \code{style = "statistic"}: a label
 for the x-axis.}

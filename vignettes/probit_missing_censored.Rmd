@@ -37,10 +37,17 @@ densities otherwise fits the data (see the covariance-model vignette) over
 `MVN_MIXED`, and reach for `MVN_MIXED` specifically when the data
 additionally has binary/probit columns or genuinely censored (not merely
 missing) entries. Prior/posterior predictive checks (see the
-getting-started vignette) are not supported for `type = "MVN_MIXED"` -
-replicating its probit/missingness/censoring layer is out of scope for
-that check - so the MCMC convergence diagnostics in this vignette are the
-primary check on the fit here.
+getting-started vignette) are supported for `type = "MVN_MIXED"` too
+(`simulatePriorPredictive()`/`simulatePosteriorPredictive()`,
+`column_type` argument): a binary column's replicate is the same shared
+latent Gaussian draw thresholded at 0 (Albert & Chib, 1993), matching
+`sigma`/`S` being fixed at 1 for that column below. Every replicate is
+fully observed - a censored cell's recorded value is only a bound, not the
+true value, so replicating "what a censored draw would look like" would
+mean also modelling the censoring mechanism itself, which is not attempted
+here; `plotPredictiveCheck()`'s `censor_code` argument instead excludes
+those cells from the observed side of the comparison. Used alongside the
+MCMC convergence diagnostics in this vignette, not in place of them.
 
 ## The hierarchical model
 
@@ -186,6 +193,41 @@ point estimate as indicative of sign and approximate scale rather than a
 precise value, and are encouraged to check convergence (as here) rather
 than take a single chain's answer at face value.
 
+### Predictive checks
+
+A binary column's replicate is the same shared latent Gaussian draw
+thresholded at 0 - `style = "statistic"` with `statistic = mean` is the
+right check for one (the proportion of 1s), not `style = "density"` (which
+assumes a continuous column; `plotPredictiveCheck()` warns if asked to use
+it on an apparently-binary column anyway).
+
+```{r predCheckA, fig.width=6, fig.height=3.5}
+prior_sims_a <- simulatePriorPredictive(
+  X, batch_vec0, K = 1, type = "MVN_MIXED", column_type = column_type
+)
+plotPredictiveCheck(X, prior_sims_a,
+  style = "density", column = 1
+) # continuous column: density overlay is appropriate
+plotPredictiveCheck(X, prior_sims_a,
+  style = "statistic", column = 3,
+  statistic = mean, statistic_name = "P(column 3 = 1)"
+) # binary column: proportion, not density
+
+post_sims_a <- simulatePosteriorPredictive(
+  chain_a, batch_vec0,
+  column_type = column_type, burn = 4000, n_draws = 100
+)
+plotPredictiveCheck(X, post_sims_a,
+  style = "statistic", column = 4,
+  statistic = mean, statistic_name = "P(column 4 = 1)"
+)
+```
+
+The posterior predictive check uses `chain_a`'s own stored `mean_sum`/
+`cov_comb` at each retained iteration directly - no separate prior/
+empirical-Bayes formula is re-derived, so there is no risk of it drifting
+out of sync with what the sampler actually fit.
+
 ## Part B: does proper missing/censoring handling matter?
 
 Compare the sampler's data augmentation against the common naive
@@ -274,6 +316,7 @@ like noise rather than a systematic drift towards the posterior mode.
   continuous samplers - this is the case in this package where manually
   tuning `control`'s proposal windows (rather than leaving `auto_tune =
   TRUE`) is worth doing, unlike the other vignettes.
-- With no supported predictive check for this `type`, `print()`/`summary()`
-  on the fit and standard MCMC trace/acceptance-rate diagnostics are the
-  primary tools for judging whether a fit of this type can be trusted.
+- `simulatePriorPredictive()`/`simulatePosteriorPredictive()` support this
+  `type` too (via `column_type`), alongside `print()`/`summary()` on the
+  fit and standard MCMC trace/acceptance-rate diagnostics, for judging
+  whether a fit of this type can be trusted.

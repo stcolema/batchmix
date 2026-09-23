@@ -44,6 +44,7 @@ calcAllocProb <- function(mcmc_samples, burn = 0, method = "median") {
   n_iter <- mcmc_samples$n_iter
   thin <- mcmc_samples$thin
   .alloc <- mcmc_samples$alloc
+  .samples <- mcmc_samples$samples
 
   if (burn > 0) {
     if (burn > n_iter) {
@@ -51,9 +52,27 @@ calcAllocProb <- function(mcmc_samples, burn = 0, method = "median") {
     }
 
     eff_burn <- floor(burn / thin)
-    dropped_samples <- seq(1, eff_burn)
-    .alloc <- .alloc[, , -dropped_samples]
+    # Deliberately not `-seq_len(eff_burn)` used directly: when eff_burn is
+    # 0 (e.g. 0 < burn < thin), indexing with an empty vector - negated or
+    # not - selects NOTHING in R, not "everything" (`(1:5)[-integer(0)]` is
+    # `integer(0)`, not `1:5`), so that would silently drop every sample
+    # instead of none. TRUE (recycled) keeps everything for eff_burn == 0.
+    keep_samples <- if (eff_burn > 0) -seq_len(eff_burn) else TRUE
+    # drop = FALSE: without it, indexing collapses .alloc to a 2D matrix
+    # whenever K == 1, breaking every array-shaped operation below.
+    .alloc <- .alloc[, , keep_samples, drop = FALSE]
+    .samples <- .samples[keep_samples, , drop = FALSE]
   }
+
+  # Mixture models are only identified up to a permutation of the component
+  # labels ("label switching") - align every iteration's allocation
+  # probabilities to a common reference before averaging/taking their
+  # median, or the summary below conflates genuine allocation uncertainty
+  # with harmless label permutation. See relabelChain(); calling it here
+  # with only `samples`/`alloc` set is idempotent (a no-op) when `.alloc`
+  # has already been relabelled by a caller such as processMCMCChain().
+  K_max <- if (!is.null(mcmc_samples$K_max)) mcmc_samples$K_max else ncol(.alloc)
+  .alloc <- relabelChain(list(samples = .samples, alloc = .alloc, K_max = K_max))$alloc
 
   probs <- NULL
 

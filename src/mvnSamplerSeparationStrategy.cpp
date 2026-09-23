@@ -14,7 +14,7 @@ using namespace arma ;
 // =============================================================================
 // mvnSamplerSeparationStrategy class
 
-mvnSamplerSeparationStrategy::mvnSamplerSeparationStrategy(                           
+mvnSamplerSeparationStrategy::mvnSamplerSeparationStrategy(
   arma::uword _K,
   arma::uword _B,
   double _mu_proposal_window,
@@ -181,14 +181,32 @@ _fixed) {
 void mvnSamplerSeparationStrategy::sampleCovPrior() {
   vec log_sigma(P);
   log_sigma.zeros();
+  mat cov_check;
   for(uword k = 0; k < K; k++){
-    R.slice(k) = sampleLKJCorrelationMatrix(P, eta);
-    log_sigma = randn<vec>(P, distr_param(beta, xi));
+    // R/sigma are each individually valid by construction (LKJ always
+    // gives a PD correlation matrix; exp() of a normal draw is always
+    // positive), but their product can, with vanishingly small
+    // probability, be PD in exact arithmetic yet numerically singular in
+    // floating point once R sits close to the boundary of the PD cone
+    // (confirmed empirically - see sigmaMHStep()/rMHStep()'s equivalent
+    // comments). matrixCombinations() runs immediately after
+    // sampleFromPriors() and unconditionally inverts cov.slice(k), so an
+    // initial draw this pathological would crash the sampler before a
+    // single sweep ran; redraw (a negligible-measure rejection of the
+    // pathological tail, not a bias on the prior) rather than let that
+    // happen.
+    bool ok = false;
+    const uword max_attempts = 50;
+    for(uword attempt = 0; attempt < max_attempts && !ok; attempt++) {
+      R.slice(k) = sampleLKJCorrelationMatrix(P, eta);
+      log_sigma = randn<vec>(P, distr_param(beta, xi));
 
-    sigma.col(k) = exp(log_sigma);
-    Sigma_mat.slice(k).diag() = sigma.col(k);
+      sigma.col(k) = exp(log_sigma);
+      Sigma_mat.slice(k).diag() = sigma.col(k);
 
-    cov.slice(k) = Sigma_mat.slice(k) * R.slice(k) * Sigma_mat.slice(k);
+      cov.slice(k) = Sigma_mat.slice(k) * R.slice(k) * Sigma_mat.slice(k);
+      ok = arma::inv_sympd(cov_check, cov.slice(k));
+    }
   }
 };
 
@@ -207,9 +225,13 @@ void mvnSamplerSeparationStrategy::sampleSPrior() {
 };
 
 void mvnSamplerSeparationStrategy::sampleMPrior() {
+  // batch_shift_prior_precision is a precision (1 / (delta_2 * lambda_2)),
+  // so the prior standard deviation is its inverse square root, not the
+  // precision itself.
+  double batch_shift_prior_sd = std::sqrt(1.0 / batch_shift_prior_precision);
   for(uword b = 0; b < B; b++){
     for(uword p = 0; p < P; p++){
-      m(p, b) = randn<double>() * batch_shift_prior_precision + batch_shift_prior_mean;
+      m(p, b) = randn<double>() * batch_shift_prior_sd + batch_shift_prior_mean;
     }
   }
 };
@@ -235,7 +257,7 @@ void mvnSamplerSeparationStrategy::sampleMScalePrior() {
 void mvnSamplerSeparationStrategy::sampleMScalePosterior() {
   double a_pos = 0.0, b_pos = 0.0;
   a_pos = a + 0.5 * P * B;
-  b_pos = 0.5 * accu(pow(m, 2.0)) / (2.0 * delta_2) + b;
+  b_pos = accu(pow(m, 2.0)) / (2.0 * delta_2) + b;
   lambda_2 = rInvGamma(a_pos, b_pos);
   batch_shift_prior_precision = 1.0 / (delta_2 * lambda_2);
 }
@@ -328,8 +350,10 @@ void mvnSamplerSeparationStrategy::calcBIC(){
 
   // Each occupied component has a weight, a mean vector and a symmetric
   // covariance matrix (via its R/sigma decomposition); each batch has a
-  // shift vector and a scale vector.
-  BIC = 2 * observed_likelihood - (n_param_cluster * K_occ + n_param_batch * B) * std::log(N);
+  // shift vector and a scale vector. structuralExtraBICParams() adds the
+  // interaction term's and/or the batch-specific weight prior's extra
+  // parameters when either is enabled (0 in the default configuration).
+  BIC = 2 * observed_likelihood - (n_param_cluster * K_occ + n_param_batch * B + structuralExtraBICParams()) * std::log(N);
 
 };
 
@@ -537,15 +561,28 @@ void mvnSamplerSeparationStrategy::batchScaleMetropolis() {
     }
     
     proposed_cov_comb = cov;
+    // S_proposed > S_loc always (a Gamma draw shifted by S_loc), so this
+    // only inflates each cluster's diagonal, which alone keeps PD +
+    // PSD = PD exactly - but cov.slice(k) itself may already be close to
+    // the boundary of the PD cone (see rMHStep()'s/sigmaMHStep()'s
+    // equivalent comments), so guard here too rather than assume.
+    // Automatic-reject-on-degenerate-proposal, same as those.
+    bool cov_ok = true;
     for(uword k = 0; k < K; k++) {
       for(uword p = 0; p < P; p++) {
         proposed_cov_comb.slice(k)(p, p) *= S_proposed(p);
       }
       proposed_cov_comb_log_det(k) = log_det(proposed_cov_comb.slice(k)).real();
-      proposed_cov_comb_inv.slice(k) = inv_sympd(proposed_cov_comb.slice(k));
+      cov_ok = arma::inv_sympd(proposed_cov_comb_inv.slice(k), proposed_cov_comb.slice(k));
+      if(!cov_ok) {
+        break;
+      }
     }
-    
-    proposed_model_score += sLogKernel(b, 
+    if(!cov_ok) {
+      continue;
+    }
+
+    proposed_model_score += sLogKernel(b,
       S_proposed, 
       proposed_cov_comb_log_det,
       proposed_cov_comb_inv
@@ -648,19 +685,53 @@ void mvnSamplerSeparationStrategy::rMHStep() {
     acceptance_prob = 0.0, proposed_model_score = 0.0, current_model_score = 0.0;
 
     // If no items in the class, sample from the prior distribution.
+    //
+    // R_proposed is a fresh, unconstrained LKJ(eta) draw, combined here
+    // with Sigma_mat.slice(k) - the CURRENT sigma, which sigmaMHStep()'s
+    // own empty-cluster branch may itself have freshly redrawn from its
+    // LogNormal(beta, xi) prior on a previous sweep (see the comment
+    // there). Neither draw is extreme on its own, but the combination is,
+    // with vanishingly small but nonzero probability over many thousands
+    // of sweeps, PD in exact arithmetic yet numerically singular in
+    // floating point (confirmed empirically) - inv_sympd() throwing on
+    // that is a real, reproducible crash. Redraw R_proposed (a
+    // negligible-measure rejection of the pathological tail, not a bias
+    // on the prior) up to max_attempts times using the non-throwing
+    // two-argument inv_sympd(), and if every attempt is still numerically
+    // degenerate, leave this cluster's R/cov untouched for this sweep
+    // rather than crash.
     if(N_k(k) == 0){
-      R_proposed = sampleLKJCorrelationMatrix(P, eta);
-      proposed_cov = Sigma_mat.slice(k) * R_proposed * Sigma_mat.slice(k);
-      proposed_cov_inv = arma::inv_sympd(proposed_cov);
+      bool ok = false;
+      const arma::uword max_attempts = 50;
+      for(arma::uword attempt = 0; attempt < max_attempts && !ok; attempt++) {
+
+        R_proposed = sampleLKJCorrelationMatrix(P, eta);
+        proposed_cov = Sigma_mat.slice(k) * R_proposed * Sigma_mat.slice(k);
+        ok = arma::inv_sympd(proposed_cov_inv, proposed_cov);
+        if(!ok) {
+          continue;
+        }
+
+        for(arma::uword b = 0; b < B; b++) {
+          proposed_cov_comb.slice(b) = proposed_cov;
+          for(arma::uword p = 0; p < P; p++) {
+            proposed_cov_comb.slice(b)(p, p) *= S(p, b);
+          }
+          ok = arma::inv_sympd(proposed_cov_comb_inv.slice(b), proposed_cov_comb.slice(b));
+          if(!ok) {
+            break;
+          }
+        }
+      }
+
+      if(!ok) {
+        continue;
+      }
+
       proposed_r_log_det = arma::log_det(R_proposed).real();
       proposed_cov_log_det = arma::log_det(proposed_cov).real();
       for(arma::uword b = 0; b < B; b++) {
-        proposed_cov_comb.slice(b) = proposed_cov;
-        for(arma::uword p = 0; p < P; p++) {
-          proposed_cov_comb.slice(b)(p, p) *= S(p, b);
-        }
         proposed_cov_comb_log_det(b) = arma::log_det(proposed_cov_comb.slice(b)).real();
-        proposed_cov_comb_inv.slice(b) = arma::inv_sympd(proposed_cov_comb.slice(b));
       }
     } else {
 
@@ -681,8 +752,28 @@ void mvnSamplerSeparationStrategy::rMHStep() {
       // correct. This is the standard fix (Stan Reference Manual,
       // "Cholesky Factors of Correlation Matrices"; McElreath,
       // *Statistical Rethinking*, ch. 14).
+      // arma::chol()'s 2-argument (output-parameter) form is the
+      // non-throwing one: it returns false, rather than throwing, on
+      // failure, and on failure leaves L_current EMPTY (0x0) rather than
+      // P x P. The return value was not being checked here, so a failure
+      // silently fed an empty matrix into choleskyToPartialCorrelations(),
+      // which indexes it assuming P x P - an out-of-bounds crash
+      // (confirmed empirically via gdb backtrace), not a hypothetical.
+      // R.slice(k) is always a valid correlation matrix in exact
+      // arithmetic (every acceptance in this file now checks inv_sympd()
+      // succeeds first - see the comments above), but "invertible enough
+      // for inv_sympd" and "well-conditioned enough for a stable Cholesky
+      // factorisation" are not quite the same numerical threshold, so a
+      // just-barely-accepted R can still fail here. Treat that the same
+      // way every other numerically-degenerate case in this file is
+      // treated: skip this cluster's correlation update for this sweep
+      // (no candidate proposal can be formed, so there is nothing to
+      // accept or reject) rather than crash.
       mat L_current;
-      arma::chol(L_current, R.slice(k), "lower");
+      bool chol_ok = arma::chol(L_current, R.slice(k), "lower");
+      if(!chol_ok) {
+        continue;
+      }
       mat Z_current = choleskyToPartialCorrelations(L_current, P);
       mat Z_proposed = Z_current;
 
@@ -713,7 +804,26 @@ void mvnSamplerSeparationStrategy::rMHStep() {
       proposed_model_score = log_jacobian_ratio;
 
       proposed_cov = Sigma_mat.slice(k) * R_proposed * Sigma_mat.slice(k);
-      proposed_cov_inv = arma::inv_sympd(proposed_cov);
+      // The Cholesky/partial-correlation reparameterisation guarantees
+      // R_proposed is PD in exact arithmetic for any Z in (-1,1)^(P(P-1)/2)
+      // - but it does not keep R_proposed away from the boundary of the PD
+      // cone, and a proposal legitimately close to that boundary (e.g. two
+      // dimensions with a highly correlated random-walk state) can be PD
+      // in exact arithmetic yet numerically singular in floating point
+      // (confirmed empirically: a real proposal here had eigenvalues down
+      // to ~1.4e-4, with the smallest nominally -1.3e-16 after symmetrising
+      // - a genuine near-singular case, not a coding bug in the
+      // reparameterisation). The textbook-correct treatment of a proposal
+      // whose target density is numerically undefined is to treat it as
+      // automatically rejected (acceptance probability 0), exactly like
+      // the `next`/`continue` pattern already used elsewhere in this file
+      // for degenerate individual-parameter proposals - not to retry with
+      // a different proposal, which is only appropriate for the
+      // unconditional prior draw used in the N_k(k) == 0 branch above.
+      bool cov_ok = arma::inv_sympd(proposed_cov_inv, proposed_cov);
+      if(!cov_ok) {
+        continue;
+      }
       proposed_r_log_det = arma::log_det(R_proposed).real();
       proposed_cov_log_det = arma::log_det(proposed_cov).real();
 
@@ -723,7 +833,13 @@ void mvnSamplerSeparationStrategy::rMHStep() {
           proposed_cov_comb.slice(b)(p, p) *= S(p, b);
         }
         proposed_cov_comb_log_det(b) = arma::log_det(proposed_cov_comb.slice(b)).real();
-        proposed_cov_comb_inv.slice(b) = arma::inv_sympd(proposed_cov_comb.slice(b));
+        cov_ok = arma::inv_sympd(proposed_cov_comb_inv.slice(b), proposed_cov_comb.slice(b));
+        if(!cov_ok) {
+          break;
+        }
+      }
+      if(!cov_ok) {
+        continue;
       }
 
       // The proposed model score is updated by the posterior kernel with the
@@ -804,48 +920,67 @@ void mvnSamplerSeparationStrategy::sigmaMHStep() {
     
     acceptance_prob = 0.0, proposed_model_score = 0.0, current_model_score = 0.0;
     
-    // If no items in the class, sample from the prior distribution.
+    // If no items in the class, sample fresh from the prior distribution
+    // (matching sampleCovPrior()'s log_sigma ~ N(beta, xi), sigma = exp(log_sigma))
+    // rather than an uncorrected, force-accepted random walk off the
+    // cluster's current (possibly stale) sigma - see clusterMeanMetropolis()'s
+    // N_k(k)==0 branch for the same pattern applied to mu.
+    //
+    // A fresh LogNormal(beta, xi) draw is, with vanishingly small but
+    // nonzero probability over many thousands of sweeps, extreme enough
+    // (xi = 1 on the log scale) that sigma_mat_proposed * R.slice(k) *
+    // sigma_mat_proposed is PD in exact arithmetic but numerically
+    // singular in floating point once R sits close to the boundary of the
+    // PD cone (LKJ(eta) does not keep correlations away from that
+    // boundary) - inv_sympd() throwing on that is a real, reproducible
+    // crash (confirmed empirically), not a hypothetical. The single-arg
+    // inv_sympd() used everywhere else in this file assumes that never
+    // happens; here, where the whole point is an unconstrained fresh draw
+    // every sweep an empty cluster persists, redraw (a negligible-measure
+    // rejection of the pathological tail, not a bias on the prior) up to
+    // max_attempts times using the non-throwing two-argument inv_sympd(),
+    // and if every attempt is still numerically degenerate, leave this
+    // cluster's sigma/cov untouched for this sweep rather than crash - the
+    // same "reject this sweep's proposal" behaviour degenerate/singular
+    // proposals already get via `next`/`continue` in the branch below.
     if(N_k(k) == 0){
-      
-      for(uword p = 0; p < P; p++) {
-        
-        sigma_proposed(p) = randg( distr_param( sigma(p, k) * sigma_proposal_window, 1.0 / sigma_proposal_window) );
-        
-        if(sigma_proposed(p) <= 1e-8) {
-          next = true;
+
+      bool ok = false;
+      const arma::uword max_attempts = 50;
+      for(arma::uword attempt = 0; attempt < max_attempts && !ok; attempt++) {
+
+        sigma_proposed = arma::exp(arma::randn<vec>(P, distr_param(beta, xi)));
+        sigma_mat_proposed.diag() = sigma_proposed;
+
+        proposed_cov = sigma_mat_proposed * R.slice(k) * sigma_mat_proposed;
+        ok = arma::inv_sympd(proposed_cov_inv, proposed_cov);
+        if(!ok) {
+          continue;
         }
 
-        // Asymmetric proposal density: the forward proposal q(proposed|current)
-        // has shape parameterised by the CURRENT value, and the reverse
-        // proposal q(current|proposed) has shape parameterised by the
-        // PROPOSED value - not each value scored under its own
-        // (self-referencing, hence uninformative) proposal shape. The
-        // reverse density q(current|proposed) goes with proposed_model_score
-        // (paired with pi(proposed) there) and the forward density
-        // q(proposed|current) goes with current_model_score (paired with
-        // pi(current)) - see the derivation/empirical check in
-        // batchScaleMetropolis, which had this the other way round.
-        proposed_model_score += gammaLogLikelihood(sigma(p, k), sigma_proposed(p) * sigma_proposal_window, sigma_proposal_window);
-        current_model_score += gammaLogLikelihood(sigma_proposed(p), sigma(p, k) * sigma_proposal_window, sigma_proposal_window);
+        for(arma::uword b = 0; b < B; b++) {
+          proposed_cov_comb.slice(b) = proposed_cov;
+          for(arma::uword p = 0; p < P; p++) {
+            proposed_cov_comb.slice(b)(p, p) *= S(p, b);
+          }
+          ok = arma::inv_sympd(proposed_cov_comb_inv.slice(b), proposed_cov_comb.slice(b));
+          if(!ok) {
+            break;
+          }
+        }
       }
 
-      if(next) {
+      if(!ok) {
+        // Every attempt was numerically degenerate - leave this cluster's
+        // parameters untouched this sweep rather than propagate a matrix
+        // inv_sympd() could not invert.
         continue;
       }
 
-      sigma_mat_proposed.diag() = sigma_proposed;
-
-      proposed_cov = sigma_mat_proposed * R.slice(k) * sigma_mat_proposed;
-      proposed_cov_inv = arma::inv_sympd(proposed_cov);
       proposed_sigma_log_det = arma::log_det(sigma_mat_proposed).real();
       proposed_cov_log_det = arma::log_det(proposed_cov).real();
       for(arma::uword b = 0; b < B; b++) {
-        proposed_cov_comb.slice(b) = proposed_cov;
-        for(arma::uword p = 0; p < P; p++) {
-          proposed_cov_comb.slice(b)(p, p) *= S(p, b);
-        }
         proposed_cov_comb_log_det(b) = arma::log_det(proposed_cov_comb.slice(b)).real();
-        proposed_cov_comb_inv.slice(b) = arma::inv_sympd(proposed_cov_comb.slice(b));
       }
     } else {
 
@@ -877,20 +1012,35 @@ void mvnSamplerSeparationStrategy::sigmaMHStep() {
       sigma_mat_proposed.diag() = sigma_proposed;
       
       proposed_cov = sigma_mat_proposed * R.slice(k) * sigma_mat_proposed;
-      proposed_cov_inv = arma::inv_sympd(proposed_cov);
+      // Same reasoning as rMHStep()'s non-empty branch: a proposal can be
+      // PD in exact arithmetic (R.slice(k) is always a valid correlation
+      // matrix, sigma_proposed always positive) yet numerically singular
+      // in floating point when R.slice(k) sits close to the boundary of
+      // the PD cone - treat that as an automatic reject (acceptance
+      // probability 0), not a retry.
+      bool cov_ok = arma::inv_sympd(proposed_cov_inv, proposed_cov);
+      if(!cov_ok) {
+        continue;
+      }
       proposed_sigma_log_det = arma::log_det(sigma_mat_proposed).real();
       proposed_cov_log_det = arma::log_det(proposed_cov).real();
-      
+
       for(arma::uword b = 0; b < B; b++) {
         proposed_cov_comb.slice(b) = proposed_cov;
         for(arma::uword p = 0; p < P; p++) {
           proposed_cov_comb.slice(b)(p, p) *= S(p, b);
         }
         proposed_cov_comb_log_det(b) = arma::log_det(proposed_cov_comb.slice(b)).real();
-        proposed_cov_comb_inv.slice(b) = arma::inv_sympd(proposed_cov_comb.slice(b));
+        cov_ok = arma::inv_sympd(proposed_cov_comb_inv.slice(b), proposed_cov_comb.slice(b));
+        if(!cov_ok) {
+          break;
+        }
       }
-      
-      // The proposed model score is updated by the posterior kernel with the 
+      if(!cov_ok) {
+        continue;
+      }
+
+      // The proposed model score is updated by the posterior kernel with the
       // proposed covariance, it's log determinant, inverse and the new 
       // likelihood covariance
       

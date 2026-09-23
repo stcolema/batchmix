@@ -8,7 +8,10 @@
 #' @param group_means A vector of the group means for a column.
 #' @param group_std_devs A vector of group standard deviations for a column.
 #' @param batch_shift A vector of batch means in a column.
-#' @param batch_scale A vector of batch standard deviations within a column.
+#' @param batch_scale A vector of batch variance-inflation factors within a
+#' column: \eqn{Var(x) = group\_std\_dev^2 \times batch\_scale}, matching
+#' the fitted model's batch scale \eqn{S_b} (applied linearly to the
+#' variance, not as a standard-deviation multiplier).
 #' @param group_weights A K x B matrix of the expected proportion of N in each group in each batch.
 #' @param batch_weights A vector of the expected proportion of N in each batch.
 #' @param type A string indicating if data should be generated from

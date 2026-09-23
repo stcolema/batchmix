@@ -229,6 +229,16 @@ public:
   double gpHyperparameterLogKernel(arma::mat cov, arma::mat cov_inv);
   void gpHyperparameterMetropolis();
 
+  // Extra free-parameter count (beyond each concrete calcBIC()'s baseline
+  // cluster/batch terms) contributed by the opt-in interaction term and/or
+  // batch-specific weight prior, when either is switched on. Shared across
+  // every concrete sampler since it only touches members declared here
+  // (K_occ/B/P/include_interaction/weight_prior_type/
+  // sample_gp_hyperparameters) - see calcBIC() in each subclass, and
+  // sampleTauInteractionPosterior() above for the (K-1)(B-1)-per-feature
+  // effective dimension of gamma this mirrors.
+  double structuralExtraBICParams() const;
+
   // Mixture specific functions (therefore virtual at this level)
   virtual void metropolisStep() = 0;
   virtual void sampleFromPriors() = 0;

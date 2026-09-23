@@ -27,7 +27,10 @@ generateBatchDataVaryingRepresentation(
 
 \item{batch_shift}{A vector of batch means in a column.}
 
-\item{batch_scale}{A vector of batch standard deviations within a column.}
+\item{batch_scale}{A vector of batch variance-inflation factors within a
+column: \eqn{Var(x) = group\_std\_dev^2 \times batch\_scale}, matching
+the fitted model's batch scale \eqn{S_b} (applied linearly to the
+variance, not as a standard-deviation multiplier).}
 
 \item{group_weights}{A K x B matrix of the expected proportion of N in each group in each batch.}
 

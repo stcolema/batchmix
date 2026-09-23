@@ -94,7 +94,7 @@ from.}
 'MVT' (multivariate t distribution), 'MVN_LKJ' (multivariate normal with
 an LKJ prior on the cluster correlation structure and log-normal marginal
 scales, decoupling correlation and scale beliefs - see
-\code{vignette("lkj_correlation_recovery", package = "batchmix")}), or
+\code{vignette("covariance_models", package = "batchmix")}), or
 'MVN_MIXED' (as 'MVN_LKJ', extended to support binary/probit columns and
 missing/censored continuous entries - see
 \code{vignette("probit_missing_censored", package = "batchmix")}, and the
@@ -104,10 +104,16 @@ missing/censored continuous entries - see
 number of clusters in each sample). Defaults to the number of unique labels
 in ``initial_labels`` if given, else \code{min(floor(N / 2), 50)}.}
 
-\item{alpha}{The concentration parameter for the stick-breaking prior and
-the weights in the model. Only used if \code{concentration} (only
-available on \code{\link{batchSemiSupervisedMixtureModel}} directly) is
-not given.}
+\item{alpha}{The (symmetric) concentration parameter for the component
+weights \code{w} in the model, used as \code{rep(alpha, K_max)} to build
+\code{concentration}; only used if \code{concentration} (only available on
+\code{\link{batchSemiSupervisedMixtureModel}} directly) is not given. Also
+passed to \code{\link{generateInitialLabels}}'s stick-breaking prior
+\emph{only} to draw a starting clustering when \code{initial_labels} is
+not supplied - a different (GEM/Dirichlet-process) prior to the one above,
+but since it only chooses where the chain starts and not the model being
+fit, this does not bias the posterior; see
+\code{\link{generateInitialLabels}}.}
 
 \item{concentration}{Initial concentration vector for component weights;
 alternative to \code{alpha} (only one of the two should be given) for

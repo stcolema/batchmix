@@ -71,8 +71,8 @@ minVI <- function(psm,
   # number of datapoints - note this is only used by 'avg' and 'comp' methods
   if (is.null(max.k)) {
     max.k <- ceiling(dim(psm)[1] / 4)
-    k_inds <- seq(1, max.k)
   }
+  k_inds <- seq(1, max.k)
 
   # If using the 'average' method
   if (method == "avg" | method == "all") {

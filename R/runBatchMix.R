@@ -58,10 +58,16 @@
 #' \code{\link{generateInitialLabels}}.
 #' @param fixed Which items are fixed in their initial label. If not given,
 #' defaults to a vector of 0 meaning the model is run unsupervised.
-#' @param alpha The concentration parameter for the stick-breaking prior and
-#' the weights in the model. Only used if \code{concentration} (only
-#' available on \code{\link{batchSemiSupervisedMixtureModel}} directly) is
-#' not given.
+#' @param alpha The (symmetric) concentration parameter for the component
+#' weights \code{w} in the model, used as \code{rep(alpha, K_max)} to build
+#' \code{concentration}; only used if \code{concentration} (only available on
+#' \code{\link{batchSemiSupervisedMixtureModel}} directly) is not given. Also
+#' passed to \code{\link{generateInitialLabels}}'s stick-breaking prior
+#' \emph{only} to draw a starting clustering when \code{initial_labels} is
+#' not supplied - a different (GEM/Dirichlet-process) prior to the one above,
+#' but since it only chooses where the chain starts and not the model being
+#' fit, this does not bias the posterior; see
+#' \code{\link{generateInitialLabels}}.
 #' @param control A \code{\link{batchmixControl}} object bundling every
 #' Metropolis-Hastings proposal window and the auto-tuning schedule
 #' (\code{auto_tune}/\code{n_burn}) - the sampler-tuning knobs that rarely

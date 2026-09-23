@@ -8,7 +8,10 @@
 #' @param group_means A vector of the group means for a column.
 #' @param group_std_dev A vector of group standard deviations for a column.
 #' @param batch_shift A vector of batch means in a column.
-#' @param batch_scale A vector of batch standard deviations within a column.
+#' @param batch_scale A vector of batch variance-inflation factors within a
+#' column: \eqn{Var(x) = group\_std\_dev^2 \times batch\_scale}, matching
+#' the fitted model's batch scale \eqn{S_b} (applied linearly to the
+#' variance, not as a standard-deviation multiplier).
 #' @param group_weights A K x B matrix of the expected proportion of N in each group in each batch.
 #' @param batch_weights A vector of the expected proportion of N in each batch.
 #' @param frac_known The expected fraction of observed labels. Used to generate
@@ -121,9 +124,11 @@ generateBatchDataVaryingRepresentation <- function(N,
       .m <- reordered_batch_shift[b]
       .s <- reordered_batch_scale[b]
 
-      # Corrected and observed data point
+      # Corrected and observed data point. .s (batch_scale) is a
+      # variance-inflation factor, matching how the fitted model applies
+      # S_b to the covariance linearly - hence sqrt(.s), not .s.
       true_data[n, p] <- x * .sd + .mu
-      observed_data[n, p] <- x * .sd * .s + .mu + .m
+      observed_data[n, p] <- x * .sd * sqrt(.s) + .mu + .m
     }
   }
 
