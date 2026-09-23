@@ -197,8 +197,10 @@ void mvtSampler::calcBIC(){
 
   // Each occupied component has a weight, a mean vector, a symmetric
   // covariance matrix and a degrees-of-freedom parameter; each batch has a
-  // shift vector and a scale vector.
-  BIC = 2 * observed_likelihood - (n_param_cluster * K_occ + n_param_batch * B) * std::log(N);
+  // shift vector and a scale vector. structuralExtraBICParams() adds the
+  // interaction term's and/or the batch-specific weight prior's extra
+  // parameters when either is enabled (0 in the default configuration).
+  BIC = 2 * observed_likelihood - (n_param_cluster * K_occ + n_param_batch * B + structuralExtraBICParams()) * std::log(N);
 
 };
 

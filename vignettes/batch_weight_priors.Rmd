@@ -89,8 +89,8 @@ class_sd <- 1.0
 # growth (not shift) is what erodes separability - an additive
 # shift moves both classes by the same amount and so does not by itself
 # bring them closer together.
-drift_rate <- 0.09
-scale_rate <- 0.085
+drift_rate <- 0.1
+scale_rate <- 0.1
 batch_shift_true <- drift_rate * time_points
 batch_scale_true <- 1 + scale_rate * time_points # S_loc has support [1, Inf)
 
@@ -116,7 +116,10 @@ for (b in seq_len(B)) {
   for (k in cls) {
     z <- rnorm(P, mean = mu_true[k + 1, ], sd = class_sd)
     X_true[row_i, ] <- z
-    X_obs[row_i, ] <- (z - mu_true[k + 1, ]) * batch_scale_true[b] +
+    # batch_scale_true is a variance-inflation factor, matching how the
+    # fitted model applies S_b to the covariance linearly (Var = class_sd^2
+    # * batch_scale) - hence sqrt() here, not a direct SD multiplier.
+    X_obs[row_i, ] <- (z - mu_true[k + 1, ]) * sqrt(batch_scale_true[b]) +
       mu_true[k + 1, ] + batch_shift_true[b]
     labels_true[row_i] <- k
     batch_vec[row_i] <- b - 1
@@ -212,9 +215,9 @@ can be checked before trusting any of it (Section 4).
 
 ```{r fitModels}
 n_chains <- 4
-R0 <- 6000
+R0 <- 1000
 thin <- 15
-n_burn0 <- 3000
+n_burn0 <- 300
 
 init_labels <- labels_true
 init_labels[fixed == 0] <- sample(0:(K - 1), sum(fixed == 0), replace = TRUE)
@@ -290,7 +293,7 @@ the right move is to run longer via `continueChains()` before trusting
 anything downstream - not to explain it away.
 
 ```{r continueChains}
-R_new <- 18000
+R_new <- 5000
 
 out_global <- continueChains(out_global, X_obs, fixed, batch_vec + 1, R_new, keep_old_samples = TRUE)
 out_pp <- continueChains(out_pp, X_obs, fixed, batch_vec + 1, R_new, keep_old_samples = TRUE)

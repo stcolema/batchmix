@@ -196,6 +196,21 @@
   main `batchSemiSupervisedMixtureModel()`/`runBatchMix()` API, including
   the semi-supervised (`fixed`) path, rather than only via low-level direct
   constructor calls.
+* **`simulatePriorPredictive()`/`simulatePosteriorPredictive()` now support
+  `type = "MVN_MIXED"`.** Every column simulates the same shared latent
+  Gaussian draw as `"MVN_LKJ"`; binary/probit-linked columns
+  (`column_type == 1`) are then thresholded at 0 (Albert & Chib, 1993),
+  matching `sigma`/`S` being fixed at 1 for those columns in the real
+  sampler. Every replicate is fully observed (no `NA`/censoring) - the
+  model's own assumption is that missing/censored cells are draws from
+  exactly the same distribution as every other cell, so simulating them
+  like any other cell is the model-consistent replicate.
+  `plotPredictiveCheck()` gained a `censor_code` argument that instead
+  excludes the real data's censored cells from the comparison (a recorded
+  censoring bound is not the true value to compare a free replicate draw
+  against), and now warns if asked for a `style = "density"` check on an
+  apparently-binary column (`style = "statistic"` with `statistic = mean`,
+  the proportion of 1s, is the appropriate check there).
 
 ## Bug fixes
 
@@ -241,9 +256,186 @@
   only the newly-sampled segment - including for the default
   `batch_weight_prior = "global"` case, where `w_batch`/`eta_alr` are still
   returned (just constant across batches) and so still need combining.
+* Fixed `sampleMScalePosterior()` (the conjugate Gibbs update for the
+  batch-shift variance hyperparameter `lambda_2`) computing the InvGamma
+  posterior rate as `sum(m^2) / (4 * delta_2)` instead of the correct
+  `sum(m^2) / (2 * delta_2)` - an erroneous extra factor of 0.5, live every
+  sweep by default (`sample_m_scale = TRUE`), that systematically shrunk
+  `lambda_2` and so over-shrunk every batch shift `m_b` toward zero more
+  than the model's own prior warranted. Present identically in
+  `mvnSamplerSeparationStrategy` (and hence `mvnSamplerMixed`, which
+  inherits it).
+* Fixed `sampleMPrior()` drawing the prior for the batch shift `m` as
+  `N(mean, precision)` instead of `N(mean, 1/precision)`
+  (`batch_shift_prior_precision` is a precision, so its standard deviation
+  is the inverse square root, not the precision itself) - with typical
+  hyperparameters this drew the initial `m` roughly three orders of
+  magnitude too diffuse. Only affects `sampleFromPriors()`'s one-off initial
+  draw (the ongoing Metropolis-Hastings step already used the correct
+  density), so burn-in started from a badly-scaled point rather than the
+  stationary posterior itself being affected. Present identically in
+  `mvnSamplerSeparationStrategy`.
+* Fixed `mvnSamplerSeparationStrategy`/`mvnSamplerMixed`'s `sigmaMHStep()`
+  for a persistently empty cluster (`N_k(k) == 0`): despite the comment
+  ("sample from the prior distribution"), it actually proposed an
+  uncorrected, force-accepted random walk off the cluster's current
+  (possibly stale) marginal scale `sigma`, rather than a fresh draw from the
+  LogNormal(beta, xi) prior - an unbounded drift for any component with no
+  members, inconsistent with the (correct) empty-cluster handling already
+  used for `mu`/covariance elsewhere in the same file.
+* Fixed the semi-supervised observed-data log-likelihood (and hence BIC)
+  marginalising over every component even for items with a known (`fixed`)
+  label, instead of using the joint density at the known label directly -
+  this systematically inflated `observed_likelihood`/`BIC` for any
+  semi-supervised fit, biasing `getBestChain()`'s BIC-based chain selection
+  and any BIC comparison across models with different `fixed` vectors.
+* Fixed `calcBIC()` (every sampler variant) not counting the extra free
+  parameters contributed by the opt-in cluster x batch interaction term
+  (`include_interaction = TRUE`) or a batch-specific weight prior
+  (`batch_weight_prior = "partial_pooling"`/`"gp"`), biasing BIC comparisons
+  in favour of the richer model whenever either feature is used (both
+  contribute exactly 0 extra parameters in the default configuration, so
+  ordinary fits are unaffected).
+* Fixed `processMCMCChain()` computing every cluster-indexed point estimate
+  (`mean_est`, `cov_est`, `mean_sum_est`, `cov_comb_est`, `weights`,
+  `t_df_est`, `gamma_est`, `w_batch_est`, `allocation_probability`) by
+  averaging/taking the median of the raw per-iteration arrays directly by
+  component index, with no correction for label switching - only valid when
+  every component happens to be permanently anchored by a fixed
+  (semi-supervised) item, silently wrong otherwise (any unsupervised fit, or
+  any semi-supervised fit with `K_max` above the number of labelled
+  classes). Added `relabelChain()` (Equivalence Classes Representatives via
+  the Hungarian algorithm on each iteration's overlap with a reference
+  labelling, `clue::solve_LSAP`) and call it, after burn-in and before any
+  point estimate, from both `processMCMCChain()` and `calcAllocProb()`.
+* Fixed `processMCMCChain()` withholding `allocation_probability`/`prob`/
+  `pred` entirely for a fully unsupervised fit (only ever computing them for
+  a semi-supervised one) - once `relabelChain()` (above) makes an
+  unsupervised fit's relabelled `alloc` just as well-defined as a
+  semi-supervised one's, there is no reason a point-estimate predicted
+  label shouldn't be available for an unsupervised fit too (e.g. for
+  comparing recovered clusters against a known ground truth on simulated
+  data, as `vignette("covariance_models")` does).
+* Fixed `processMCMCChain()`'s `mean_sum_est`/`cov_comb_est` extracting the
+  wrong (cluster, batch) column block whenever `K_max > 1` and `B > 1`:
+  `mean_sum`/`cov_comb` are stored with the cluster index varying slowest
+  (column/block position `(k - 1) * B + b`), but the extraction pulled
+  contiguous blocks as if the batch index varied slowest, silently mixing up
+  which cluster's estimate got paired with which batch's.
+* Fixed `processMCMCChain()`/`calcAllocProb()` applying no burn-in at all
+  (dropping every sample instead of none) whenever the effective burn-in
+  was 0 (e.g. any `0 < burn < thin`): the fix for the earlier `seq(1, 0) ==
+  c(1, 0)` bug (see above in this same pass) introduced `-seq_len(0) ==
+  -integer(0)`, and indexing with an empty vector in R - negated or not -
+  selects nothing, not everything (`(1:5)[-integer(0)]` is `integer(0)`, not
+  `1:5`); every burn-in trim in both functions now guards this case
+  explicitly.
+* Fixed `processMCMCChain()`'s `batch_corrected_data`/`alloc` trimming
+  silently collapsing to one fewer dimension than every other trimmed
+  quantity (breaking `point_estimate_method = "mean"` outright, and
+  returning the wrong shape/un-averaged values for `"median"`) whenever
+  `P == 1` or `K == 1` respectively, from a missing `drop = FALSE`.
+* Fixed `minVI(..., max.k = <value>)` throwing `object 'k_inds' not found`
+  for every method except `"draws"` - `k_inds` was only ever assigned inside
+  the `is.null(max.k)` branch.
+* Fixed `prepareInitialParameters()` requiring *both* dimensions of an
+  initial means/batch-shift/batch-scale matrix to be wrong before rejecting
+  it (`&` where `|` was meant), so e.g. a matrix with the right number of
+  columns but wrong number of rows silently passed validation.
+* Fixed `generateBatchData()`/`generateBatchDataMVT()`/
+  `generateBatchDataVaryingRepresentation()` (and the hand-written simulator
+  in `vignette("batch_weight_priors")`) applying `batch_scale` as a
+  standard-deviation multiplier (`Var = sd^2 * batch_scale^2`) when the
+  fitted model applies it linearly to the variance (`Var = sd^2 *
+  batch_scale`) - simulating with a given `batch_scale` and fitting the
+  model back to it recovered a `scale_est` roughly the square of the value
+  used to generate the data, not the value itself.
+* Fixed `simulatePriorPredictive()`'s batch-shift draw using the stale,
+  pre-fix `1 / (delta_2 * lambda_2)` scale instead of the corrected
+  `sqrt(delta_2 * lambda_2)` (see the `sampleMPrior()` fix above) - this R
+  mirror of the C++ prior was not updated when the C++ itself was fixed,
+  so the prior predictive check's simulated batch shifts were roughly two
+  orders of magnitude too diffuse.
+* Fixed `simulatePriorPredictive()`/`simulatePosteriorPredictive()`
+  erroring or silently misbehaving for two ordinary configurations:
+  `diag(cov_comb) <- ...` failed outright whenever `P == 1` (a univariate
+  dataset - `cov[, , k]` collapses to a bare scalar, not a 1x1 matrix, for
+  which `diag<-` doesn't work), and `simulatePosteriorPredictive()`'s
+  `mean_sum`/`cov_comb` extraction collapsed to the wrong shape whenever
+  `K_max * B == 1` (a single cluster and a single batch), from the same
+  class of missing-`drop = FALSE` indexing gotcha fixed elsewhere in this
+  pass.
+* Fixed a crash reported against `type = "MVN_LKJ"` (and, by inheritance,
+  `"MVN_MIXED"`): `inv_sympd(): matrix is singular or not positive
+  definite`, and, once that was fixed, `Mat::operator(): index out of
+  bounds`. Root-caused via a gdb backtrace on a real crashing run: a
+  random-walk proposal for the correlation matrix `R`, reparameterised via
+  a Cholesky/partial-correlation transform, is guaranteed PD in exact
+  arithmetic for any candidate - but not kept away from the boundary of the
+  PD cone, and a proposal legitimately close to that boundary can be PD in
+  exact arithmetic yet numerically singular in floating point (confirmed:
+  eigenvalues down to ~1.4e-4, smallest nominally -1.3e-16 after
+  symmetrising - a real, if rare, floating-point edge case, not a coding
+  error in the reparameterisation itself). Two compounding bugs followed:
+  (1) every `inv_sympd(proposed_cov)`-style call across
+  `rMHStep()`/`sigmaMHStep()`/`batchScaleMetropolis()`/`sampleCovPrior()` in
+  both `mvnSamplerSeparationStrategy.cpp` and `mvnSamplerMixed.cpp` used the
+  throwing form uncaught, crashing on a numerically-degenerate proposal
+  instead of simply rejecting it (the textbook-correct treatment of a
+  proposal whose target density is numerically undefined); (2)
+  `rMHStep()`'s regular branch called the non-throwing, output-parameter
+  form of `arma::chol()` but never checked its boolean return value - on
+  failure that form leaves the output matrix empty (0x0) rather than P x P,
+  and the very next line indexed it assuming P x P. Every such call site is
+  now guarded: a numerically-degenerate Metropolis-Hastings proposal is
+  treated as an automatic reject (matching the `next`/`continue` pattern
+  already used elsewhere in this file for degenerate individual-parameter
+  proposals), and a numerically-degenerate *prior* draw (in
+  `sampleCovPrior()`, and the empty-cluster branches of `rMHStep()`/
+  `sigmaMHStep()`) is redrawn (a negligible-measure rejection of the
+  pathological tail, not a bias on the prior) rather than either crashing
+  or silently accepting a broken matrix.
+* Fixed `relabelChain()` (and hence `processMCMCChain()`/`calcAllocProb()`)
+  crashing on real (as opposed to this function's own synthetic test
+  fixtures) MCMC output, via `R CMD check --run-donttest` on
+  `plotBatchCorrection()`'s own example. Two compounding bugs: (1)
+  `mcmc_output$samples` is 0-indexed (0..K_max-1) - the raw C++ sampler's
+  own convention - but `relabelChain()` was written and tested assuming
+  1-indexed labels, so `perm[samples[t, ]]` silently dropped any item
+  whose label was 0 (R indexing with 0 selects nothing, rather than
+  erroring), corrupting `samples`' length; (2) `mcmc_output$t_df`, read via
+  `$` (which does partial matching), silently matched
+  `t_df_proposal_window` for a non-MVT fit instead of returning `NULL` -
+  there is no field literally named `t_df` on an MVN/MVN_LKJ/MVN_MIXED fit
+  - so `has_t_df` was wrongly `TRUE` and every downstream `t_df` access
+  then operated on a bare scalar instead of an (n_saved x K) matrix. Fixed
+  by working in 1-indexed space internally (converting at the function's
+  boundary) and switching every `mcmc_output$field` read in this function
+  to `mcmc_output[["field"]]` (exact match only, returns `NULL` rather than
+  guessing when a field is genuinely absent) respectively. The three
+  synthetic test fixtures for this function were also corrected to use
+  0-indexed labels, matching real sampler output, since the original
+  (1-indexed) fixtures were self-consistent but not representative and is
+  exactly what let both bugs through in the first place.
 
 ## Other changes
 
+* `R CMD check` is now clean (0 errors, 0 warnings, 0 notes on every check
+  not requiring pandoc, which was unavailable in the environment this was
+  verified in - vignette rendering itself was checked separately, by
+  running each vignette's extracted R code directly): added the missing
+  `fitBatchMix()`-own-formals documentation for
+  `auto_tune`/`n_burn`/`mu_proposal_window`/`cov_proposal_window`/
+  `m_proposal_window`/`S_proposal_window`/`t_df_proposal_window`
+  (`@inheritParams` does not resolve a comma-grouped `@param` tag from
+  another function); declared the ggplot2/tidyr non-standard-evaluation
+  column names (`.data`, `Acceptance_rate`, `Chain`, `Iteration`,
+  `Parameter`, `iteration`, `value`) via `utils::globalVariables()`, the
+  standard fix for "no visible binding for global variable" NOTEs on
+  NSE-heavy plotting code; added `.Rbuildignore` entries for `.claude`,
+  `.Rhistory`, `figure`, `vignettes/figure` and `Rplots.pdf`, and removed
+  the (untracked, regenerable) stray copies of the latter two that had
+  accumulated locally.
 * Removed `src/RESHUFFLE/`, an earlier, uncommitted, non-compiling
   architecture experiment superseded by the above.
 * **Four vignettes**, each a self-contained worked example following the

@@ -48,7 +48,7 @@ batch-corrected panel is returned).
 \description{
 The natural visual complement to the numerical batch-effect
 checks (\code{\link{plotPredictiveCheck}}, the per-batch statistic
-example in the \code{bayesian_workflow} vignette): a before/after scatter
+example in the \code{batchmix_workflow} vignette): a before/after scatter
 (for \code{P >= 2}, using \code{columns}) or density (for \code{P == 1})
 plot of the raw data against the point-estimate batch-corrected data,
 coloured by batch. A correction that is working should visibly pull the

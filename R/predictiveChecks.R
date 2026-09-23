@@ -20,24 +20,46 @@
 #' construction itself produces sensible simulated data at this \code{K}/
 #' \code{B}, before any label or cluster/batch structure has been fit.
 #'
-#' \strong{Only 'MVN', 'MVT' and 'MVN_LKJ' are supported} - 'MVN_MIXED' is
-#' not, since its prior predictive draw would additionally need to simulate
-#' the probit/missingness/censoring layer, which is out of scope here.
+#' \strong{'MVN', 'MVT', 'MVN_LKJ' and 'MVN_MIXED' are supported.} For
+#' \code{type = "MVN_MIXED"}, every column simulates the same underlying
+#' latent Gaussian draw as \code{"MVN_LKJ"} (the model \code{"MVN_MIXED"}
+#' shares with it), then binary/probit-linked columns
+#' (\code{column_type == 1}) are thresholded at 0 (Albert & Chib, 1993) to
+#' produce the replicated \{0, 1\} observation - matching \code{sigma}/
+#' \code{S} being fixed at 1 for those columns in \code{sampleCovPrior()}/
+#' \code{sampleSPrior()} (\code{src/mvnSamplerMixed.cpp}), the standard
+#' probit-identification device. Every replicate is fully observed (no
+#' \code{NA}/censoring), including at cells missing or censored in the real
+#' data: the model's own assumption is that those cells are draws from
+#' exactly the same distribution as every other cell (ignorable
+#' missingness; censoring only affects what is *recorded*, not the
+#' underlying generative draw), so simulating them like any other cell is
+#' the model-consistent replicate. \code{\link{plotPredictiveCheck}}'s
+#' \code{censor_code} argument instead excludes the real data's censored
+#' cells from the *comparison*, since a recorded censoring bound is not the
+#' true value to compare a free replicate draw against - see its
+#' documentation.
 #'
 #' @param X Data matrix (items in rows), used only to derive the
 #' empirical-Bayes prior location/scale (its own values are never reused
 #' directly) - the same summary statistics
 #' (\code{colMeans(X)}/\code{cov(X)}) that \code{batchSemiSupervisedMixtureModel()}
-#' computes internally when \code{type} is 'MVN', 'MVT' or 'MVN_LKJ'. Missing
-#' entries (\code{NA}/\code{NaN}) are allowed here too - they are replaced by
-#' their column mean only for this hyperparameter derivation (mirroring the
-#' C++ samplers' own empirical-Bayes setup exactly), never imputed via the
-#' real per-sweep data augmentation used in an actual fit, since a prior
-#' predictive draw does not condition on any observed data at all.
+#' computes internally when \code{type} is 'MVN', 'MVT', 'MVN_LKJ' or
+#' 'MVN_MIXED'. Missing entries (\code{NA}/\code{NaN}) are allowed here too -
+#' they are replaced by their column mean only for this hyperparameter
+#' derivation (mirroring the C++ samplers' own empirical-Bayes setup
+#' exactly), never imputed via the real per-sweep data augmentation used in
+#' an actual fit, since a prior predictive draw does not condition on any
+#' observed data at all. For \code{type = "MVN_MIXED"}, binary columns'
+#' raw \{0, 1\} values are used as-is for this derivation too (again
+#' mirroring the C++ constructor exactly), not any latent-scale transform.
 #' @param batch_vec Observed batch label for each row of X.
 #' @param K The number of clusters to simulate.
-#' @param type One of 'MVN', 'MVT', 'MVN_LKJ' (see
+#' @param type One of 'MVN', 'MVT', 'MVN_LKJ', 'MVN_MIXED' (see
 #' \code{\link{batchSemiSupervisedMixtureModel}} for what each means).
+#' @param column_type Only used if \code{type = "MVN_MIXED"}: a P-vector,
+#' \code{0} for a continuous column, \code{1} for a binary/probit column -
+#' see \code{\link{batchSemiSupervisedMixtureModel}}. Required for that type.
 #' @param alpha Symmetric Dirichlet concentration for the prior cluster
 #' weights (ignored if \code{concentration} is given).
 #' @param concentration K-vector of Dirichlet concentrations for the prior
@@ -49,7 +71,7 @@
 #' simulated).
 #' @param rho,theta Shape/rate of the batch-scale prior.
 #' @param eta LKJ concentration parameter; only used if \code{type} is
-#' 'MVN_LKJ'.
+#' 'MVN_LKJ' or 'MVN_MIXED'.
 #' @param t_df_shape,t_df_rate,t_df_loc Hyperparameters of the (shifted
 #' Gamma) prior on the cluster degrees of freedom; only used if \code{type}
 #' is 'MVT'. Defaults match \code{mvtSampler}'s own defaults
@@ -57,16 +79,18 @@
 #' @param n_datasets Number of independent prior predictive datasets to
 #' draw.
 #' @return A list of length \code{n_datasets}; each element is a list with
-#' \code{X} (the simulated N x P data matrix), \code{labels} (the simulated
-#' N-vector of prior cluster draws, 0-indexed) and \code{params} (the drawn
-#' mu/cov/m/S/weights, and t_df if \code{type == "MVT"}).
+#' \code{X} (the simulated, fully-observed N x P data matrix), \code{labels}
+#' (the simulated N-vector of prior cluster draws, 0-indexed) and
+#' \code{params} (the drawn mu/cov/m/S/weights, and t_df if \code{type ==
+#' "MVT"}).
 #' @seealso \code{\link{simulatePosteriorPredictive}},
 #' \code{\link{plotPredictiveCheck}}
 #' @export
 simulatePriorPredictive <- function(X,
                                     batch_vec,
                                     K,
-                                    type = c("MVN", "MVT", "MVN_LKJ"),
+                                    type = c("MVN", "MVT", "MVN_LKJ", "MVN_MIXED"),
+                                    column_type = NULL,
                                     alpha = 1,
                                     concentration = NULL,
                                     m_scale = 0.01,
@@ -78,6 +102,7 @@ simulatePriorPredictive <- function(X,
                                     t_df_loc = 2.0,
                                     n_datasets = 1) {
   type <- match.arg(type)
+  is_mixed <- type == "MVN_MIXED"
 
   if (!is.matrix(X)) {
     stop("X is not a matrix. Data should be in matrix format.")
@@ -88,6 +113,15 @@ simulatePriorPredictive <- function(X,
 
   N <- nrow(X)
   P <- ncol(X)
+
+  if (is_mixed) {
+    if (is.null(column_type)) {
+      stop("column_type must be supplied when type = 'MVN_MIXED'.")
+    }
+    if (length(column_type) != P) {
+      stop("column_type must have one entry per column of X (length P).")
+    }
+  }
 
   if (!any(batch_vec == 0)) {
     batch_vec <- as.numeric(as.factor(batch_vec)) - 1
@@ -121,20 +155,29 @@ simulatePriorPredictive <- function(X,
   iw_scale <- global_cov / K^(2 / P)
   delta_2 <- mean(diag(global_cov))
   lambda_2 <- m_scale
-  # Matches the C++ literally: m(p, b) is drawn as
-  # batch_shift_prior_mean + batch_shift_prior_precision * Z, Z ~ N(0, 1) -
-  # i.e. despite the name, this quantity multiplies the standard normal
-  # draw directly (see src/mvnSampler.cpp::sampleMPrior()).
-  batch_shift_prior_scale <- 1 / (delta_2 * lambda_2)
+  # m(p, b) ~ N(batch_shift_prior_mean, delta_2 * lambda_2), i.e. standard
+  # deviation sqrt(delta_2 * lambda_2) - see sampleMPrior() in
+  # src/mvnSampler.cpp/mvnSamplerSeparationStrategy.cpp:
+  # batch_shift_prior_precision there is a PRECISION (1 / (delta_2 *
+  # lambda_2)), so the standard deviation multiplying the standard normal
+  # draw is its inverse square root, not the precision (or its reciprocal)
+  # directly.
+  batch_shift_prior_scale <- sqrt(delta_2 * lambda_2)
   S_loc <- 1.0
 
   draw_cov <- function() {
-    if (type == "MVN_LKJ") {
+    if (type == "MVN_LKJ" || is_mixed) {
       # Fixed (data-independent) priors: R_k ~ LKJ(eta), log(sigma_{k,p}) ~
       # N(beta, xi) with beta/xi the same fixed constants as
       # mvnSamplerSeparationStrategy.h (beta = 0.5 * log(0.72), xi = 1.0).
       R_k <- sampleLKJCorrelationMatrix(P, eta)
       sigma_k <- exp(stats::rnorm(P, mean = 0.5 * log(0.72), sd = 1.0))
+      # Binary columns' marginal SD is fixed at 1 (the standard probit
+      # identification device - see sampleCovPrior() in
+      # src/mvnSamplerMixed.cpp); correlations are still free.
+      if (is_mixed) {
+        sigma_k[column_type == 1] <- 1.0
+      }
       diag(sigma_k, P) %*% R_k %*% diag(sigma_k, P)
     } else {
       # Inverse-Wishart(iw_scale, nu).
@@ -165,6 +208,11 @@ simulatePriorPredictive <- function(X,
     for (b in seq_len(B)) {
       m[, b] <- stats::rnorm(P, mean = 0, sd = 1) * batch_shift_prior_scale
       S[, b] <- S_loc + 1 / stats::rgamma(P, shape = rho, rate = theta)
+      # Binary columns' batch scale is fixed at 1 too (sampleSPrior() in
+      # src/mvnSamplerMixed.cpp) - the same identification device as sigma.
+      if (is_mixed) {
+        S[column_type == 1, b] <- 1.0
+      }
     }
 
     labels <- sample(seq_len(K), N, replace = TRUE, prob = w) - 1L
@@ -174,16 +222,27 @@ simulatePriorPredictive <- function(X,
       k <- labels[n] + 1L
       b <- batch_vec[n] + 1L
       mean_sum <- mu[, k] + m[, b]
-      cov_comb <- cov[, , k]
+      # matrix(..., nrow = P): cov[, , k] collapses to a bare scalar
+      # (breaking diag<-, which needs an actual matrix) whenever P == 1 - a
+      # perfectly ordinary univariate dataset.
+      cov_comb <- matrix(cov[, , k], nrow = P)
       diag(cov_comb) <- diag(cov_comb) * S[, b]
 
       if (type == "MVT") {
         z <- .mvtnormCholRnorm(rep(0, P), cov_comb)
         w_chisq <- stats::rchisq(1, df = t_df[k]) / t_df[k]
-        X_sim[n, ] <- mean_sum + as.numeric(z) / sqrt(w_chisq)
+        z <- mean_sum + as.numeric(z) / sqrt(w_chisq)
       } else {
-        X_sim[n, ] <- mean_sum + as.numeric(.mvtnormCholRnorm(rep(0, P), cov_comb))
+        z <- mean_sum + as.numeric(.mvtnormCholRnorm(rep(0, P), cov_comb))
       }
+
+      # Binary/probit columns: threshold the latent draw at 0 (Albert &
+      # Chib, 1993) to get the replicated {0, 1} observation; continuous
+      # columns keep the latent draw as-is.
+      if (is_mixed) {
+        z[column_type == 1] <- as.numeric(z[column_type == 1] > 0)
+      }
+      X_sim[n, ] <- z
     }
 
     list(
@@ -211,33 +270,51 @@ simulatePriorPredictive <- function(X,
 #' of drifting out of sync with the sampler's own math.
 #'
 #' Every model type returned by \code{batchSemiSupervisedMixtureModel()} is
-#' supported for the continuous case (\code{"MVN"}, \code{"MVT"},
-#' \code{"MVN_LKJ"}) via the stored \code{mean_sum}/\code{cov_comb} (and
-#' \code{t_df} for MVT) arrays; \code{"MVN_MIXED"} is not currently
-#' supported (its replicate would additionally need the probit/missingness/
-#' censoring observation layer).
+#' supported, via the stored \code{mean_sum}/\code{cov_comb} (and
+#' \code{t_df} for MVT) arrays: \code{"MVN"}, \code{"MVT"}, \code{"MVN_LKJ"}
+#' directly, and \code{"MVN_MIXED"} by additionally thresholding
+#' binary/probit-linked columns (\code{column_type == 1}) at 0 (Albert &
+#' Chib, 1993) after the same latent Gaussian draw - see
+#' \code{\link{simulatePriorPredictive}}'s documentation for the same device
+#' and why missing/censored cells are not specially handled here (every
+#' replicate is fully observed; \code{\link{plotPredictiveCheck}}'s
+#' \code{censor_code} argument handles the comparison side instead).
 #' @param mcmc_output Output of \code{\link{batchSemiSupervisedMixtureModel}}/
-#' \code{\link{runBatchMix}} (\code{type} one of 'MVN', 'MVT', 'MVN_LKJ').
+#' \code{\link{runBatchMix}}.
 #' @param batch_vec The batch label used to fit \code{mcmc_output} (0- or
 #' 1-indexed; matched against \code{mcmc_output$B} either way).
+#' @param column_type Only used if \code{mcmc_output$type == "MVN_MIXED"}: a
+#' P-vector, \code{0} for a continuous column, \code{1} for a binary/probit
+#' column - the same vector originally passed to
+#' \code{\link{batchSemiSupervisedMixtureModel}}. Required for that type
+#' (not stored in \code{mcmc_output} itself).
 #' @param n_draws Number of posterior iterations to replicate from (sampled
 #' without replacement from the retained, post-burn-in iterations).
 #' @param burn Number of *original* MCMC iterations (not thinned samples) to
 #' discard as burn-in before drawing from the remaining ones.
 #' @param seed Optional seed for reproducible draw selection.
 #' @return A list of length \code{n_draws}; each element is a list with
-#' \code{X} (the simulated N x P replicate) and \code{iteration} (the index,
-#' into the thinned/retained samples, the replicate was drawn from).
+#' \code{X} (the simulated, fully-observed N x P replicate) and
+#' \code{iteration} (the index, into the thinned/retained samples, the
+#' replicate was drawn from).
 #' @seealso \code{\link{simulatePriorPredictive}},
 #' \code{\link{plotPredictiveCheck}}
 #' @export
 simulatePosteriorPredictive <- function(mcmc_output,
                                         batch_vec,
+                                        column_type = NULL,
                                         n_draws = 50,
                                         burn = 0,
                                         seed = NULL) {
-  if (isTRUE(mcmc_output$type == "MVN_MIXED")) {
-    stop("simulatePosteriorPredictive() does not support type = 'MVN_MIXED' yet.")
+  is_mixed <- isTRUE(mcmc_output$type == "MVN_MIXED")
+  P <- mcmc_output$P
+  if (is_mixed) {
+    if (is.null(column_type)) {
+      stop("column_type must be supplied when mcmc_output$type == 'MVN_MIXED'.")
+    }
+    if (length(column_type) != P) {
+      stop("column_type must have one entry per column (length mcmc_output$P).")
+    }
   }
   if (!is.null(seed)) {
     set.seed(seed)
@@ -246,7 +323,6 @@ simulatePosteriorPredictive <- function(mcmc_output,
   n_iter <- mcmc_output$n_iter
   thin <- mcmc_output$thin
   n_saved <- nrow(mcmc_output$samples)
-  P <- mcmc_output$P
   K <- mcmc_output$K_max
   B <- mcmc_output$B
   is_mvt <- isTRUE(mcmc_output$type == "MVT")
@@ -265,8 +341,12 @@ simulatePosteriorPredictive <- function(mcmc_output,
 
   simulate_one <- function(r) {
     labels_r <- mcmc_output$samples[r, ]
-    mean_sum_r <- mcmc_output$mean_sum[, , r] # P x (K * B)
-    cov_comb_r <- mcmc_output$cov_comb[, , r] # P x (P * K * B)
+    # matrix(..., nrow = P), not a bare [, , r] drop: indexing a single
+    # slice off a 3D array silently collapses to a 1D vector whenever the
+    # remaining (K * B) dimension is 1 too (e.g. K_max = B = 1), breaking
+    # the column indexing below.
+    mean_sum_r <- matrix(mcmc_output$mean_sum[, , r], nrow = P) # P x (K * B)
+    cov_comb_r <- matrix(mcmc_output$cov_comb[, , r], nrow = P) # P x (P * K * B)
 
     X_sim <- matrix(NA_real_, N, P)
     for (n in seq_len(N)) {
@@ -281,10 +361,17 @@ simulatePosteriorPredictive <- function(mcmc_output,
         t_df_k <- mcmc_output$t_df[r, k + 1]
         z <- .mvtnormCholRnorm(rep(0, P), cov_comb_kb)
         w_chisq <- stats::rchisq(1, df = t_df_k) / t_df_k
-        X_sim[n, ] <- mean_sum_kb + as.numeric(z) / sqrt(w_chisq)
+        z <- mean_sum_kb + as.numeric(z) / sqrt(w_chisq)
       } else {
-        X_sim[n, ] <- mean_sum_kb + as.numeric(.mvtnormCholRnorm(rep(0, P), cov_comb_kb))
+        z <- mean_sum_kb + as.numeric(.mvtnormCholRnorm(rep(0, P), cov_comb_kb))
       }
+
+      # Binary/probit columns: threshold the latent draw at 0 (Albert &
+      # Chib, 1993); continuous columns keep the latent draw as-is.
+      if (is_mixed) {
+        z[column_type == 1] <- as.numeric(z[column_type == 1] > 0)
+      }
+      X_sim[n, ] <- z
     }
 
     list(X = X_sim, iteration = r)

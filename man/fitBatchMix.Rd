@@ -70,7 +70,7 @@ from.}
 'MVT' (multivariate t distribution), 'MVN_LKJ' (multivariate normal with
 an LKJ prior on the cluster correlation structure and log-normal marginal
 scales, decoupling correlation and scale beliefs - see
-\code{vignette("lkj_correlation_recovery", package = "batchmix")}), or
+\code{vignette("covariance_models", package = "batchmix")}), or
 'MVN_MIXED' (as 'MVN_LKJ', extended to support binary/probit columns and
 missing/censored continuous entries - see
 \code{vignette("probit_missing_censored", package = "batchmix")}, and the
@@ -88,10 +88,16 @@ draw from the stick-breaking prior otherwise - see
 \item{fixed}{Which items are fixed in their initial label. If not given,
 defaults to a vector of 0 meaning the model is run unsupervised.}
 
-\item{alpha}{The concentration parameter for the stick-breaking prior and
-the weights in the model. Only used if \code{concentration} (only
-available on \code{\link{batchSemiSupervisedMixtureModel}} directly) is
-not given.}
+\item{alpha}{The (symmetric) concentration parameter for the component
+weights \code{w} in the model, used as \code{rep(alpha, K_max)} to build
+\code{concentration}; only used if \code{concentration} (only available on
+\code{\link{batchSemiSupervisedMixtureModel}} directly) is not given. Also
+passed to \code{\link{generateInitialLabels}}'s stick-breaking prior
+\emph{only} to draw a starting clustering when \code{initial_labels} is
+not supplied - a different (GEM/Dirichlet-process) prior to the one above,
+but since it only chooses where the chain starts and not the model being
+fit, this does not bias the posterior; see
+\code{\link{generateInitialLabels}}.}
 
 \item{control}{A \code{\link{batchmixControl}} object bundling every
 Metropolis-Hastings proposal window and the auto-tuning schedule
@@ -101,6 +107,17 @@ below (\code{rho}, \code{theta}, \code{eta}, ...), which stay as
 ordinary named arguments since they change what is being fitted, not how
 hard the sampler works to fit it. See \code{?batchmixControl} for every
 field and its default.}
+
+\item{auto_tune, n_burn, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window}{\strong{Deprecated}: pass these inside \code{control = batchmixControl(...)}
+instead (e.g. \code{control = batchmixControl(auto_tune = FALSE)} rather
+than \code{auto_tune = FALSE}). Still work this release (with a
+warning); see \code{?batchmixControl} for what each one does. If both
+\code{control} and one of these are supplied, \code{control} wins and
+the deprecated argument is ignored (with a warning). (Repeated here,
+rather than left to \code{@inheritParams runBatchMix} above, because
+these are also \code{fitBatchMix()}'s own formal arguments, not only
+\code{runBatchMix()}'s, and roxygen2's \code{@inheritParams} does not
+resolve a comma-grouped \code{@param} tag from another function.)}
 
 \item{convergence_burn}{Number of iterations treated as burn-in when
 assessing convergence across the chains just run (see

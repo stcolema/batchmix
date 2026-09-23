@@ -7,6 +7,7 @@
 simulatePosteriorPredictive(
   mcmc_output,
   batch_vec,
+  column_type = NULL,
   n_draws = 50,
   burn = 0,
   seed = NULL
@@ -14,10 +15,16 @@ simulatePosteriorPredictive(
 }
 \arguments{
 \item{mcmc_output}{Output of \code{\link{batchSemiSupervisedMixtureModel}}/
-\code{\link{runBatchMix}} (\code{type} one of 'MVN', 'MVT', 'MVN_LKJ').}
+\code{\link{runBatchMix}}.}
 
 \item{batch_vec}{The batch label used to fit \code{mcmc_output} (0- or
 1-indexed; matched against \code{mcmc_output$B} either way).}
+
+\item{column_type}{Only used if \code{mcmc_output$type == "MVN_MIXED"}: a
+P-vector, \code{0} for a continuous column, \code{1} for a binary/probit
+column - the same vector originally passed to
+\code{\link{batchSemiSupervisedMixtureModel}}. Required for that type
+(not stored in \code{mcmc_output} itself).}
 
 \item{n_draws}{Number of posterior iterations to replicate from (sampled
 without replacement from the retained, post-burn-in iterations).}
@@ -29,8 +36,9 @@ discard as burn-in before drawing from the remaining ones.}
 }
 \value{
 A list of length \code{n_draws}; each element is a list with
-\code{X} (the simulated N x P replicate) and \code{iteration} (the index,
-into the thinned/retained samples, the replicate was drawn from).
+\code{X} (the simulated, fully-observed N x P replicate) and
+\code{iteration} (the index, into the thinned/retained samples, the
+replicate was drawn from).
 }
 \description{
 For a sample of retained MCMC iterations, simulates a
@@ -47,11 +55,15 @@ this uses parameter values already stored in \code{mcmc_output} directly
 of drifting out of sync with the sampler's own math.
 
 Every model type returned by \code{batchSemiSupervisedMixtureModel()} is
-supported for the continuous case (\code{"MVN"}, \code{"MVT"},
-\code{"MVN_LKJ"}) via the stored \code{mean_sum}/\code{cov_comb} (and
-\code{t_df} for MVT) arrays; \code{"MVN_MIXED"} is not currently
-supported (its replicate would additionally need the probit/missingness/
-censoring observation layer).
+supported, via the stored \code{mean_sum}/\code{cov_comb} (and
+\code{t_df} for MVT) arrays: \code{"MVN"}, \code{"MVT"}, \code{"MVN_LKJ"}
+directly, and \code{"MVN_MIXED"} by additionally thresholding
+binary/probit-linked columns (\code{column_type == 1}) at 0 (Albert &
+Chib, 1993) after the same latent Gaussian draw - see
+\code{\link{simulatePriorPredictive}}'s documentation for the same device
+and why missing/censored cells are not specially handled here (every
+replicate is fully observed; \code{\link{plotPredictiveCheck}}'s
+\code{censor_code} argument handles the comparison side instead).
 }
 \seealso{
 \code{\link{simulatePriorPredictive}},

@@ -168,6 +168,100 @@ context("Unit test for MVN posterior kernels.") {
     expect_true(compareDoubles2(val9, -49.56650, 1e-5));
     expect_true(compareDoubles2(val10, -22.18394, 1e-5));
   }
-  
 
+
+}
+
+// =============================================================================
+// Regression: sampleMScalePosterior()/sampleMPrior() used the wrong scale
+// conventions. sampleMScalePosterior() computed the InvGamma posterior rate
+// as sum(m^2)/(4*delta_2) instead of the correct sum(m^2)/(2*delta_2) (an
+// erroneous extra factor of 0.5); sampleMPrior() drew m ~ N(mean, precision)
+// instead of N(mean, 1/precision) (batch_shift_prior_precision is a
+// precision, so the standard deviation is its inverse square root, not the
+// precision itself). Both are law-of-large-numbers checks: fix
+// delta_2/lambda_2/m to known values, redraw many times, and compare the
+// empirical mean/variance against the closed-form InvGamma/Normal moments
+// the correct formula implies - tight enough that the old bugs (rate off by
+// a factor of 2; variance off by a factor of precision^3) would fail by a
+// wide margin, loose enough to tolerate ordinary Monte Carlo noise.
+context("Regression: sampleMScalePosterior/sampleMPrior scale conventions.") {
+
+  bool sample_m_scale = true;
+  uword K = 2, B = 3;
+  double
+    mu_proposal_window = 0.5,
+      cov_proposal_window = 200,
+      m_proposal_window = 0.4,
+      S_proposal_window = 100,
+      m_scale = 0.01,
+      rho = 3.0,
+      theta = 1.0;
+
+  uvec labels(10), batch_vec(10), fixed(10, fill::zeros);
+  vec concentration(K);
+
+  labels = {0, 1, 1, 0, 1, 1, 1, 0, 0, 1};
+  batch_vec = {0, 1, 0, 1, 0, 1, 1, 2, 2, 2};
+  concentration = {1.0, 1.0};
+
+  arma::mat Y = { 7.2, 3.1, 2.2, 9.8, 2.3, 3.8, 3.3, 5.2, 6.8, 1.3 }, X = Y.t();
+
+  mvnSampler scale_sampler(
+      K, B, mu_proposal_window, cov_proposal_window, m_proposal_window,
+      S_proposal_window, labels, batch_vec, concentration, X, fixed,
+      m_scale, rho, theta, sample_m_scale
+  );
+
+  // sampleMScalePosterior(): a_pos = a + 0.5*P*B was already correct; the
+  // bug was in b_pos, which should be b + sum(m^2)/(2*delta_2).
+  scale_sampler.delta_2 = 1.0;
+  scale_sampler.m = { {0.0, 1.0, -1.0} }; // P = 1, B = 3; sum(m^2) = 2.0
+
+  double a_pos_expected = scale_sampler.a + 0.5 * (double) scale_sampler.P * (double) B;
+  double b_pos_expected = scale_sampler.b + 2.0 / (2.0 * scale_sampler.delta_2);
+  double expected_lambda2_mean = b_pos_expected / (a_pos_expected - 1.0);
+
+  uword n_draws = 40000;
+  double lambda2_sum = 0.0;
+  for (uword i = 0; i < n_draws; i++) {
+    scale_sampler.sampleMScalePosterior();
+    lambda2_sum += scale_sampler.lambda_2;
+  }
+  double lambda2_mean = lambda2_sum / (double) n_draws;
+
+  test_that("sampleMScalePosterior draws lambda_2 from the correctly-scaled InvGamma posterior") {
+    // Loose (5%) relative tolerance for Monte Carlo noise; the old
+    // (halved-rate) bug would put the true posterior mean roughly a factor
+    // of 2 away from this, far outside a 5% band.
+    expect_true(compareDoubles2(lambda2_mean, expected_lambda2_mean, 0.05 * expected_lambda2_mean));
+  }
+
+  // sampleMPrior(): m ~ N(mean, 1/precision), so its standard deviation is
+  // sqrt(1/precision), not precision itself.
+  scale_sampler.batch_shift_prior_precision = 0.25; // Var should be 1/0.25 = 4.0
+  scale_sampler.batch_shift_prior_mean = 0.0;
+
+  double m_sum = 0.0, m_sq_sum = 0.0;
+  uword n_m_draws = 40000;
+  for (uword i = 0; i < n_m_draws; i++) {
+    scale_sampler.sampleMPrior();
+    for (uword bb = 0; bb < B; bb++) {
+      double v = scale_sampler.m(0, bb);
+      m_sum += v;
+      m_sq_sum += v * v;
+    }
+  }
+  double n_total = (double) (n_m_draws * B);
+  double m_mean = m_sum / n_total;
+  double m_var = m_sq_sum / n_total - m_mean * m_mean;
+
+  test_that("sampleMPrior draws m with variance 1/precision, not precision^2") {
+    // True variance is 4.0; the old bug would give precision^2 = 0.0625 -
+    // two orders of magnitude away, so a generous absolute tolerance is
+    // both tight enough to catch the bug and loose enough for Monte Carlo
+    // noise on a variance estimate from 3 * 40000 draws.
+    expect_true(compareDoubles2(m_var, 4.0, 0.6));
+    expect_true(compareDoubles2(m_mean, 0.0, 0.1));
+  }
 }

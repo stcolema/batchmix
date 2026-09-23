@@ -185,9 +185,13 @@ void mvnSampler::sampleSPrior() {
 };
 
 void mvnSampler::sampleMPrior() {
+  // batch_shift_prior_precision is a precision (1 / (delta_2 * lambda_2)),
+  // so the prior standard deviation is its inverse square root, not the
+  // precision itself.
+  double batch_shift_prior_sd = std::sqrt(1.0 / batch_shift_prior_precision);
   for(uword b = 0; b < B; b++){
     for(uword p = 0; p < P; p++){
-      m(p, b) = randn<double>() * batch_shift_prior_precision + batch_shift_prior_mean;
+      m(p, b) = randn<double>() * batch_shift_prior_sd + batch_shift_prior_mean;
     }
   }
 };
@@ -213,7 +217,7 @@ void mvnSampler::sampleMScalePrior() {
 void mvnSampler::sampleMScalePosterior() {
   double a_pos = 0.0, b_pos = 0.0;
   a_pos = a + 0.5 * P * B;
-  b_pos = 0.5 * accu(pow(m, 2.0)) / (2.0 * delta_2) + b;
+  b_pos = accu(pow(m, 2.0)) / (2.0 * delta_2) + b;
   lambda_2 = rInvGamma(a_pos, b_pos);
   batch_shift_prior_precision = 1.0 / (delta_2 * lambda_2);
 }
@@ -307,7 +311,10 @@ void mvnSampler::calcBIC(){
   // Each occupied component has a weight, a mean vector and a symmetric
   // covariance matrix; each batch has a shift vector and a scale vector.
   // Empty components contribute no parameters, hence K_occ rather than K.
-  BIC = 2 * observed_likelihood - (n_param_cluster * K_occ + n_param_batch * B) * std::log(N);
+  // structuralExtraBICParams() adds the interaction term's and/or the
+  // batch-specific weight prior's extra parameters when either is enabled
+  // (both are no-ops, i.e. contribute 0, in the default configuration).
+  BIC = 2 * observed_likelihood - (n_param_cluster * K_occ + n_param_batch * B + structuralExtraBICParams()) * std::log(N);
 
 };
 

@@ -141,8 +141,9 @@ predictFromMultipleChains <- function(mcmc_outputs,
   # We record only the floor of n_iter / thin samples
   eff_R <- floor(n_iter / thin) - eff_burn
 
-  # The indices dropped as part of the burn in
-  dropped_indices <- seq(1, eff_burn)
+  # The indices dropped as part of the burn in. seq_len(0) is integer(0),
+  # unlike seq(1, 0) which is c(1, 0).
+  dropped_indices <- seq_len(eff_burn)
 
   # Setup the output list
   merged_outputs <- list()

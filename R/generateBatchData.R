@@ -10,7 +10,12 @@
 #' @param group_means A vector of the group means for a column.
 #' @param group_std_devs A vector of group standard deviations for a column.
 #' @param batch_shift A vector of batch means in a column.
-#' @param batch_scale A vector of batch standard deviations within a column.
+#' @param batch_scale A vector of batch variance-inflation factors within a
+#' column: \eqn{Var(x) = group\_std\_dev^2 \times batch\_scale}, matching
+#' the fitted model's batch scale \eqn{S_b} (\code{batchSemiSupervisedMixtureModel()}
+#' applies \eqn{S_b} linearly to the variance, not as a standard-deviation
+#' multiplier), so a value used here is directly comparable to a fitted
+#' \code{scale_est}/\code{S} estimate.
 #' @param group_weights One of either a K x B matrix of the expected proportion
 #' of each batch in each group or a K-vector of the expected proportion of the
 #' entire dataset in each group.
@@ -156,8 +161,11 @@ generateBatchData <- function(N,
         # Adjust to the group distribution
         true_data[n, p] <- x * .sd + .mu
 
-        # Adjust to the batched group distribution
-        observed_data[n, p] <- x * .sd * .s + .mu + .m
+        # Adjust to the batched group distribution. .s (batch_scale) is a
+        # variance-inflation factor (Var = .sd^2 * .s), matching how the
+        # fitted model applies S_b to the covariance linearly - hence
+        # sqrt(.s) on the standard-deviation scale here, not .s itself.
+        observed_data[n, p] <- x * .sd * sqrt(.s) + .mu + .m
       }
 
       if (mvt_generated) {
@@ -166,8 +174,9 @@ generateBatchData <- function(N,
         # Adjust to the group distribution
         true_data[n, p] <- x * .sd * sqrt(group_dfs[k] / chi_draw) + .mu
 
-        # Adjust to the batched group distribution
-        observed_data[n, p] <- x * .sd * .s * sqrt(group_dfs[k] / chi_draw) + .mu + .m
+        # Adjust to the batched group distribution (see the MVN branch above
+        # for why sqrt(.s), not .s).
+        observed_data[n, p] <- x * .sd * sqrt(.s) * sqrt(group_dfs[k] / chi_draw) + .mu + .m
       }
     }
   }

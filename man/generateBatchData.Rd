@@ -31,7 +31,12 @@ generateBatchData(
 
 \item{batch_shift}{A vector of batch means in a column.}
 
-\item{batch_scale}{A vector of batch standard deviations within a column.}
+\item{batch_scale}{A vector of batch variance-inflation factors within a
+column: \eqn{Var(x) = group\_std\_dev^2 \times batch\_scale}, matching
+the fitted model's batch scale \eqn{S_b} (\code{batchSemiSupervisedMixtureModel()}
+applies \eqn{S_b} linearly to the variance, not as a standard-deviation
+multiplier), so a value used here is directly comparable to a fitted
+\code{scale_est}/\code{S} estimate.}
 
 \item{group_weights}{One of either a K x B matrix of the expected proportion
 of each batch in each group or a K-vector of the expected proportion of the

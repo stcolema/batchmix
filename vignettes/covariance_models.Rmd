@@ -51,16 +51,29 @@ batch label $b_i \in \{1,\dots,B\}$:
 $$
 x_i \mid c_i = k,\ b_i = b \ \sim\
 \begin{cases}
-\mathcal{N}\!\left(\mu_k + m_b,\ S_b^{1/2} \Sigma_k S_b^{1/2}\right) & \texttt{"MVN"} \\[4pt]
-t_{\nu_k}\!\left(\mu_k + m_b,\ S_b^{1/2} \Sigma_k S_b^{1/2}\right) & \texttt{"MVT"} \\[4pt]
-\mathcal{N}\!\left(\mu_k + m_b,\ S_b^{1/2} \Delta_k R_k \Delta_k S_b^{1/2}\right) & \texttt{"MVN\_LKJ"}
+\mathcal{N}\!\left(\mu_k + m_b,\ S_b \bullet \Sigma_k\right) & \texttt{"MVN"} \\[4pt]
+t_{\nu_k}\!\left(\mu_k + m_b,\ S_b \bullet \Sigma_k\right) & \texttt{"MVT"} \\[4pt]
+\mathcal{N}\!\left(\mu_k + m_b,\ S_b \bullet (\Delta_k R_k \Delta_k)\right) & \texttt{"MVN\_LKJ"}
 \end{cases}
 $$
 
 where $S_b = \mathrm{diag}(S_{b,1}, \dots, S_{b,P})$ is a per-batch,
 per-feature multiplicative scale, $m_b$ is a per-batch additive shift, and
-for `"MVN"`/`"MVT"`, $\mu_k, \Sigma_k$ are the cluster mean and covariance
-with $\Sigma_k \sim \mathrm{IW}(\nu, \Psi)$. `"MVN_LKJ"` decomposes the
+$\bullet$ rescales only the *diagonal* of the cluster covariance,
+$(S_b \bullet \Sigma_k)_{pp} = S_{b,p}\,\Sigma_{k,pp}$ and
+$(S_b \bullet \Sigma_k)_{pq} = \Sigma_{k,pq}$ for $p \neq q$ - i.e. the batch
+scale inflates each feature's marginal variance but leaves the cluster's raw
+covariances between features untouched (this is deliberate: batch effects
+are modelled as per-feature measurement noise, not a change in how features
+correlate). This is *not* the same as the full congruence transform
+$S_b^{1/2} \Sigma_k S_b^{1/2}$ except in the special case where $\Sigma_k$ is
+itself diagonal (no correlation between features): whenever $\Sigma_k$ has
+off-diagonal entries, only the diagonal is rescaled, so the batch-corrected
+*correlation* between two features still shifts with $S_b$ (their raw
+covariance is unchanged while their variances grow), even though the raw
+covariance entry itself does not move. For `"MVN"`/`"MVT"`, $\mu_k, \Sigma_k$
+are the cluster mean and covariance with $\Sigma_k \sim \mathrm{IW}(\nu,
+\Psi)$. `"MVN_LKJ"` decomposes the
 covariance as $\Delta_k = \mathrm{diag}(\sigma_{k,1}, \dots, \sigma_{k,P})$
 with **independent** priors on the correlation matrix and the marginal
 scales,

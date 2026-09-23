@@ -47,7 +47,7 @@ prepareInitialParameters <- function(initial_class_means,
       stop("Initial class means must be either ``NULL`` or a P x K matrix.")
     }
 
-    incorrect_dimensions <- ((nrow(initial_class_means) != P) &
+    incorrect_dimensions <- ((nrow(initial_class_means) != P) |
       (ncol(initial_class_means) != K)
     )
 
@@ -71,7 +71,7 @@ prepareInitialParameters <- function(initial_class_means,
 
     incorrect_dimensions <- any(dim(initial_class_covariance) != c(P, P, K))
 
-    if (not_a_matrix | incorrect_dimensions) {
+    if (incorrect_dimensions) {
       stop(error_msg)
     }
 
@@ -115,7 +115,7 @@ prepareInitialParameters <- function(initial_class_means,
       stop(error_msg)
     }
 
-    incorrect_dimensions <- ((nrow(initial_batch_shift) != P) &
+    incorrect_dimensions <- ((nrow(initial_batch_shift) != P) |
       (ncol(initial_batch_shift) != B)
     )
 
@@ -137,7 +137,7 @@ prepareInitialParameters <- function(initial_class_means,
       stop(error_msg)
     }
 
-    incorrect_dimensions <- ((nrow(initial_batch_scale) != P) &
+    incorrect_dimensions <- ((nrow(initial_batch_scale) != P) |
       (ncol(initial_batch_scale) != B)
     )
 

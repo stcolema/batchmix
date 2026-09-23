@@ -8,7 +8,8 @@ simulatePriorPredictive(
   X,
   batch_vec,
   K,
-  type = c("MVN", "MVT", "MVN_LKJ"),
+  type = c("MVN", "MVT", "MVN_LKJ", "MVN_MIXED"),
+  column_type = NULL,
   alpha = 1,
   concentration = NULL,
   m_scale = 0.01,
@@ -26,19 +27,26 @@ simulatePriorPredictive(
 empirical-Bayes prior location/scale (its own values are never reused
 directly) - the same summary statistics
 (\code{colMeans(X)}/\code{cov(X)}) that \code{batchSemiSupervisedMixtureModel()}
-computes internally when \code{type} is 'MVN', 'MVT' or 'MVN_LKJ'. Missing
-entries (\code{NA}/\code{NaN}) are allowed here too - they are replaced by
-their column mean only for this hyperparameter derivation (mirroring the
-C++ samplers' own empirical-Bayes setup exactly), never imputed via the
-real per-sweep data augmentation used in an actual fit, since a prior
-predictive draw does not condition on any observed data at all.}
+computes internally when \code{type} is 'MVN', 'MVT', 'MVN_LKJ' or
+'MVN_MIXED'. Missing entries (\code{NA}/\code{NaN}) are allowed here too -
+they are replaced by their column mean only for this hyperparameter
+derivation (mirroring the C++ samplers' own empirical-Bayes setup
+exactly), never imputed via the real per-sweep data augmentation used in
+an actual fit, since a prior predictive draw does not condition on any
+observed data at all. For \code{type = "MVN_MIXED"}, binary columns'
+raw \{0, 1\} values are used as-is for this derivation too (again
+mirroring the C++ constructor exactly), not any latent-scale transform.}
 
 \item{batch_vec}{Observed batch label for each row of X.}
 
 \item{K}{The number of clusters to simulate.}
 
-\item{type}{One of 'MVN', 'MVT', 'MVN_LKJ' (see
+\item{type}{One of 'MVN', 'MVT', 'MVN_LKJ', 'MVN_MIXED' (see
 \code{\link{batchSemiSupervisedMixtureModel}} for what each means).}
+
+\item{column_type}{Only used if \code{type = "MVN_MIXED"}: a P-vector,
+\code{0} for a continuous column, \code{1} for a binary/probit column -
+see \code{\link{batchSemiSupervisedMixtureModel}}. Required for that type.}
 
 \item{alpha}{Symmetric Dirichlet concentration for the prior cluster
 weights (ignored if \code{concentration} is given).}
@@ -55,7 +63,7 @@ simulated).}
 \item{rho, theta}{Shape/rate of the batch-scale prior.}
 
 \item{eta}{LKJ concentration parameter; only used if \code{type} is
-'MVN_LKJ'.}
+'MVN_LKJ' or 'MVN_MIXED'.}
 
 \item{t_df_shape, t_df_rate, t_df_loc}{Hyperparameters of the (shifted
 Gamma) prior on the cluster degrees of freedom; only used if \code{type}
@@ -67,9 +75,10 @@ draw.}
 }
 \value{
 A list of length \code{n_datasets}; each element is a list with
-\code{X} (the simulated N x P data matrix), \code{labels} (the simulated
-N-vector of prior cluster draws, 0-indexed) and \code{params} (the drawn
-mu/cov/m/S/weights, and t_df if \code{type == "MVT"}).
+\code{X} (the simulated, fully-observed N x P data matrix), \code{labels}
+(the simulated N-vector of prior cluster draws, 0-indexed) and
+\code{params} (the drawn mu/cov/m/S/weights, and t_df if \code{type ==
+"MVT"}).
 }
 \description{
 Draws parameters from the model's priors (never conditioning
@@ -93,9 +102,25 @@ a data-independent prior; it checks whether the empirical-Bayes
 construction itself produces sensible simulated data at this \code{K}/
 \code{B}, before any label or cluster/batch structure has been fit.
 
-\strong{Only 'MVN', 'MVT' and 'MVN_LKJ' are supported} - 'MVN_MIXED' is
-not, since its prior predictive draw would additionally need to simulate
-the probit/missingness/censoring layer, which is out of scope here.
+\strong{'MVN', 'MVT', 'MVN_LKJ' and 'MVN_MIXED' are supported.} For
+\code{type = "MVN_MIXED"}, every column simulates the same underlying
+latent Gaussian draw as \code{"MVN_LKJ"} (the model \code{"MVN_MIXED"}
+shares with it), then binary/probit-linked columns
+(\code{column_type == 1}) are thresholded at 0 (Albert & Chib, 1993) to
+produce the replicated \{0, 1\} observation - matching \code{sigma}/
+\code{S} being fixed at 1 for those columns in \code{sampleCovPrior()}/
+\code{sampleSPrior()} (\code{src/mvnSamplerMixed.cpp}), the standard
+probit-identification device. Every replicate is fully observed (no
+\code{NA}/censoring), including at cells missing or censored in the real
+data: the model's own assumption is that those cells are draws from
+exactly the same distribution as every other cell (ignorable
+missingness; censoring only affects what is *recorded*, not the
+underlying generative draw), so simulating them like any other cell is
+the model-consistent replicate. \code{\link{plotPredictiveCheck}}'s
+\code{censor_code} argument instead excludes the real data's censored
+cells from the *comparison*, since a recorded censoring bound is not the
+true value to compare a free replicate draw against - see its
+documentation.
 }
 \seealso{
 \code{\link{simulatePosteriorPredictive}},

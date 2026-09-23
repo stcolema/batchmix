@@ -185,12 +185,23 @@ void sampler::updateAllocation() {
       comp_prob = ll + log(w);
     }
 
-    // The observed (marginal, label-free) log-likelihood of item n is
-    // log sum_k exp(comp_prob(k)), computed here via the log-sum-exp trick
-    // for numerical stability, NOT accu(comp_prob) (which would sum the
-    // log-densities across components rather than marginalising over them).
-    max_comp_prob = max(comp_prob);
-    observed_likelihood += max_comp_prob + log(accu(exp(comp_prob - max_comp_prob)));
+    // The observed-data log-likelihood contribution of item n. For a free
+    // (unfixed) item, the label is a latent variable to be marginalised
+    // over: log sum_k w_k f(x_n|theta_k) = log sum_k exp(comp_prob(k)),
+    // computed here via the log-sum-exp trick for numerical stability, NOT
+    // accu(comp_prob) (which would sum the log-densities across components
+    // rather than marginalising over them). For a fixed (semi-supervised)
+    // item the label is observed data, not something to marginalise over -
+    // its contribution is the joint density at the known label,
+    // w_{y_n} f(x_n|theta_{y_n}) = comp_prob(labels(n)), not a
+    // marginalisation that also (wrongly) weighs in every other component
+    // the item is known not to belong to.
+    if(fixed(n) == 1) {
+      observed_likelihood += comp_prob(labels(n));
+    } else {
+      max_comp_prob = max(comp_prob);
+      observed_likelihood += max_comp_prob + log(accu(exp(comp_prob - max_comp_prob)));
+    }
 
     // Handle overflow problems and then normalise to convert to probabilities
     comp_prob = exp(comp_prob - max_comp_prob);
@@ -295,6 +306,41 @@ void sampler::sampleTauInteractionPosterior() {
     tau2_interaction(p) = rInvGamma(a_gamma + 0.5 * n_eff, b_gamma + 0.5 * sum_sq);
   }
 };
+
+// See the header comment: extra free parameters (beyond a concrete
+// calcBIC()'s baseline "K_occ cluster blocks + B batch blocks" count) from
+// the opt-in interaction term and/or batch-specific weight prior.
+double sampler::structuralExtraBICParams() const {
+  double extra = 0.0;
+
+  if (include_interaction && K_occ > 0 && B > 0) {
+    // gamma(p, ., .) has exactly (K_occ-1)(B-1) effective degrees of
+    // freedom per feature once confined to the sum-to-zero subspace - see
+    // sampleTauInteractionPosterior() above.
+    extra += (double) (K_occ - 1) * (double) (B - 1) * (double) P;
+  }
+
+  if (weight_prior_type > 0 && K_occ > 0) {
+    // Each concrete calcBIC() bakes in one weight parameter per occupied
+    // component (K_occ, via its "1 +" cluster-block term), i.e. a single
+    // shared weight vector. Under a batch-specific weight prior there is
+    // instead a full (K_occ - 1)-free-coordinate simplex per batch, plus
+    // the hierarchical prior's own hyperparameters.
+    extra += (double) (K_occ - 1) * (double) B - (double) K_occ;
+
+    if (weight_prior_type == 1) {
+      // Partial pooling: population mean and variance for each of the
+      // K_occ - 1 free ALR coordinates (pp_mu, pp_tau2).
+      extra += 2.0 * (double) (K_occ - 1);
+    } else if (weight_prior_type == 2 && sample_gp_hyperparameters) {
+      // GP: marginal variance and length-scale, only when actually
+      // estimated rather than fixed by the user (gp_tau2, gp_length_scale).
+      extra += 2.0;
+    }
+  }
+
+  return extra;
+}
 
 // =============================================================================
 // Batch-specific mixing weights (opt-in; see the header for the model).

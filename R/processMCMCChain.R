@@ -94,9 +94,6 @@ processMCMCChain <- function(mcmc_output, burn, point_estimate_method = "median"
   n_iter <- mcmc_output$n_iter
   thin <- mcmc_output$thin
 
-  # Is the output semisupervised
-  is_semisupervised <- mcmc_output$Semisupervised
-
   # What summary statistic is used to define our point estimates
   use_median <- point_estimate_method == "median"
   use_mean <- point_estimate_method == "mean"
@@ -111,39 +108,54 @@ processMCMCChain <- function(mcmc_output, burn, point_estimate_method = "median"
   # We record only the floor of n_iter / thin samples
   eff_R <- floor(n_iter / thin) - eff_burn
 
-  # The indices dropped as part of the burn in
-  dropped_indices <- seq(1, eff_burn)
+  # The indices to KEEP after burn-in. This is deliberately not
+  # `-seq_len(eff_burn)` used directly at each call site: when eff_burn is 0
+  # (e.g. any 0 < burn < thin), `-seq_len(0)` is `-integer(0)`, and indexing
+  # with an empty vector - negated or not - selects NOTHING in R, not
+  # "everything" (`(1:5)[-integer(0)]` is `integer(0)`, not `1:5`) - so using
+  # it directly would silently drop every sample instead of none. TRUE
+  # (recycled, i.e. "keep everything") sidesteps this for eff_burn == 0;
+  # -seq_len(eff_burn) is used otherwise.
+  keep_indices <- if (eff_burn > 0) -seq_len(eff_burn) else TRUE
 
   new_output <- mcmc_output
 
   # First apply a burn in to all quantities
-  new_output$batch_corrected_data <- mcmc_output$batch_corrected_data[, , -dropped_indices]
+  # drop = FALSE matters here: without it, R silently collapses the result
+  # to a 2D matrix whenever P == 1 (a perfectly ordinary univariate dataset)
+  # since indexing drops any resulting dimension of extent 1, not just the
+  # one actually being subset - this broke rowMeans(..., dims = 2L) below
+  # outright for point_estimate_method = "mean", and silently returned the
+  # wrong shape (no averaging across iterations at all) for the median path.
+  new_output$batch_corrected_data <- mcmc_output$batch_corrected_data[, , keep_indices, drop = FALSE]
 
   # The model fit measurements
-  new_output$observed_likelihood <- mcmc_output$observed_likelihood[-dropped_indices, ]
-  new_output$complete_likelihood <- mcmc_output$complete_likelihood[-dropped_indices, ]
-  new_output$BIC <- mcmc_output$BIC[-dropped_indices, ]
+  new_output$observed_likelihood <- mcmc_output$observed_likelihood[keep_indices, ]
+  new_output$complete_likelihood <- mcmc_output$complete_likelihood[keep_indices, ]
+  new_output$BIC <- mcmc_output$BIC[keep_indices, ]
   
-  # The allocations and allocation probabilities
-  new_output$samples <- mcmc_output$samples[-dropped_indices, ]
-
-  if (is_semisupervised) {
-    new_output$alloc <- mcmc_output$alloc[, , -dropped_indices]
-  }
+  # The allocations and allocation probabilities. alloc is populated for
+  # every unfixed item regardless of Semisupervised (a fully unsupervised
+  # fit has every item unfixed), so it is trimmed unconditionally - not
+  # doing so left it at its full, un-burned length for unsupervised fits.
+  new_output$samples <- mcmc_output$samples[keep_indices, ]
+  # drop = FALSE for the same reason as batch_corrected_data above (this
+  # collapses whenever K == 1).
+  new_output$alloc <- mcmc_output$alloc[, , keep_indices, drop = FALSE]
 
   # The sampled parameters
-  new_output$means <- mcmc_output$means[, , -dropped_indices, drop = FALSE]
-  new_output$covariance <- mcmc_output$covariance[, , -dropped_indices, drop = FALSE]
-  new_output$batch_shift <- mcmc_output$batch_shift[, , -dropped_indices, drop = FALSE]
-  new_output$batch_scale <- mcmc_output$batch_scale[, , -dropped_indices, drop = FALSE]
-  new_output$mean_sum <- mcmc_output$mean_sum[, , -dropped_indices, drop = FALSE]
-  new_output$cov_comb <- mcmc_output$cov_comb[, , -dropped_indices, drop = FALSE]
+  new_output$means <- mcmc_output$means[, , keep_indices, drop = FALSE]
+  new_output$covariance <- mcmc_output$covariance[, , keep_indices, drop = FALSE]
+  new_output$batch_shift <- mcmc_output$batch_shift[, , keep_indices, drop = FALSE]
+  new_output$batch_scale <- mcmc_output$batch_scale[, , keep_indices, drop = FALSE]
+  new_output$mean_sum <- mcmc_output$mean_sum[, , keep_indices, drop = FALSE]
+  new_output$cov_comb <- mcmc_output$cov_comb[, , keep_indices, drop = FALSE]
 
-  new_output$weights <- mcmc_output$weights[-dropped_indices, , drop = FALSE]
+  new_output$weights <- mcmc_output$weights[keep_indices, , drop = FALSE]
 
   m_scale_sampled <- mcmc_output$sample_m_scale
   if(m_scale_sampled) {
-    new_output$lambda_2 <- mcmc_output$lambda_2[-dropped_indices]
+    new_output$lambda_2 <- mcmc_output$lambda_2[keep_indices]
   }
 
   # Batch x cluster interaction term and GP-correlated batch weights (if
@@ -151,18 +163,34 @@ processMCMCChain <- function(mcmc_output, burn, point_estimate_method = "median"
   # every other sampled quantity above.
   interaction_used <- isTRUE(mcmc_output$include_interaction)
   if (interaction_used) {
-    new_output$gamma <- mcmc_output$gamma[, , -dropped_indices, drop = FALSE]
+    new_output$gamma <- mcmc_output$gamma[, , keep_indices, drop = FALSE]
   }
 
   correlated_weights_used <- isTRUE(mcmc_output$weight_prior_type > 0)
   if (correlated_weights_used) {
-    new_output$w_batch <- mcmc_output$w_batch[, , -dropped_indices, drop = FALSE]
-    new_output$eta_alr <- mcmc_output$eta_alr[, , -dropped_indices, drop = FALSE]
-    new_output$gp_tau2 <- mcmc_output$gp_tau2[-dropped_indices]
-    new_output$gp_length_scale <- mcmc_output$gp_length_scale[-dropped_indices]
-    new_output$pp_mu <- mcmc_output$pp_mu[, -dropped_indices, drop = FALSE]
-    new_output$pp_tau2 <- mcmc_output$pp_tau2[, -dropped_indices, drop = FALSE]
+    new_output$w_batch <- mcmc_output$w_batch[, , keep_indices, drop = FALSE]
+    new_output$eta_alr <- mcmc_output$eta_alr[, , keep_indices, drop = FALSE]
+    new_output$gp_tau2 <- mcmc_output$gp_tau2[keep_indices]
+    new_output$gp_length_scale <- mcmc_output$gp_length_scale[keep_indices]
+    new_output$pp_mu <- mcmc_output$pp_mu[, keep_indices, drop = FALSE]
+    new_output$pp_tau2 <- mcmc_output$pp_tau2[, keep_indices, drop = FALSE]
   }
+
+  if (type == "MVT") {
+    # Trimmed (but not yet relabelled - see below) here, alongside every
+    # other cluster-indexed quantity, so relabelChain() picks it up too;
+    # trimming it after relabelChain() would silently leave t_df/t_df_est
+    # exposed to the same label-switching bug this whole block exists to fix.
+    new_output$t_df <- mcmc_output$t_df[keep_indices, , drop = FALSE]
+  }
+
+  # Mixture models are only identified up to a permutation of the component
+  # labels ("label switching"). Averaging/taking the median of the raw,
+  # cluster-indexed arrays below is only valid once every iteration's labels
+  # have been aligned to a common reference - see relabelChain() for the
+  # method and why this must happen before, not after, the point estimates
+  # computed from here on.
+  new_output <- relabelChain(new_output, K_max = K_max)
 
   # The mean of the posterior samples for the parameters
   if (use_mean) {
@@ -178,7 +206,6 @@ processMCMCChain <- function(mcmc_output, burn, point_estimate_method = "median"
   }
 
   if (type == "MVT") {
-    new_output$t_df <- mcmc_output$t_df[-dropped_indices, , drop = FALSE]
     if (use_mean) {
       new_output$t_df_est <- colMeans(new_output$t_df)
     }
@@ -200,7 +227,7 @@ processMCMCChain <- function(mcmc_output, burn, point_estimate_method = "median"
 
   # The indices for the columns corresponding to the first column for each
   # clusters' covariance matrix, with one trailing index that is used as a bound
-  cov_comb_cluster_inds <- cov_inds <- seq(1, P * (K_max + 1), by = P)
+  cov_inds <- seq(1, P * (K_max + 1), by = P)
 
   for (k in cluster_inds) {
     lb <- cov_inds[k]
@@ -228,22 +255,23 @@ processMCMCChain <- function(mcmc_output, burn, point_estimate_method = "median"
   }
 
   cov_comb_better_format <- vector("list", B)
-  cov_comb_better_format_entry <- array(0, c(P, P, K_max))
 
-  cov_comb_batch_inds <- seq(0, (P + 1) * K_max * B, by = P * K_max)
-
-  # Iterate over batches saving the mean sums and covariance combinations in a
-  # more obvious fashion
+  # mean_sum/cov_comb are stored with the cluster index varying SLOWEST (the
+  # C++ sampler indexes both by kb = k * B + b - see matrixCombinations() in
+  # mvnSampler.cpp/mvnSamplerSeparationStrategy.cpp), i.e. for a fixed batch
+  # b, the K_max cluster blocks are strided by B blocks apart, NOT
+  # contiguous. mean_sum's blocks are 1 column wide; cov_comb's are P
+  # columns wide.
   for (b in batch_inds) {
-    mean_sum_better_format[, , b] <- mean_sum_est[, seq(b, b + K_max - 1)]
+    mean_sum_cols <- seq(b, by = B, length.out = K_max)
+    mean_sum_better_format[, , b] <- mean_sum_est[, mean_sum_cols, drop = FALSE]
 
-    rel_inds <- cov_comb_batch_inds[b] + cov_comb_cluster_inds
+    cov_comb_better_format_entry <- array(0, c(P, P, K_max))
     for (k in cluster_inds) {
-      lb <- rel_inds[k]
-      ub <- rel_inds[k + 1] - 1
-      columns_selected <- seq(lb, ub)
-
-      cov_comb_better_format_entry[, , k] <- cov_comb_est[, columns_selected]
+      block <- (k - 1) * B + (b - 1) # 0-indexed block number, matching k * B + b in the sampler
+      lb <- block * P + 1
+      ub <- lb + P - 1
+      cov_comb_better_format_entry[, , k] <- cov_comb_est[, lb:ub]
     }
     cov_comb_better_format[[b]] <- cov_comb_better_format_entry
   }
@@ -282,16 +310,19 @@ processMCMCChain <- function(mcmc_output, burn, point_estimate_method = "median"
 
   new_output$inferred_dataset <- inferred_dataset
 
-  if (is_semisupervised) {
-    # The estimate of the allocation probability matrix, the probability of the
-    # most probable class and the predicted class
-    new_output$allocation_probability <- .alloc_prob <- calcAllocProb(new_output,
-      method = point_estimate_method
-    )
+  # The estimate of the allocation probability matrix, the probability of
+  # the most probable class and the predicted class. alloc is populated for
+  # every unfixed item regardless of Semisupervised (see above), and is
+  # already relabelled (relabelChain() ran on new_output before any point
+  # estimate here), so this is just as well-defined - and just as useful,
+  # e.g. for comparing predicted labels against a known ground truth on
+  # simulated data - for a fully unsupervised fit as a semi-supervised one.
+  new_output$allocation_probability <- .alloc_prob <- calcAllocProb(new_output,
+    method = point_estimate_method
+  )
 
-    new_output$prob <- apply(.alloc_prob, 1, max)
-    new_output$pred <- apply(.alloc_prob, 1, which.max)
-  }
+  new_output$prob <- apply(.alloc_prob, 1, max)
+  new_output$pred <- apply(.alloc_prob, 1, which.max)
 
   # Record the applied burn in
   new_output$burn <- burn

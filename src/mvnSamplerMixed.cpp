@@ -262,12 +262,24 @@ void mvnSamplerMixed::batchScaleMetropolis() {
     }
 
     proposed_cov_comb = cov;
+    // See mvnSamplerSeparationStrategy::batchScaleMetropolis() for why this
+    // is guarded rather than assumed: cov.slice(k) can be PD in exact
+    // arithmetic yet numerically singular in floating point, and
+    // S_proposed only inflates the diagonal, so it cannot fix that - treat
+    // a numerically-degenerate proposal as an automatic reject.
+    bool cov_ok = true;
     for(uword k = 0; k < K; k++) {
       for(uword p = 0; p < P; p++) {
         proposed_cov_comb.slice(k)(p, p) *= S_proposed(p);
       }
       proposed_cov_comb_log_det(k) = log_det(proposed_cov_comb.slice(k)).real();
-      proposed_cov_comb_inv.slice(k) = inv_sympd(proposed_cov_comb.slice(k));
+      cov_ok = arma::inv_sympd(proposed_cov_comb_inv.slice(k), proposed_cov_comb.slice(k));
+      if(!cov_ok) {
+        break;
+      }
+    }
+    if(!cov_ok) {
+      continue;
     }
 
     proposed_model_score += sLogKernel(b, S_proposed, proposed_cov_comb_log_det, proposed_cov_comb_inv);
@@ -319,43 +331,84 @@ void mvnSamplerMixed::sigmaMHStep() {
 
     acceptance_prob = 0.0, proposed_model_score = 0.0, current_model_score = 0.0;
 
-    for(uword p = 0; p < P; p++) {
+    if(N_k(k) > 0) {
+      for(uword p = 0; p < P; p++) {
 
-      if(column_type(p) == 1) {
+        if(column_type(p) == 1) {
+          continue;
+        }
+
+        sigma_proposed(p) = randg( distr_param( sigma(p, k) * sigma_proposal_window, 1.0 / sigma_proposal_window) );
+
+        if(sigma_proposed(p) <= 1e-8) {
+          next = true;
+        }
+
+        // Cross-referenced asymmetric proposal density (see
+        // mvnSamplerSeparationStrategy::sigmaMHStep for the derivation) -
+        // NOT each value scored under its own proposal shape. Reverse density
+        // q(current|proposed) -> proposed_model_score, forward density
+        // q(proposed|current) -> current_model_score.
+        proposed_model_score += gammaLogLikelihood(sigma(p, k), sigma_proposed(p) * sigma_proposal_window, sigma_proposal_window);
+        current_model_score += gammaLogLikelihood(sigma_proposed(p), sigma(p, k) * sigma_proposal_window, sigma_proposal_window);
+      }
+
+      if(next) {
+        continue;
+      }
+    }
+
+    // sigma_proposed/R.slice(k) can each be individually valid (fresh
+    // LogNormal draw / RW-Gamma proposal; valid correlation matrix) yet
+    // their product PD in exact arithmetic but numerically singular in
+    // floating point (confirmed empirically for
+    // mvnSamplerSeparationStrategy::sigmaMHStep()/rMHStep(), which this
+    // mirrors). For N_k(k) == 0 (an unconditional prior draw, not an MH
+    // proposal to accept/reject), redraw sigma_proposed - a
+    // negligible-measure rejection of the pathological tail, not a bias on
+    // the prior - up to max_attempts times; for N_k(k) > 0 (a genuine MH
+    // proposal), a single numerically-degenerate outcome is simply an
+    // automatic reject, matching `next`/`continue` above.
+    bool cov_ok = false;
+    const uword max_attempts = (N_k(k) == 0) ? 50 : 1;
+    for(uword attempt = 0; attempt < max_attempts && !cov_ok; attempt++) {
+
+      if(N_k(k) == 0) {
+        // Sample fresh from the prior for continuous columns (matching
+        // sampleCovPrior()'s log_sigma ~ N(beta, xi), sigma = exp(log_sigma)),
+        // rather than an uncorrected, force-accepted random walk off the
+        // cluster's current (possibly stale) sigma - see
+        // mvnSamplerSeparationStrategy::sigmaMHStep() for the same fix.
+        // Binary columns' sigma stays fixed at 1 for identifiability.
+        for(uword p = 0; p < P; p++) {
+          if(column_type(p) == 1) {
+            continue;
+          }
+          sigma_proposed(p) = std::exp(arma::randn(distr_param(beta, xi)));
+        }
+      }
+
+      sigma_mat_proposed.diag() = sigma_proposed;
+      proposed_cov = sigma_mat_proposed * R.slice(k) * sigma_mat_proposed;
+      cov_ok = arma::inv_sympd(proposed_cov_inv, proposed_cov);
+      if(!cov_ok) {
         continue;
       }
 
-      sigma_proposed(p) = randg( distr_param( sigma(p, k) * sigma_proposal_window, 1.0 / sigma_proposal_window) );
-
-      if(sigma_proposed(p) <= 1e-8) {
-        next = true;
+      for(arma::uword b = 0; b < B; b++) {
+        proposed_cov_comb.slice(b) = proposed_cov;
+        for(arma::uword p = 0; p < P; p++) {
+          proposed_cov_comb.slice(b)(p, p) *= S(p, b);
+        }
+        proposed_cov_comb_log_det(b) = arma::log_det(proposed_cov_comb.slice(b)).real();
+        cov_ok = arma::inv_sympd(proposed_cov_comb_inv.slice(b), proposed_cov_comb.slice(b));
+        if(!cov_ok) {
+          break;
+        }
       }
-
-      // Cross-referenced asymmetric proposal density (see
-      // mvnSamplerSeparationStrategy::sigmaMHStep for the derivation) -
-      // NOT each value scored under its own proposal shape. Reverse density
-      // q(current|proposed) -> proposed_model_score, forward density
-      // q(proposed|current) -> current_model_score.
-      proposed_model_score += gammaLogLikelihood(sigma(p, k), sigma_proposed(p) * sigma_proposal_window, sigma_proposal_window);
-      current_model_score += gammaLogLikelihood(sigma_proposed(p), sigma(p, k) * sigma_proposal_window, sigma_proposal_window);
     }
-
-    if(next) {
+    if(!cov_ok) {
       continue;
-    }
-
-    sigma_mat_proposed.diag() = sigma_proposed;
-
-    proposed_cov = sigma_mat_proposed * R.slice(k) * sigma_mat_proposed;
-    proposed_cov_inv = arma::inv_sympd(proposed_cov);
-
-    for(arma::uword b = 0; b < B; b++) {
-      proposed_cov_comb.slice(b) = proposed_cov;
-      for(arma::uword p = 0; p < P; p++) {
-        proposed_cov_comb.slice(b)(p, p) *= S(p, b);
-      }
-      proposed_cov_comb_log_det(b) = arma::log_det(proposed_cov_comb.slice(b)).real();
-      proposed_cov_comb_inv.slice(b) = arma::inv_sympd(proposed_cov_comb.slice(b));
     }
 
     if(N_k(k) > 0) {
@@ -426,6 +479,9 @@ void mvnSamplerMixed::calcBIC() {
   double n_param_cluster_mixed = 1.0 + P + P * (P - 1) * 0.5 + n_continuous;
   double n_param_batch_mixed = P + n_continuous;
 
-  BIC = 2 * observed_likelihood - (n_param_cluster_mixed * K_occ + n_param_batch_mixed * B) * std::log(N);
+  // structuralExtraBICParams() adds the interaction term's and/or the
+  // batch-specific weight prior's extra parameters when either is enabled
+  // (0 in the default configuration) - see sampler.h/.cpp.
+  BIC = 2 * observed_likelihood - (n_param_cluster_mixed * K_occ + n_param_batch_mixed * B + structuralExtraBICParams()) * std::log(N);
 
 };

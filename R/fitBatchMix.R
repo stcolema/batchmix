@@ -27,6 +27,17 @@
 #' only the diagnostics attached to them. Defaults to half of ``n_iter``. Only
 #' used if ``n_chains >= 2``.
 #' @inheritParams runBatchMix
+#' @param auto_tune,n_burn,mu_proposal_window,cov_proposal_window,m_proposal_window,S_proposal_window,t_df_proposal_window
+#' \strong{Deprecated}: pass these inside \code{control = batchmixControl(...)}
+#' instead (e.g. \code{control = batchmixControl(auto_tune = FALSE)} rather
+#' than \code{auto_tune = FALSE}). Still work this release (with a
+#' warning); see \code{?batchmixControl} for what each one does. If both
+#' \code{control} and one of these are supplied, \code{control} wins and
+#' the deprecated argument is ignored (with a warning). (Repeated here,
+#' rather than left to \code{@@inheritParams runBatchMix} above, because
+#' these are also \code{fitBatchMix()}'s own formal arguments, not only
+#' \code{runBatchMix()}'s, and roxygen2's \code{@@inheritParams} does not
+#' resolve a comma-grouped \code{@@param} tag from another function.)
 #' @param ... Further arguments passed to \code{\link{runBatchMix}} (e.g.
 #' \code{include_interaction}, \code{batch_weight_prior} and their
 #' associated options, or \code{eta}/\code{column_type}/\code{censor_code}
