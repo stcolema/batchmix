@@ -337,6 +337,7 @@ test_that("continueChain() preserves the batch-weight-prior/interaction model sp
     if (wp == "gp") {
       expect_equal(nrow(fit2$gp_tau2), n2)
       expect_equal(nrow(fit2$gp_length_scale), n2)
+      expect_equal(ncol(fit2$gp_beta), n2)
     }
   }
 

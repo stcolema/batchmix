@@ -125,7 +125,8 @@ Rcpp::List sampleSemisupervisedMVT (
   vec gp_tau2_saved = zeros<vec>(n_saved),
     gp_length_scale_saved = zeros<vec>(n_saved);
   arma::mat pp_mu_saved((K > 0) ? K - 1 : 0, n_saved, arma::fill::zeros),
-    pp_tau2_saved((K > 0) ? K - 1 : 0, n_saved, arma::fill::zeros);
+    pp_tau2_saved((K > 0) ? K - 1 : 0, n_saved, arma::fill::zeros),
+    gp_beta_saved((K > 0) ? K - 1 : 0, n_saved, arma::fill::zeros);
 
   uword save_int = 0;
 
@@ -234,6 +235,7 @@ Rcpp::List sampleSemisupervisedMVT (
       gp_length_scale_saved( save_int ) = my_sampler.gp_length_scale;
       pp_mu_saved.col( save_int ) = my_sampler.pp_mu;
       pp_tau2_saved.col( save_int ) = my_sampler.pp_tau2;
+      gp_beta_saved.col( save_int ) = my_sampler.gp_beta;
 
       my_sampler.updateBatchCorrectedData();
       batch_corrected_data.slice( save_int ) =  my_sampler.Y;
@@ -275,6 +277,7 @@ Rcpp::List sampleSemisupervisedMVT (
       Named("gp_length_scale") = gp_length_scale_saved,
       Named("pp_mu") = pp_mu_saved,
       Named("pp_tau2") = pp_tau2_saved,
+      Named("gp_beta") = gp_beta_saved,
       Named("weight_prior_type") = weight_prior_type,
       Named("gp_hyperparameter_acceptance_rate") = (double) my_sampler.gp_hyperparameter_count / n_iter,
       Named("final_mu_proposal_window") = my_sampler.mu_proposal_window,

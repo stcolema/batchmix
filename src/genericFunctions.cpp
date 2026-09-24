@@ -368,6 +368,35 @@ arma::mat squaredExponentialKernel(arma::vec x, double tau2, double length_scale
   return K;
 };
 
+//' @title Matern-3/2 covariance kernel
+//' @description Builds a Gaussian process covariance matrix; see header
+//' for the full derivation, references and the conditioning rationale for
+//' preferring this over \code{squaredExponentialKernel()}.
+//' @param x Vector of 1-D locations.
+//' @param tau2 Marginal variance.
+//' @param length_scale Correlation length scale.
+//' @param jitter Diagonal jitter for numerical stability.
+//' @return The covariance matrix.
+// [[Rcpp::export]]
+arma::mat maternKernel32(arma::vec x, double tau2, double length_scale, double jitter) {
+
+  uword n = x.n_elem;
+  mat K(n, n);
+  double d = 0.0, scaled_d = 0.0;
+  const double sqrt3 = std::sqrt(3.0);
+
+  for(uword i = 0; i < n; i++) {
+    for(uword j = 0; j < n; j++) {
+      d = std::abs(x(i) - x(j));
+      scaled_d = sqrt3 * d / length_scale;
+      K(i, j) = tau2 * (1.0 + scaled_d) * std::exp(-scaled_d);
+    }
+  }
+  K.diag() += jitter;
+
+  return K;
+};
+
 //' @title Multinomial-logit Gaussian process log-kernel
 //' @description The unnormalised log-posterior-kernel for one ALR
 //' coordinate of batch-dependent multinomial weights under a GP prior
@@ -378,23 +407,14 @@ arma::mat squaredExponentialKernel(arma::vec x, double tau2, double length_scale
 //' every other non-pivot category, held fixed this step.
 //' @param class_counts_j B-vector, per-batch counts in this category.
 //' @param class_counts_total B-vector, per-batch total item counts.
-//' @param gp_cov The GP covariance matrix for this coordinate (unused
-//' directly here beyond documenting the pairing with gp_cov_inv, kept for
-//' interface symmetry with the rest of the package's *LogKernel
-//' functions, several of which likewise take both a matrix and its
-//' precomputed inverse).
-//' @param gp_cov_inv The inverse of gp_cov.
-//' @return The unnormalised log-posterior-kernel value for eta.
+//' @return The log-likelihood value for eta.
 // [[Rcpp::export]]
-double multinomialLogitGPLogKernel(
+double multinomialLogitLogLik(
   arma::vec eta,
   arma::vec eta_other_sum,
   arma::vec class_counts_j,
-  arma::vec class_counts_total,
-  arma::mat gp_cov,
-  arma::mat gp_cov_inv
+  arma::vec class_counts_total
 ) {
-
   double log_lik = 0.0, D_b = 0.0;
 
   for(uword b = 0; b < eta.n_elem; b++) {
@@ -402,9 +422,81 @@ double multinomialLogitGPLogKernel(
     log_lik += class_counts_j(b) * eta(b) - class_counts_total(b) * std::log(D_b);
   }
 
-  double log_prior = -0.5 * arma::as_scalar(eta.t() * gp_cov_inv * eta);
+  return log_lik;
+};
+
+//' @param eta B-vector, this ALR coordinate for each batch.
+//' @param eta_other_sum B-vector, the softmax normalising contribution of
+//' every other non-pivot category, held fixed this step.
+//' @param class_counts_j B-vector, per-batch counts in this category.
+//' @param class_counts_total B-vector, per-batch total item counts.
+//' @param gp_chol The LOWER-triangular Cholesky factor of the GP
+//' covariance matrix for this coordinate; see header for why a triangular
+//' solve against this, rather than forming/using the covariance's inverse
+//' directly, is the numerically-preferred modern approach.
+//' @param beta This coordinate's estimated GP intercept; see header.
+//' @return The unnormalised log-posterior-kernel value for eta.
+// [[Rcpp::export]]
+double multinomialLogitGPLogKernel(
+  arma::vec eta,
+  arma::vec eta_other_sum,
+  arma::vec class_counts_j,
+  arma::vec class_counts_total,
+  arma::mat gp_chol,
+  double beta
+) {
+
+  double log_lik = multinomialLogitLogLik(eta, eta_other_sum, class_counts_j, class_counts_total);
+
+  // Centred on beta, not 0 - see header for why a fixed zero-mean GP is a
+  // needlessly restrictive special case of the model this is meant to
+  // implement. v' Sigma^-1 v = ||L^-1 v||^2 exactly (Sigma = L L'), via a
+  // forward triangular solve - never Sigma^-1 itself; see header.
+  vec centred = eta - beta;
+  vec whitened = arma::solve(arma::trimatl(gp_chol), centred);
+  double log_prior = -0.5 * arma::dot(whitened, whitened);
 
   return log_lik + log_prior;
+};
+
+// Not Rcpp::export'd: reference (call-by-mutation) output parameters are
+// not something Rcpp Attributes turns into a sensible R-callable wrapper -
+// this is a C++-internal helper, called only from sampler.cpp.
+void invGammaQuantileMatch(
+  double lower, double upper, double tail_prob,
+  double& shape_out, double& rate_out
+) {
+  double target_ratio = upper / lower;
+
+  // ratio_for_shape(a) = qgamma(1 - tail_prob, a) / qgamma(tail_prob, a)
+  // (both at Gamma(a, rate = 1), so the ratio is independent of the
+  // Inverse-Gamma rate we are solving for) is monotonically DEcreasing in
+  // a - verified numerically (a = 0.1 gives ~2.6e20; a = 100 gives ~1.6),
+  // so a plain bisection on a is sufficient and robust, with no derivative
+  // needed and no risk of divergence.
+  double a_lo = 1e-2, a_hi = 1e3;
+  for (int iter = 0; iter < 100; iter++) {
+    double a_mid = 0.5 * (a_lo + a_hi);
+    double q_hi = R::qgamma(1.0 - tail_prob, a_mid, 1.0, 1, 0);
+    double q_lo = R::qgamma(tail_prob, a_mid, 1.0, 1, 0);
+    double ratio_mid = q_hi / q_lo;
+    if (ratio_mid > target_ratio) {
+      a_lo = a_mid; // ratio still too big -> need a larger shape to shrink it
+    } else {
+      a_hi = a_mid;
+    }
+  }
+  double shape = 0.5 * (a_lo + a_hi);
+
+  // Given shape, back out rate from matching the lower quantile exactly:
+  // lower = 1 / qgamma(1 - tail_prob, shape, rate = rate_out), and
+  // qgamma(p, shape, rate = r) = qgamma(p, shape, scale = 1) / r, so
+  // rate_out = lower * qgamma(1 - tail_prob, shape, scale = 1).
+  double q_hi_final = R::qgamma(1.0 - tail_prob, shape, 1.0, 1, 0);
+  double rate = lower * q_hi_final;
+
+  shape_out = shape;
+  rate_out = rate;
 };
 
 //' @title Build a correlation-matrix Cholesky factor from partial

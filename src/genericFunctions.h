@@ -203,6 +203,52 @@ double rTruncNorm(double mean, double sd, double lower, double upper);
 //' @return The covariance matrix, length(x) x length(x).
 arma::mat squaredExponentialKernel(arma::vec x, double tau2, double length_scale, double jitter);
 
+//' @title Matern-3/2 covariance kernel
+//' @description Builds the covariance matrix of a zero-mean Gaussian
+//' process with a Matern kernel of smoothness nu = 3/2 evaluated at a set
+//' of 1-D locations, k(x, x') = tau2 * (1 + sqrt(3)|x-x'|/length_scale) *
+//' exp(-sqrt(3)|x-x'|/length_scale), plus a small jitter added to the
+//' diagonal for numerical positive definiteness.
+//'
+//' Used (as of this version) in preference to \code{squaredExponentialKernel()}
+//' for the batch-dependent-weights GP prior (see \code{sampler::updateGPWeights()}):
+//' the squared-exponential kernel is real-analytic (infinitely
+//' differentiable), which makes its Gram matrix's eigenvalues decay
+//' geometrically fast and its condition number explode whenever any two
+//' input points are close relative to \code{length_scale} - exactly the
+//' "several batches collected close together in time, one far away"
+//' pattern real batch-collection schedules produce, and something
+//' verified in practice to corrupt \code{gp_cov_inv} with large, spurious,
+//' non-local entries for a batch that has no business being coupled to
+//' one on the other side of the time window. Matern-3/2 is only once
+//' mean-square differentiable, giving polynomial (not Gaussian) spectral
+//' decay and a far better-conditioned Gram matrix at the same
+//' length_scale/spacing - the standard fix recommended for exactly this
+//' failure mode (Stein, 1999, "Interpolation of Spatial Data," Springer,
+//' Section 2.7 on the difficulty of the sample paths implied by
+//' infinitely-differentiable kernels; Rasmussen & Williams, 2006,
+//' "Gaussian Processes for Machine Learning," MIT Press, Section 4.2,
+//' recommending Matern kernels as the more defensible default for
+//' physical/observational processes; and reiterated as current best
+//' practice in, e.g., the Stan/brms Gaussian process guidance, Burkner,
+//' 2021+, brms GP vignette, and GPyTorch's/GPflow's use of adaptive
+//' jitter specifically to cope with squared-exponential ill-conditioning,
+//' Gardner et al., 2018, "GPyTorch," NeurIPS). Matern-3/2 (rather than a
+//' smoother 5/2 or an even rougher 1/2) is a reasonable middle default:
+//' its sample paths are once-differentiable, more consistent with a
+//' realistically "bumpy" underlying rate than the perfectly smooth
+//' squared-exponential, while still smooth enough to interpolate sensibly
+//' between the sparse batches this feature is meant for.
+//' @param x Vector of 1-D locations (e.g. batch indices or timestamps).
+//' @param tau2 Marginal variance (amount of variation away from the mean
+//' function).
+//' @param length_scale How many units of x the correlation persists over;
+//' larger values give smoother (more strongly correlated) functions.
+//' @param jitter Small value added to the diagonal for numerical
+//' stability (e.g. 1e-6).
+//' @return The covariance matrix, length(x) x length(x).
+arma::mat maternKernel32(arma::vec x, double tau2, double length_scale, double jitter);
+
 //' @title Multinomial-logit Gaussian process log-kernel
 //' @description The unnormalised log-posterior-kernel for one additive
 //' log-ratio (ALR) coordinate of a set of batch-dependent multinomial
@@ -214,8 +260,26 @@ arma::mat squaredExponentialKernel(arma::vec x, double tau2, double length_scale
 //' Metropolis-Hastings-compatible route described there, rather than
 //' their more efficient but considerably more involved Polya-Gamma Gibbs
 //' sampler). Combines the GP log-prior for this ALR coordinate across all
-//' batches with the multinomial-logit log-likelihood contribution that
-//' coordinate makes to every batch's observed class counts.
+//' batches (now centred on an estimated intercept \code{beta}, rather
+//' than fixed at 0 - see \code{sampler::gp_beta} - matching the
+//' \eqn{z_k(x)^\top \beta_k + w_k(x)}, \eqn{w_k \sim GP(0, K)}
+//' decomposition in Ren, Du, Carin & Dunson (2011) themselves, of which an
+//' intercept-free zero-mean GP alone is a needlessly restrictive special
+//' case) with the multinomial-logit log-likelihood contribution that
+//' coordinate makes to every batch's observed class counts (see
+//' \code{multinomialLogitLogLik()} for that half alone).
+//'
+//' The GP log-prior quadratic form is evaluated via a triangular solve
+//' against the covariance's Cholesky factor
+//' (\eqn{\|L^{-1}(\eta-\beta)\|^2 = (\eta-\beta)^\top \Sigma^{-1}
+//' (\eta-\beta)} exactly, since \eqn{\Sigma = LL^\top}), never by forming
+//' \eqn{\Sigma^{-1}} explicitly - the standard numerically-preferred
+//' approach for Gaussian-process quadratic forms (Rasmussen & Williams,
+//' 2006, "Gaussian Processes for Machine Learning," MIT Press, Algorithm
+//' 2.1; carried through essentially unchanged into current GP software,
+//' e.g. GPyTorch's and GPflow's linear-solve-based, inversion-free
+//' internals, Gardner, Pleiss, Bindel, Weinberger & Wilson, 2018,
+//' "GPyTorch," NeurIPS).
 //' @param eta B-vector, the j-th ALR coordinate (log(w_{b,j} / w_{b,K}))
 //' for each batch b = 1, ..., B.
 //' @param eta_other_sum B-vector, sum_{j' != j} exp(eta_{b,j'}) for each
@@ -227,17 +291,91 @@ arma::mat squaredExponentialKernel(arma::vec x, double tau2, double length_scale
 //' coordinate).
 //' @param class_counts_total B-vector, the total number of items in each
 //' batch.
-//' @param gp_cov The B x B Gaussian process covariance matrix for this
-//' coordinate (see squaredExponentialKernel()).
-//' @param gp_cov_inv The (precomputed) inverse of gp_cov.
+//' @param gp_chol The B x B LOWER-triangular Cholesky factor of the GP
+//' covariance matrix for this coordinate (see \code{maternKernel32()});
+//' \eqn{\Sigma = }\code{gp_chol \%*\% t(gp_chol)}.
+//' @param beta This coordinate's estimated GP intercept (the prior mean
+//' every batch's eta is shrunk towards, in the absence of nearby-in-time
+//' information) - see \code{sampler::gp_beta}.
 //' @return The unnormalised log-posterior-kernel value for eta.
 double multinomialLogitGPLogKernel(
   arma::vec eta,
   arma::vec eta_other_sum,
   arma::vec class_counts_j,
   arma::vec class_counts_total,
-  arma::mat gp_cov,
-  arma::mat gp_cov_inv
+  arma::mat gp_chol,
+  double beta
+);
+
+//' @title Multinomial-logit log-likelihood (no prior)
+//' @description Just the log-likelihood half of
+//' \code{multinomialLogitGPLogKernel()} - the contribution one ALR
+//' coordinate's values make to every batch's observed class counts, with
+//' no GP (or any other) prior term attached. Factored out so that a
+//' hyperparameter update proposing a new covariance structure for the SAME
+//' underlying (reparameterised) draw can compare how much the likelihood
+//' alone prefers the old vs the new implied eta, without needing to
+//' re-derive or cancel a prior term at all - see
+//' \code{sampler::gpHyperparameterMetropolis()} for why that decomposition
+//' (rather than evaluating a GP prior density under two different
+//' covariance matrices directly) is what avoids the well-known
+//' funnel-shaped pathology of jointly updating a hierarchical model's
+//' variance/length-scale and its latent values in their natural, mutually
+//' entangled ("centred") parameterisation (Neal, 2003, "Slice sampling,"
+//' Annals of Statistics, Section 8.1; Papaspiliopoulos, Roberts & Skold,
+//' 2007, "A general framework for the parametrization of hierarchical
+//' models," Statistical Science; Betancourt & Girolami, 2015, "Hamiltonian
+//' Monte Carlo for Hierarchical Models," in "Current Trends in Bayesian
+//' Methodology with Applications"; Betancourt, 2020, "Robust Gaussian
+//' Process Modeling," Stan case study, applying the same fix specifically
+//' to a GP's length-scale/marginal-variance).
+//' @param eta B-vector, the j-th ALR coordinate for each batch.
+//' @param eta_other_sum B-vector; see \code{multinomialLogitGPLogKernel()}.
+//' @param class_counts_j B-vector, per-batch counts in this category.
+//' @param class_counts_total B-vector, per-batch total item counts.
+//' @return The log-likelihood value for eta.
+double multinomialLogitLogLik(
+  arma::vec eta,
+  arma::vec eta_other_sum,
+  arma::vec class_counts_j,
+  arma::vec class_counts_total
+);
+
+//' @title Quantile-match an Inverse-Gamma boundary-avoiding prior
+//' @description Solves for the (shape, rate) of an
+//' \eqn{\mathrm{InvGamma}(\mathrm{shape}, \mathrm{rate})} distribution
+//' such that \eqn{P(X < \mathrm{lower}) = P(X > \mathrm{upper}) =
+//' \mathrm{tail\_prob}} - a "boundary-avoiding" prior calibrated to two
+//' data-driven bounds (Betancourt, 2020, "Robust Gaussian Process
+//' Modeling," Stan case study; the general principle, and specifically
+//' Inverse-Gamma for its fast-decaying right tail rather than a
+//' log-normal's much heavier one, is standard current practice for GP
+//' length-scale priors - e.g. \code{brms}'s default prior for \code{gp()}
+//' terms, and the penalised-complexity range/marginal-SD priors of
+//' Fuglstad, Simpson, Lindgren & Rue, 2019, JASA 114(525) - motivated by
+//' the same failure mode: a length-scale prior with too heavy a right tail
+//' lets the sampler wander arbitrarily far up the (very flat, once
+//' length-scale exceeds the input domain) likelihood ridge and get stuck
+//' there, silently collapsing the GP to a single shared value).
+//'
+//' Uses \eqn{X \sim \mathrm{InvGamma}(a, b) \iff 1/X \sim
+//' \mathrm{Gamma}(a, \mathrm{rate} = b)}: the ratio of the two target
+//' quantiles, upper / lower, depends on the shape \eqn{a} alone (the rate
+//' \eqn{b} cancels), so \eqn{a} is found first by bisection (the ratio is
+//' monotonically decreasing in \eqn{a} - verified numerically, not merely
+//' assumed), then \eqn{b} follows in closed form from matching either
+//' quantile exactly.
+//' @param lower The lower boundary-avoiding bound (e.g. a robust measure
+//' of the finest spacing worth resolving).
+//' @param upper The upper boundary-avoiding bound (e.g. the full range of
+//' the input domain).
+//' @param tail_prob Target tail probability at each bound (e.g. 0.01 for a
+//' 98% central interval between lower and upper).
+//' @param shape_out,rate_out Output parameters (call by reference): the
+//' matched InvGamma shape and rate.
+void invGammaQuantileMatch(
+  double lower, double upper, double tail_prob,
+  double& shape_out, double& rate_out
 );
 
 // =============================================================================

@@ -48,9 +48,23 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// multinomialLogitGPLogKernel
-double multinomialLogitGPLogKernel(arma::vec eta, arma::vec eta_other_sum, arma::vec class_counts_j, arma::vec class_counts_total, arma::mat gp_cov, arma::mat gp_cov_inv);
-RcppExport SEXP _batchmix_multinomialLogitGPLogKernel(SEXP etaSEXP, SEXP eta_other_sumSEXP, SEXP class_counts_jSEXP, SEXP class_counts_totalSEXP, SEXP gp_covSEXP, SEXP gp_cov_invSEXP) {
+// maternKernel32
+arma::mat maternKernel32(arma::vec x, double tau2, double length_scale, double jitter);
+RcppExport SEXP _batchmix_maternKernel32(SEXP xSEXP, SEXP tau2SEXP, SEXP length_scaleSEXP, SEXP jitterSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::vec >::type x(xSEXP);
+    Rcpp::traits::input_parameter< double >::type tau2(tau2SEXP);
+    Rcpp::traits::input_parameter< double >::type length_scale(length_scaleSEXP);
+    Rcpp::traits::input_parameter< double >::type jitter(jitterSEXP);
+    rcpp_result_gen = Rcpp::wrap(maternKernel32(x, tau2, length_scale, jitter));
+    return rcpp_result_gen;
+END_RCPP
+}
+// multinomialLogitLogLik
+double multinomialLogitLogLik(arma::vec eta, arma::vec eta_other_sum, arma::vec class_counts_j, arma::vec class_counts_total);
+RcppExport SEXP _batchmix_multinomialLogitLogLik(SEXP etaSEXP, SEXP eta_other_sumSEXP, SEXP class_counts_jSEXP, SEXP class_counts_totalSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -58,9 +72,23 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< arma::vec >::type eta_other_sum(eta_other_sumSEXP);
     Rcpp::traits::input_parameter< arma::vec >::type class_counts_j(class_counts_jSEXP);
     Rcpp::traits::input_parameter< arma::vec >::type class_counts_total(class_counts_totalSEXP);
-    Rcpp::traits::input_parameter< arma::mat >::type gp_cov(gp_covSEXP);
-    Rcpp::traits::input_parameter< arma::mat >::type gp_cov_inv(gp_cov_invSEXP);
-    rcpp_result_gen = Rcpp::wrap(multinomialLogitGPLogKernel(eta, eta_other_sum, class_counts_j, class_counts_total, gp_cov, gp_cov_inv));
+    rcpp_result_gen = Rcpp::wrap(multinomialLogitLogLik(eta, eta_other_sum, class_counts_j, class_counts_total));
+    return rcpp_result_gen;
+END_RCPP
+}
+// multinomialLogitGPLogKernel
+double multinomialLogitGPLogKernel(arma::vec eta, arma::vec eta_other_sum, arma::vec class_counts_j, arma::vec class_counts_total, arma::mat gp_chol, double beta);
+RcppExport SEXP _batchmix_multinomialLogitGPLogKernel(SEXP etaSEXP, SEXP eta_other_sumSEXP, SEXP class_counts_jSEXP, SEXP class_counts_totalSEXP, SEXP gp_cholSEXP, SEXP betaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::vec >::type eta(etaSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type eta_other_sum(eta_other_sumSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type class_counts_j(class_counts_jSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type class_counts_total(class_counts_totalSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type gp_chol(gp_cholSEXP);
+    Rcpp::traits::input_parameter< double >::type beta(betaSEXP);
+    rcpp_result_gen = Rcpp::wrap(multinomialLogitGPLogKernel(eta, eta_other_sum, class_counts_j, class_counts_total, gp_chol, beta));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -409,6 +437,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_batchmix_createSimilarityMat", (DL_FUNC) &_batchmix_createSimilarityMat, 1},
     {"_batchmix_sampleLKJCorrelationMatrix", (DL_FUNC) &_batchmix_sampleLKJCorrelationMatrix, 2},
     {"_batchmix_squaredExponentialKernel", (DL_FUNC) &_batchmix_squaredExponentialKernel, 4},
+    {"_batchmix_maternKernel32", (DL_FUNC) &_batchmix_maternKernel32, 4},
+    {"_batchmix_multinomialLogitLogLik", (DL_FUNC) &_batchmix_multinomialLogitLogLik, 4},
     {"_batchmix_multinomialLogitGPLogKernel", (DL_FUNC) &_batchmix_multinomialLogitGPLogKernel, 6},
     {"_batchmix_buildCorrelationCholeskyFromZ", (DL_FUNC) &_batchmix_buildCorrelationCholeskyFromZ, 2},
     {"_batchmix_choleskyToPartialCorrelations", (DL_FUNC) &_batchmix_choleskyToPartialCorrelations, 2},

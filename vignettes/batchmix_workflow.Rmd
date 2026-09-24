@@ -278,17 +278,74 @@ chain left off and recomputes convergence on the extended chains:
 
 ```{r continueChains}
 n_iter_new <- 4000
+max_extra_rounds <- 3
+round_i <- 0
 
 new_output <- continueChains(
   mcmc_output, X, fixed, batch_vec, n_iter_new,
   keep_old_samples = TRUE
 )
 
+# Actually do what the advice above says, rather than just asserting it:
+# keep extending every chain until Rhat is comfortable or a bounded number
+# of extra rounds have been tried (a real analysis would not bound this,
+# but an unbounded loop is unsuitable for a vignette that has to finish
+# building in reasonable time). Each round is wrapped in tryCatch(): an
+# extremely long-running chain can occasionally hit a numerically singular
+# covariance update (a rare edge case, not the usual outcome) - if that
+# happens, this stops the loop and keeps the last successful state rather
+# than losing everything already sampled.
+extension_failed <- FALSE
+repeat {
+  if (attr(new_output, "convergence")$rhat <= 1.05 || round_i >= max_extra_rounds) {
+    break
+  }
+  next_output <- tryCatch(
+    continueChains(new_output, X, fixed, batch_vec, n_iter_new, keep_old_samples = TRUE),
+    error = function(e) {
+      message("continueChains() round ", round_i + 1, " failed (", conditionMessage(e), "); keeping the last successful state.")
+      NULL
+    }
+  )
+  if (is.null(next_output)) {
+    extension_failed <- TRUE
+    break
+  }
+  new_output <- next_output
+  round_i <- round_i + 1
+}
+
 new_output
 ```
 
-In real use, keep calling `continueChains()` until \(\hat{R}\) is
-comfortably below ~1.01 before trusting any point estimate below.
+```{r continueChainsEcho, echo=FALSE}
+final_rhat <- attr(new_output, "convergence")$rhat
+final_chain_bic <- attr(new_output, "convergence")$chain_bic
+bic_spread <- diff(range(final_chain_bic))
+```
+
+The first `continueChains()` call above (2000 to 6000 total iterations)
+already ran unconditionally; the loop then attempted `r round_i`
+*additional* extension(s) beyond that because R&#770; was still above 1.05.
+`r if (extension_failed) "One further extension attempt hit a numerically singular covariance update partway through - a rare edge case in the underlying sampler, not the usual outcome - and was safely discarded by the tryCatch() above, keeping the chains at their last successful state rather than losing everything already sampled." else "No extension attempt failed."`
+R&#770; after all of this is `r round(final_rhat, 2)`. In real use, keep
+calling `continueChains()` (without the artificial round limit used here)
+until R&#770; is comfortably below ~1.01 before trusting any point
+estimate; this vignette stops early to keep its build time reasonable, and
+whatever value R&#770; has actually reached is what the rest of this
+section relies on - not an assumption that it has hit 1.
+
+If R&#770; is still above ~1.01 at this point, the per-chain mean BIC
+(`r round(final_chain_bic, 1)`, spread `r round(bic_spread, 1)`) is worth
+checking directly: R&#770; on the complete-data log-likelihood aggregates
+*all* chains' disagreement into a single number, whereas the per-chain BIC
+shows *which* chains disagree and by how much. A single point estimate
+below is only reasonable to trust here because `getBestChain()`
+specifically extracts the chain with the best BIC rather than pooling
+across chains that may not agree - it sidesteps the disagreement R&#770;
+is flagging rather than resolving it, which is a meaningfully weaker
+guarantee than "all chains agree" and is exactly why R&#770; is still
+reported rather than hidden once a best chain has been picked.
 
 ## 6. Posterior predictive check
 
@@ -298,8 +355,9 @@ covariances, batch shifts/scales and cluster allocations (see
 `?simulatePosteriorPredictive`; no prior formula is re-derived here, so
 this cannot drift out of sync with the sampler itself). `getBestChain()`
 picks the chain with the best (highest post-burn-in mean) BIC rather than
-an arbitrary one - reasonable as a single representative chain once the
-\(\hat{R}\)/ESS above confirm the chains agree.
+an arbitrary one - reasonable as a single representative chain even while
+R&#770; is not yet at 1, for the reason discussed just above (it sidesteps
+cross-chain disagreement rather than requiring it to be resolved first).
 
 ```{r bestChain}
 mcmc_out <- getBestChain(new_output)
@@ -307,7 +365,11 @@ summary(mcmc_out)
 ```
 
 ```{r postPC}
-burn <- floor((n_iter + n_iter_new) / 2)
+# mcmc_out$n_iter is the chain's own actual total iteration count, however
+# many continueChains() rounds it took above - using it here (rather than
+# a fixed n_iter + n_iter_new) stays correct regardless of how many rounds
+# that loop actually ran.
+burn <- floor(mcmc_out$n_iter / 2)
 
 post_sims <- simulatePosteriorPredictive(
   mcmc_out, batch_vec,
@@ -470,7 +532,12 @@ structure specifically.
   `plotBatchCorrection()` gives the same check as a picture.
 - Only then take a point estimate (`processMCMCChain()`/`getBestChain()`,
   or pool every chain with `predictFromMultipleChains()`), and check it
-  against ground truth when it is available.
+  against ground truth when it is available. If R&#770; is still elevated
+  even after continuing, `getBestChain()`'s single best-BIC chain
+  sidesteps the cross-chain disagreement rather than resolving it - a
+  meaningfully weaker guarantee than every chain actually agreeing, worth
+  keeping in mind rather than treating a printed R&#770; as a box to tick
+  once a point estimate has been produced regardless of its value.
 
 Neither predictive check *proves* the model correct - as with all
 posterior predictive checks, a good result is consistent with (not proof

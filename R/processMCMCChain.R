@@ -174,6 +174,7 @@ processMCMCChain <- function(mcmc_output, burn, point_estimate_method = "median"
     new_output$gp_length_scale <- mcmc_output$gp_length_scale[keep_indices]
     new_output$pp_mu <- mcmc_output$pp_mu[, keep_indices, drop = FALSE]
     new_output$pp_tau2 <- mcmc_output$pp_tau2[, keep_indices, drop = FALSE]
+    new_output$gp_beta <- mcmc_output$gp_beta[, keep_indices, drop = FALSE]
   }
 
   if (type == "MVT") {

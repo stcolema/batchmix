@@ -174,24 +174,48 @@ n_saved <- dim(chain_a$covariance)[3]
 last_half <- (n_saved / 2 + 1):n_saved
 r12 <- sapply(last_half, function(s) cov2cor(chain_a$covariance[, 1:P, s])[1, 2])
 r34 <- sapply(last_half, function(s) cov2cor(chain_a$covariance[, 1:P, s])[3, 4])
+r12_mean <- mean(r12)
+r34_mean <- mean(r34)
 
 cat("Continuous-continuous correlation (cols 1-2), true = 0.6:\n")
-cat("  posterior mean:", mean(r12), " range over kept samples:", range(r12), "\n")
+cat("  posterior mean:", r12_mean, " range over kept samples:", range(r12), "\n")
 cat("Binary-binary correlation (cols 3-4), true = 0.7:\n")
-cat("  posterior mean:", mean(r34), " range over kept samples:", range(r34), "\n")
+cat("  posterior mean:", r34_mean, " range over kept samples:", range(r34), "\n")
+
+rhat_a <- attr(fit_a, "convergence")$rhat
 ```
 
-The binary-binary correlation is recovered with the correct sign and
-close to its true magnitude. The continuous-continuous correlation is
-recovered with the correct sign but is overestimated here relative to
-both the population value and the sample correlation of the underlying
-(unobserved) draw - a larger deviation than the slow-mixing symptom above
-alone would predict, and a rougher edge of this sampler under
-investigation. Readers relying on `type = "MVN_MIXED"` for a
-continuous-continuous correlation estimate specifically should treat a
-point estimate as indicative of sign and approximate scale rather than a
-precise value, and are encouraged to check convergence (as here) rather
-than take a single chain's answer at face value.
+```{r resultA_direction, echo=FALSE}
+describe_recovery <- function(est, truth) {
+  err <- est - truth
+  if (abs(err) < 0.03) {
+    "recovered close to its true value"
+  } else if (err > 0) {
+    paste0("overestimated by about ", round(err, 2))
+  } else {
+    paste0("underestimated by about ", round(-err, 2))
+  }
+}
+r12_desc <- describe_recovery(r12_mean, 0.6)
+r34_desc <- describe_recovery(r34_mean, 0.7)
+```
+
+Both correlations recover the correct **sign**; the continuous-continuous
+correlation (cols 1-2) is `r r12_desc` (posterior mean
+`r round(r12_mean, 2)` against a true value of 0.6), and the binary-binary
+correlation (cols 3-4) is `r r34_desc` (posterior mean
+`r round(r34_mean, 2)` against a true value of 0.7). R&#770; on this fit's
+complete-data log-likelihood is `r round(rhat_a, 2)` - well above the
+~1.01 rule of thumb, consistent with the slow probit-correlation mixing
+flagged above, and a reminder that either correlation here is best read as
+indicative of sign and approximate magnitude rather than as a precise
+value: which of the two correlations is closer to its true value on any
+given run is a property of exactly *how* the chains have not yet
+converged, not a reliable property of the sampler that should be expected
+to replicate on different data. Readers relying on `type = "MVN_MIXED"`
+for a specific correlation estimate are encouraged to check convergence
+(as here, and as the R&#770; above illustrates directly) rather than take a
+single chain's answer at face value.
 
 ### Predictive checks
 
@@ -295,13 +319,29 @@ abline(h = mu_true[2], lty = 2, col = "red")
 abline(v = 0.75 * n_saved_b, lty = 3, col = "grey40")
 ```
 
+```{r resultB_rhat, echo=FALSE}
+rhat_b <- attr(fit_b, "convergence")$rhat
+naive_err <- abs(mu_naive[2] - mu_true[2])
+proper_err <- abs(mu_proper[2] - mu_true[2])
+```
+
 The naive estimate is biased upward by the censoring (values below the
-bound get replaced by a value that is, on average, too high); the proper
-augmentation recovers a value much closer to the truth. The trace plot
-also makes explicit why an adequate burn-in matters here - this is
-ordinary MCMC practice, not something specific to this sampler, but it is
-easy to get wrong by eye when a chain's early transient looks superficially
-like noise rather than a systematic drift towards the posterior mode.
+bound get replaced by a value that is, on average, too high): it is off
+by `r round(naive_err, 2)`, versus `r round(proper_err, 2)` for the
+proper augmented estimate - a large reduction in error, even though this
+fit's own R&#770; (`r round(rhat_b, 2)`) is, as in Part A, still well above
+the ~1.01 rule of thumb. That combination is worth sitting with rather
+than glossing over: a fit can be simultaneously (i) clearly, verifiably
+better than the naive alternative on the one comparison this section is
+about, and (ii) not yet fully converged by the package's own diagnostic.
+Both are true here; neither contradicts the other, and it is why this
+package reports R&#770; explicitly rather than leaving a reader to infer
+"the point estimate looked sensible, so the chain must have converged."
+The trace plot also makes explicit why an adequate burn-in matters here -
+this is ordinary MCMC practice, not something specific to this sampler,
+but it is easy to get wrong by eye when a chain's early transient looks
+superficially like noise rather than a systematic drift towards the
+posterior mode.
 
 ## Summary
 
