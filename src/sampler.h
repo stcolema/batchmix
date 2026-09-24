@@ -162,25 +162,85 @@ public:
   //     to explain the same signal, so no identifiability fix is needed
   //     here beyond the ordinary conjugate hierarchical-model machinery.
   //
-  //   weight_prior_type == 2 ("gp"): as before - the ALR coordinates are
-  //     linked across batches by a Gaussian process over an ordered/spatial
-  //     batch_coordinates covariate (squaredExponentialKernel() +
+  //   weight_prior_type == 2 ("gp"): the ALR coordinates are linked across
+  //     batches by a Gaussian process over an ordered/spatial
+  //     batch_coordinates covariate (maternKernel32() +
   //     multinomialLogitGPLogKernel() in genericFunctions.h/.cpp), for
   //     batches with a genuine, known ordering in time or space where nearby
   //     batches are expected to be more similar than distant ones. Use
   //     "partial pooling" instead whenever that ordering/distance isn't
   //     known or isn't the point - it estimates only a common mean and
   //     variance, not a length-scale.
+  //
+  //     Each free ALR coordinate j has its own estimated intercept
+  //     gp_beta(j) - eta_{.,j} ~ GP(gp_beta(j), K(batch_coordinates)) - not
+  //     fixed at 0: Ren, Du, Carin & Dunson (2011), the paper this
+  //     construction is otherwise built from, itself decomposes the
+  //     logit as z(x)^T beta + w(x) with w ~ GP(0, K), i.e. an intercept
+  //     plus a zero-mean deviation process, not a bare zero-mean GP - the
+  //     latter would force every coordinate to revert to an equal-weight
+  //     (1/K) split wherever the data are uninformative or far from every
+  //     other batch, regardless of the batches' actual overall rate,
+  //     unlike "partial pooling"'s pp_mu playing the equivalent role
+  //     there. gp_beta(j) ~ N(0, pp_mu_prior_sd^2) a priori (the same
+  //     weakly-informative scale already used for pp_mu, since the two
+  //     play an analogous role) and is updated by a conjugate
+  //     generalised-least-squares Gibbs step each sweep (see
+  //     updateGPWeights()).
+  //
+  //     gp_length_scale's prior (gp_length_scale_prior_shape/rate, an
+  //     Inverse-Gamma - NOT the log-normal an earlier version of this
+  //     package used) is NOT the fixed constant it defaults to below once
+  //     batch_coordinates has at least 2 distinct values:
+  //     initialiseBatchWeightPrior() overwrites it with an empirical-Bayes,
+  //     "boundary-avoiding" calibration to batch_coordinates' own scale via
+  //     invGammaQuantileMatch() - see its implementation and
+  //     genericFunctions.h for the full derivation and references
+  //     (Betancourt, 2020, "Robust Gaussian Process Modeling," Stan case
+  //     study; Fuglstad, Simpson, Lindgren & Rue, 2019, JASA, penalised-
+  //     complexity priors for GP range/variance). A length-scale prior
+  //     fixed in absolute units regardless of whether batch_coordinates
+  //     are e.g. small integer indices or real-valued collection times
+  //     spanning months/years is a scale mismatch waiting to happen - and
+  //     a log-normal (rather than Inverse-Gamma) calibration, tried in an
+  //     earlier version of this fix, turned out to be its own trap: one
+  //     coincidentally-close pair of batches among otherwise-spread-out
+  //     ones inflates the log-normal's SD enough that its heavy right tail
+  //     puts real prior mass on length scales tens to hundreds of times the
+  //     whole batch_coordinates range, and - because the likelihood is
+  //     essentially flat once length-scale already exceeds that range - the
+  //     sampler can wander arbitrarily far up that flat ridge and get stuck
+  //     there, collapsing the entire GP to one shared value regardless of
+  //     any real per-batch structure. Inverse-Gamma's much faster-decaying
+  //     right tail (the reason it, not log-normal, is the standard
+  //     recommendation for this specific prior) keeps that from happening.
+  //
+  //     The GP prior's quadratic form is evaluated via a triangular solve
+  //     against gp_chol (the covariance's Cholesky factor), never via an
+  //     explicit matrix inverse - see multinomialLogitGPLogKernel() in
+  //     genericFunctions.h for why this, not gp_cov's inverse, is the
+  //     numerically-preferred modern approach; gp_cov_inv does not exist as
+  //     a field for this reason. Similarly, gpHyperparameterMetropolis()
+  //     proposes new (tau2, length_scale) via a non-centred/whitened
+  //     reparameterisation of eta_alr specifically for that step (see its
+  //     own documentation) - the standard fix for the otherwise-severe
+  //     "funnel" coupling between a hierarchical model's variance/
+  //     length-scale and its latent values when both are updated in their
+  //     natural, entangled ("centred") form (Neal, 2003; Papaspiliopoulos,
+  //     Roberts & Skold, 2007; Betancourt & Girolami, 2015; Betancourt,
+  //     2020, applying the same fix to a GP specifically) - rather than the
+  //     plain, funnel-prone joint update an earlier version of this fix
+  //     used.
   arma::uword weight_prior_type = 0;
   bool sample_gp_hyperparameters = false;
   double gp_tau2 = 1.0, gp_length_scale = 1.0, gp_jitter = 1e-6,
     eta_proposal_window = 0.1, gp_hyperparameter_proposal_window = 0.1,
-    gp_tau2_prior_shape = 2.0, gp_tau2_prior_rate = 1.0,
-    gp_length_scale_prior_mean = 0.0, gp_length_scale_prior_sd = 1.0,
+    gp_tau2_prior_shape = 2.0, gp_tau2_prior_rate = 4.0,
+    gp_length_scale_prior_shape = 2.0, gp_length_scale_prior_rate = 2.0,
     pp_tau2_prior_shape = 2.0, pp_tau2_prior_rate = 1.0,
     pp_mu_prior_sd = 10.0;
-  arma::vec batch_coordinates, pp_mu, pp_tau2;
-  arma::mat gp_cov, gp_cov_inv, w_batch, eta_alr;
+  arma::vec batch_coordinates, pp_mu, pp_tau2, gp_beta;
+  arma::mat gp_cov, gp_chol, w_batch, eta_alr;
   arma::uvec eta_count;
   arma::uword gp_hyperparameter_count = 0;
 
@@ -226,8 +286,31 @@ public:
   void updateSimplexFromALR(arma::uword n_free);
   void updateGPWeights();
   void updatePartialPoolingWeights();
-  double gpHyperparameterLogKernel(arma::mat cov, arma::mat cov_inv);
   void gpHyperparameterMetropolis();
+
+  // Builds a Matern-3/2 GP covariance matrix and its LOWER-triangular
+  // Cholesky factor for a candidate (tau2, length_scale) pair, escalating
+  // the diagonal jitter geometrically from a tau2-scaled starting point
+  // until the Cholesky factorisation succeeds (Armadillo's chol() returns
+  // false rather than throwing on failure here) - the standard modern
+  // safeguard for covariance matrices that can be arbitrarily
+  // ill-conditioned depending on the input locations (GPyTorch's/GPflow's
+  // escalating default jitter, Gardner, Pleiss, Bindel, Weinberger &
+  // Wilson, 2018, "GPyTorch," NeurIPS), used because no fixed proportional
+  // jitter is safe for every possible batch_coordinates configuration (see
+  // initialiseBatchWeightPrior()). Deliberately factorises via chol(), not
+  // inv_sympd(): every consumer of the result (multinomialLogitGPLogKernel(),
+  // gpHyperparameterMetropolis()'s whitening step) only ever needs a
+  // triangular solve against the Cholesky factor, never the covariance's
+  // explicit inverse - see genericFunctions.h for why that is the
+  // numerically-preferred modern approach. Shared by
+  // initialiseBatchWeightPrior() and gpHyperparameterMetropolis(), the two
+  // places a covariance is built from scratch for a candidate (tau2,
+  // length_scale).
+  void buildWellConditionedGPChol(
+    double tau2, double length_scale,
+    arma::mat& cov, arma::mat& chol_factor, double& jitter_used
+  );
 
   // Extra free-parameter count (beyond each concrete calcBIC()'s baseline
   // cluster/batch terms) contributed by the opt-in interaction term and/or

@@ -10,7 +10,8 @@ multinomialLogitGPLogKernel(
   class_counts_j,
   class_counts_total,
   gp_cov,
-  gp_cov_inv
+  gp_cov_inv,
+  beta
 )
 }
 \arguments{
@@ -30,6 +31,8 @@ functions, several of which likewise take both a matrix and its
 precomputed inverse).}
 
 \item{gp_cov_inv}{The inverse of gp_cov.}
+
+\item{beta}{This coordinate's estimated GP intercept; see header.}
 }
 \value{
 The unnormalised log-posterior-kernel value for eta.

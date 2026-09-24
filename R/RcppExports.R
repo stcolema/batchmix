@@ -156,6 +156,19 @@ squaredExponentialKernel <- function(x, tau2, length_scale, jitter) {
     .Call('_batchmix_squaredExponentialKernel', PACKAGE = 'batchmix', x, tau2, length_scale, jitter)
 }
 
+#' @title Matern-3/2 covariance kernel
+#' @description Builds a Gaussian process covariance matrix; see header
+#' for the full derivation, references and the conditioning rationale for
+#' preferring this over \code{squaredExponentialKernel()}.
+#' @param x Vector of 1-D locations.
+#' @param tau2 Marginal variance.
+#' @param length_scale Correlation length scale.
+#' @param jitter Diagonal jitter for numerical stability.
+#' @return The covariance matrix.
+maternKernel32 <- function(x, tau2, length_scale, jitter) {
+    .Call('_batchmix_maternKernel32', PACKAGE = 'batchmix', x, tau2, length_scale, jitter)
+}
+
 #' @title Multinomial-logit Gaussian process log-kernel
 #' @description The unnormalised log-posterior-kernel for one ALR
 #' coordinate of batch-dependent multinomial weights under a GP prior
@@ -166,15 +179,24 @@ squaredExponentialKernel <- function(x, tau2, length_scale, jitter) {
 #' every other non-pivot category, held fixed this step.
 #' @param class_counts_j B-vector, per-batch counts in this category.
 #' @param class_counts_total B-vector, per-batch total item counts.
-#' @param gp_cov The GP covariance matrix for this coordinate (unused
-#' directly here beyond documenting the pairing with gp_cov_inv, kept for
-#' interface symmetry with the rest of the package's *LogKernel
-#' functions, several of which likewise take both a matrix and its
-#' precomputed inverse).
-#' @param gp_cov_inv The inverse of gp_cov.
+#' @return The log-likelihood value for eta.
+multinomialLogitLogLik <- function(eta, eta_other_sum, class_counts_j, class_counts_total) {
+    .Call('_batchmix_multinomialLogitLogLik', PACKAGE = 'batchmix', eta, eta_other_sum, class_counts_j, class_counts_total)
+}
+
+#' @param eta B-vector, this ALR coordinate for each batch.
+#' @param eta_other_sum B-vector, the softmax normalising contribution of
+#' every other non-pivot category, held fixed this step.
+#' @param class_counts_j B-vector, per-batch counts in this category.
+#' @param class_counts_total B-vector, per-batch total item counts.
+#' @param gp_chol The LOWER-triangular Cholesky factor of the GP
+#' covariance matrix for this coordinate; see header for why a triangular
+#' solve against this, rather than forming/using the covariance's inverse
+#' directly, is the numerically-preferred modern approach.
+#' @param beta This coordinate's estimated GP intercept; see header.
 #' @return The unnormalised log-posterior-kernel value for eta.
-multinomialLogitGPLogKernel <- function(eta, eta_other_sum, class_counts_j, class_counts_total, gp_cov, gp_cov_inv) {
-    .Call('_batchmix_multinomialLogitGPLogKernel', PACKAGE = 'batchmix', eta, eta_other_sum, class_counts_j, class_counts_total, gp_cov, gp_cov_inv)
+multinomialLogitGPLogKernel <- function(eta, eta_other_sum, class_counts_j, class_counts_total, gp_chol, beta) {
+    .Call('_batchmix_multinomialLogitGPLogKernel', PACKAGE = 'batchmix', eta, eta_other_sum, class_counts_j, class_counts_total, gp_chol, beta)
 }
 
 #' @title Build a correlation-matrix Cholesky factor from partial

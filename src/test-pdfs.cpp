@@ -64,10 +64,16 @@ context("Unit test for reduced PDF functions.") {
   arma::vec counts_j_gp = {7, 3, 12};
   arma::vec counts_tot_gp = {10, 10, 20};
   arma::mat gp_cov3 = squaredExponentialKernel(arma::vec({1, 2, 3}), 1.0, 1.0, 1e-6);
-  arma::mat gp_cov3_inv = arma::inv_sympd(gp_cov3);
+  arma::mat gp_chol3;
+  arma::chol(gp_chol3, gp_cov3, "lower");
 
   test_that("multinomial-logit GP log kernel") {
-    double val = multinomialLogitGPLogKernel(eta_gp, eta_other_sum_gp, counts_j_gp, counts_tot_gp, gp_cov3, gp_cov3_inv);
+    // beta = 0: reduces to the zero-mean case this reference value was
+    // computed under, before the GP prior gained its own estimated
+    // intercept (see sampler::gp_beta). The reference value itself is
+    // unchanged by the switch from an explicit gp_cov_inv to a Cholesky
+    // solve against gp_chol3: v' Sigma^-1 v == ||L^-1 v||^2 exactly.
+    double val = multinomialLogitGPLogKernel(eta_gp, eta_other_sum_gp, counts_j_gp, counts_tot_gp, gp_chol3, 0.0);
     expect_true(compareDoubles(val, -29.079613732263, 1e-6));
   }
 

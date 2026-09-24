@@ -112,12 +112,13 @@ sampler::sampler(
 
     batch_coordinates = linspace<vec>(0, B - 1, B);
     gp_cov = eye<mat>(B, B);
-    gp_cov_inv = eye<mat>(B, B);
+    gp_chol = eye<mat>(B, B);
     w_batch = ones<mat>(B, K) / (double) K;
     eta_alr = zeros<mat>(B, (K > 0) ? K - 1 : 0);
     eta_count = zeros<uvec>((K > 0) ? K - 1 : 0);
     pp_mu = zeros<vec>((K > 0) ? K - 1 : 0);
     pp_tau2 = ones<vec>((K > 0) ? K - 1 : 0);
+    gp_beta = zeros<vec>((K > 0) ? K - 1 : 0);
   };
 
 // Functions required of all mixture models
@@ -332,10 +333,18 @@ double sampler::structuralExtraBICParams() const {
       // Partial pooling: population mean and variance for each of the
       // K_occ - 1 free ALR coordinates (pp_mu, pp_tau2).
       extra += 2.0 * (double) (K_occ - 1);
-    } else if (weight_prior_type == 2 && sample_gp_hyperparameters) {
-      // GP: marginal variance and length-scale, only when actually
-      // estimated rather than fixed by the user (gp_tau2, gp_length_scale).
-      extra += 2.0;
+    } else if (weight_prior_type == 2) {
+      // GP: one estimated intercept (gp_beta) per free ALR coordinate,
+      // always - the GP analogue of partial pooling's per-coordinate
+      // pp_mu (see the header for why this exists). tau2/length_scale are
+      // each a single value SHARED across every coordinate (unlike
+      // pp_mu/pp_tau2, which are per-coordinate), so they contribute only
+      // 2 extra parameters in total, and only when actually estimated
+      // rather than fixed by the user.
+      extra += (double) (K_occ - 1);
+      if (sample_gp_hyperparameters) {
+        extra += 2.0;
+      }
     }
   }
 
@@ -368,26 +377,73 @@ void sampler::initialiseBatchWeightPrior(
   pp_tau2_prior_rate = _pp_tau2_prior_rate;
   pp_mu_prior_sd = _pp_mu_prior_sd;
 
-  // A fixed, tiny absolute jitter (e.g. 1e-6) is nowhere near enough once
-  // length_scale is not small relative to the spacing of batch_coordinates
-  // (exactly the "batches are smoothly correlated over time" regime this
-  // feature exists for): neighbouring batches then have near-identical
-  // rows/columns, the smallest eigenvalue of gp_cov collapses towards the
-  // jitter floor, and gp_cov_inv's corresponding eigenvalue explodes -
-  // verified directly (condition number ~1.7e7 with tau2 = 5, length_scale
-  // = 3 over 8 unit-spaced batches, jitter = 1e-6), which silently corrupts
-  // the quadratic form in every *LogKernel/gpHyperparameterLogKernel call
-  // using gp_cov_inv, in one observed case flipping which of two eta
-  // vectors the GP prior term favours. Scaling the jitter with tau2 (the
-  // matrix's own diagonal scale) keeps the condition number bounded
-  // regardless of length_scale; 1e-4 * tau2 was verified to bring the
-  // condition number for the case above down to ~2.2e3 while leaving the
-  // resulting log-kernel differences essentially unchanged from their
-  // well-conditioned limit. Only meaningful for weight_prior_type == 2
-  // ("gp"), but harmless to always compute.
-  gp_jitter = std::max(gp_jitter, gp_tau2 * 1e-4);
-  gp_cov = squaredExponentialKernel(batch_coordinates, gp_tau2, gp_length_scale, gp_jitter);
-  gp_cov_inv = inv_sympd(gp_cov);
+  if (weight_prior_type == 2 && batch_coordinates.n_elem >= 2) {
+    // Empirical-Bayes calibration of the length-scale prior to
+    // batch_coordinates' own scale: an Inverse-Gamma "boundary-avoiding"
+    // prior (Betancourt, 2020, "Robust Gaussian Process Modeling," Stan
+    // case study; the same principle - discourage length scales shorter
+    // than the finest resolvable spacing or longer than the whole domain -
+    // underlies the penalised-complexity range prior of Fuglstad, Simpson,
+    // Lindgren & Rue, 2019, JASA 114(525)) with its 1st/99th percentiles
+    // placed AT those two bounds (invGammaQuantileMatch(), tail_prob =
+    // 0.01), via a real quantile match rather than a log-normal
+    // approximation - Inverse-Gamma's much faster-decaying right tail is
+    // the actual reason it is the standard choice here (see the header):
+    // a log-normal calibrated the same way was verified to still let the
+    // sampler wander into, and get stuck at, length scales in the hundreds
+    // to thousands on data where a single pair of batches happened to be
+    // collected close together while the rest were spread out - Inverse-
+    // Gamma does not have the tail mass left to permit that once its
+    // quantiles are pinned at sensible bounds.
+    //
+    // The lower bound uses the MEDIAN gap between consecutive batches, not
+    // the bare minimum: the minimum is a single order statistic and easily
+    // dominated by one coincidentally-close pair (exactly what produced
+    // the log-normal failure above), whereas the median reflects the
+    // typical, "worth resolving" spacing the GP is actually meant to act
+    // on. The upper bound is the full span of batch_coordinates, which has
+    // no such single-pair fragility (Betancourt, 2020, uses the same
+    // median-gap-to-full-range pairing).
+    vec sorted_bc = arma::sort(batch_coordinates);
+    vec gaps = arma::diff(sorted_bc);
+    gaps = gaps.elem(arma::find(gaps > 1e-8)); // drop exact ties (zero gap)
+    double lower_bound = gaps.n_elem > 0 ? arma::median(gaps) : 1.0;
+    double range_bc = sorted_bc(sorted_bc.n_elem - 1) - sorted_bc(0);
+    if (range_bc > 1e-8 && lower_bound > 1e-8 && range_bc > lower_bound) {
+      invGammaQuantileMatch(lower_bound, range_bc, 0.01, gp_length_scale_prior_shape, gp_length_scale_prior_rate);
+    }
+    // If gp_length_scale itself was left at its own (possibly now
+    // badly-scaled) default, re-centre it on the newly-calibrated prior's
+    // MODE (rate / (shape + 1); more stable than the mean when shape is
+    // close to 1, where the mean can itself be large or undefined) rather
+    // than starting the chain somewhere the prior has just decided is
+    // implausible.
+    if (gp_length_scale == 1.0) {
+      gp_length_scale = gp_length_scale_prior_rate / (gp_length_scale_prior_shape + 1.0);
+    }
+  }
+
+  // tau2 (the marginal variance ON THE LOGIT SCALE) has no coordinate-unit
+  // dependence to calibrate against, so it is not touched above - but note
+  // the header default (gp_tau2_prior_shape = 2, gp_tau2_prior_rate = 4,
+  // mean tau2 = 4) is itself already the weakly-informative logit-scale
+  // variance Gelman, Jakulin, Pittau & Su (2008, Annals of Applied
+  // Statistics 2(4), "A weakly informative default prior distribution for
+  // logistic and other regression models") recommend as a generic default
+  // for logistic-regression coefficients (SD around 2.5, i.e. variance
+  // around 6.25) - widened from an earlier, tighter (mean 1) default that
+  // predated this comparison.
+
+  // No fixed proportional jitter is safe for every possible
+  // batch_coordinates configuration: batches collected close together in
+  // time elsewhere in the same dataset as a batch far from everyone else
+  // can still make the Gram matrix arbitrarily ill-conditioned regardless
+  // of tau2 - verified directly (condition number ~1.75e4, at this
+  // package's own previously-fixed jitter proportion, for 10 realistically
+  // irregularly-spaced batches whose closest pair happened to be far
+  // closer together than their farthest) - see buildWellConditionedGPChol()
+  // for the escalation this now uses instead.
+  buildWellConditionedGPChol(gp_tau2, gp_length_scale, gp_cov, gp_chol, gp_jitter);
 
   // Start from equal weights in every batch (eta = 0 in every ALR
   // coordinate, and the partial-pooling population mean/variance at their
@@ -400,6 +456,9 @@ void sampler::initialiseBatchWeightPrior(
   eta_count = zeros<uvec>((K > 0) ? K - 1 : 0);
   pp_mu = zeros<vec>((K > 0) ? K - 1 : 0);
   pp_tau2 = ones<vec>((K > 0) ? K - 1 : 0) * (pp_tau2_prior_rate / std::max(pp_tau2_prior_shape - 1.0, 1e-6));
+  // gp_beta plays the same role for "gp" that pp_mu plays for "partial
+  // pooling" (see the header) - initialised at its own prior mean (0).
+  gp_beta = zeros<vec>((K > 0) ? K - 1 : 0);
 };
 
 // Per-batch, per-cluster item counts under the current allocation, shared
@@ -438,17 +497,31 @@ void sampler::updateSimplexFromALR(arma::uword n_free) {
 };
 
 // One sweep of the GP-structured batch-weight update: K - 1 independent
-// ALR coordinates, each linked across the B batches by its own GP prior,
-// each updated by a block Metropolis-Hastings step (propose all B entries
-// of that coordinate at once, accept/reject as a whole) holding every
-// other coordinate fixed - the cyclic scheme documented alongside
+// ALR coordinates, each linked across the B batches by its own GP prior
+// centred on its own estimated intercept gp_beta(j) (see the header for
+// why a bare zero-mean GP is a needlessly restrictive special case), each
+// updated by a block Metropolis-Hastings step (propose all B entries of
+// that coordinate at once, accept/reject as a whole) holding every other
+// coordinate fixed - the cyclic scheme documented alongside
 // multinomialLogitGPLogKernel() (Ren, Du, Carin & Dunson, 2011; Linderman,
-// Johnson & Adams, 2015).
+// Johnson & Adams, 2015). gp_beta(j) itself is then updated by an exact
+// conjugate Gibbs step, generalised-least-squares rather than the simple
+// sample mean partial pooling's analogous pp_mu update uses, since the
+// deviations eta_{.,j} - gp_beta(j) are correlated (covariance gp_cov),
+// not iid.
 void sampler::updateGPWeights() {
 
   uword n_free = (K > 0) ? K - 1 : 0;
   mat count_bk = computeBatchClassCounts();
   vec N_b_d = conv_to<vec>::from(N_b);
+  vec ones_B = ones<vec>(B);
+  // Sigma^-1 * v == solve(L', solve(L, v)) exactly, via two triangular
+  // solves against the Cholesky factor - never Sigma's explicit inverse;
+  // see genericFunctions.h. Both solves below reuse this same L for every
+  // free coordinate this sweep, since gp_chol only changes in
+  // gpHyperparameterMetropolis().
+  mat L = arma::trimatl(gp_chol);
+  vec L_inv_ones = arma::solve(L, ones_B);
 
   vec eta_other_sum(B), eta_proposed(B), current_col(B);
   double proposed_score = 0.0, current_score = 0.0, u = 0.0, acceptance_prob = 0.0;
@@ -464,8 +537,8 @@ void sampler::updateGPWeights() {
     current_col = eta_alr.col(j);
     eta_proposed = current_col + randn<vec>(B) * eta_proposal_window;
 
-    proposed_score = multinomialLogitGPLogKernel(eta_proposed, eta_other_sum, count_bk.col(j), N_b_d, gp_cov, gp_cov_inv);
-    current_score = multinomialLogitGPLogKernel(current_col, eta_other_sum, count_bk.col(j), N_b_d, gp_cov, gp_cov_inv);
+    proposed_score = multinomialLogitGPLogKernel(eta_proposed, eta_other_sum, count_bk.col(j), N_b_d, gp_chol, gp_beta(j));
+    current_score = multinomialLogitGPLogKernel(current_col, eta_other_sum, count_bk.col(j), N_b_d, gp_chol, gp_beta(j));
 
     u = randu();
     acceptance_prob = std::min(1.0, std::exp(proposed_score - current_score));
@@ -474,6 +547,23 @@ void sampler::updateGPWeights() {
       eta_alr.col(j) = eta_proposed;
       eta_count(j)++;
     }
+
+    // Gibbs update gp_beta(j) | eta_{.,j}, gp_cov (conjugate Normal-Normal
+    // generalised least squares): the deviation model eta_{.,j} = beta_j *
+    // 1 + w, w ~ N(0, gp_cov), combined with a N(0, pp_mu_prior_sd^2)
+    // prior on beta_j, gives posterior precision 1' Sigma^-1 1 +
+    // 1/pp_mu_prior_sd^2 and posterior mean (that precision)^-1 times
+    // 1' Sigma^-1 eta_{.,j} - the ordinary GLS-with-a-prior formula
+    // (Gelman et al., 2013, BDA3, Section 14.8), reducing to the simple
+    // sample-mean update updatePartialPoolingWeights() uses for pp_mu
+    // exactly when gp_cov is diagonal (no correlation to account for).
+    // Both quadratic forms via the same triangular-solve identity as above
+    // (1' Sigma^-1 1 = ||L^-1 1||^2, 1' Sigma^-1 eta = (L^-1 1)' (L^-1 eta)).
+    vec L_inv_eta = arma::solve(L, eta_alr.col(j));
+    double precision_beta = arma::dot(L_inv_ones, L_inv_ones) + 1.0 / (pp_mu_prior_sd * pp_mu_prior_sd);
+    double post_var_beta = 1.0 / precision_beta;
+    double post_mean_beta = post_var_beta * arma::dot(L_inv_ones, L_inv_eta);
+    gp_beta(j) = post_mean_beta + randn() * std::sqrt(post_var_beta);
   }
 
   updateSimplexFromALR(n_free);
@@ -546,30 +636,88 @@ void sampler::updatePartialPoolingWeights() {
   updateSimplexFromALR(n_free);
 };
 
-// The (unnormalised, additive-constant-free) log-density of a zero-mean
-// P-variate... here B-variate... Gaussian with covariance `cov`, evaluated
-// jointly at every free ALR coordinate's current value. Unlike the
-// eta-coordinate MH step above (where gp_cov is held fixed and its log
-// |.| term cancels in the ratio), a step that changes the GP
-// hyperparameters themselves changes gp_cov, so that determinant term does
-// NOT cancel and must be included here.
-double sampler::gpHyperparameterLogKernel(arma::mat cov, arma::mat cov_inv) {
-  uword n_free = (K > 0) ? K - 1 : 0;
-  double log_det_val = log_det(cov).real();
-  double score = 0.0;
-  for(uword j = 0; j < n_free; j++) {
-    score += -0.5 * (log_det_val + as_scalar(eta_alr.col(j).t() * cov_inv * eta_alr.col(j)));
+// Builds a Matern-3/2 GP covariance matrix and its LOWER-triangular
+// Cholesky factor for a candidate (tau2, length_scale) pair, escalating
+// the diagonal jitter geometrically from a tau2-scaled starting point
+// until chol() succeeds - the modern standard safeguard for a covariance
+// matrix whose conditioning depends on the (here, potentially very
+// irregular) input locations, not just on tau2/length_scale in isolation
+// (GPyTorch's/GPflow's escalating default jitter; Gardner, Pleiss, Bindel,
+// Weinberger & Wilson, 2018, "GPyTorch," NeurIPS). A single fixed
+// proportion of tau2 (this package's first attempt at this fix) is not
+// safe for every batch_coordinates configuration: verified directly to
+// still leave a condition number of ~1.75e4 for a realistic set of 10
+// irregularly-spaced batches whose closest pair is far closer together
+// than its farthest. Deliberately factorises via chol(), not inv_sympd():
+// every consumer (multinomialLogitGPLogKernel(), the whitening step in
+// gpHyperparameterMetropolis() below) only ever needs a triangular solve
+// against this factor, never the covariance's explicit inverse - see
+// genericFunctions.h for why that is the numerically-preferred approach.
+void sampler::buildWellConditionedGPChol(
+  double tau2, double length_scale,
+  arma::mat& cov, arma::mat& chol_factor, double& jitter_used
+) {
+  double jitter = std::max(1e-6, tau2 * 1e-4);
+  const uword max_attempts = 12; // 1e-4 * 10^12 saturates long before this
+
+  for (uword attempt = 0; attempt < max_attempts; attempt++) {
+    cov = maternKernel32(batch_coordinates, tau2, length_scale, jitter);
+    if (arma::chol(chol_factor, cov, "lower")) {
+      jitter_used = jitter;
+      return;
+    }
+    jitter *= 10.0;
   }
-  return score;
+
+  // Every escalation attempt failed (only possible with a pathological
+  // batch_coordinates input, e.g. hundreds of exactly-duplicated
+  // timestamps) - fall back to the final, most-regularised attempt's
+  // covariance and accept whatever chol() manages rather than leaving
+  // chol_factor stale/uninitialised; a covariance this heavily jittered is
+  // already so close to jitter * I that chol() succeeding is not actually
+  // in doubt in practice.
+  jitter_used = jitter / 10.0;
+  cov = maternKernel32(batch_coordinates, tau2, length_scale, jitter_used);
+  arma::chol(chol_factor, cov, "lower");
 };
 
 // Metropolis-Hastings update for the GP marginal variance (tau2) and
 // length scale, proposed jointly as a symmetric random walk on their logs
-// (keeps both strictly positive). Proposing on the log scale while the
-// prior is expressed in the original scale requires the usual
-// change-of-variables Jacobian correction (+ log(proposed) - log(current)
-// for each log-transformed parameter) in the acceptance ratio.
+// (keeps both strictly positive), together with a matching update to
+// eta_alr via a NON-CENTRED/WHITENED reparameterisation used for this step
+// only (the rest of the sampler stays in the ordinary "centred" eta_alr
+// representation - see updateGPWeights()).
+//
+// Why: proposing new hyperparameters while eta_alr stays rigidly fixed
+// (this function's previous approach, and the textbook-obvious one) directly
+// couples the acceptance ratio to how "surprised" the CURRENT eta_alr is
+// under the new covariance - the classic Neal's-funnel pathology of jointly
+// modelling a hierarchical variance/length-scale parameter and the latent
+// values it governs in their natural, entangled form (Neal, 2003, "Slice
+// sampling," Annals of Statistics, Section 8.1; Papaspiliopoulos, Roberts &
+// Skold, 2007, "A general framework for the parametrization of hierarchical
+// models," Statistical Science; Betancourt & Girolami, 2015, "Hamiltonian
+// Monte Carlo for Hierarchical Models"). Betancourt (2020, "Robust Gaussian
+// Process Modeling," Stan case study) demonstrates the same pathology for a
+// GP's length-scale specifically, and its standard fix: work instead with
+// the ancillary, hyperparameter-FREE quantity z = L_current^-1 (eta - beta)
+// (a triangular solve, not an inversion), propose new hyperparameters, then
+// re-map the SAME z through the PROPOSED covariance's Cholesky factor to get
+// the eta a well-behaved joint move implies. z's own N(0, I) prior density
+// is identical before and after (z itself never changed, only what it maps
+// to), so it cancels exactly and never needs to be evaluated at all - the
+// acceptance ratio is left with only the (data) likelihood difference
+// between the current and implied eta, plus the ordinary priors on
+// tau2/length_scale themselves. This is also why gpHyperparameterLogKernel()
+// - which evaluated a GP prior density under two different covariance
+// matrices directly, needing their log-determinants - no longer exists:
+// centring the comparison on the data likelihood instead removes the need
+// for it, and for gp_cov_inv, entirely.
 void sampler::gpHyperparameterMetropolis() {
+
+  uword n_free = (K > 0) ? K - 1 : 0;
+  mat count_bk = computeBatchClassCounts();
+  vec N_b_d = conv_to<vec>::from(N_b);
 
   double log_tau2_current = std::log(gp_tau2),
     log_length_scale_current = std::log(gp_length_scale);
@@ -580,32 +728,54 @@ void sampler::gpHyperparameterMetropolis() {
   double tau2_proposed = std::exp(log_tau2_proposed),
     length_scale_proposed = std::exp(log_length_scale_proposed);
 
-  // Jitter must track the proposed tau2 (see initialiseBatchWeightPrior()
-  // for why a fixed jitter is unsafe): otherwise, once tau2 grows during
-  // sampling, a jitter sized for the old (smaller) tau2 can again be too
-  // small relative to the new diagonal scale.
-  double jitter_proposed = std::max(gp_jitter, tau2_proposed * 1e-4);
-  mat gp_cov_proposed = squaredExponentialKernel(batch_coordinates, tau2_proposed, length_scale_proposed, jitter_proposed);
-  mat gp_cov_inv_proposed = inv_sympd(gp_cov_proposed);
+  // buildWellConditionedGPChol() re-derives whatever jitter this particular
+  // (tau2, length_scale) pair actually needs (see its own documentation) -
+  // simply tracking the previous jitter, as an earlier version of this
+  // function did, is not sufficient on its own, since escalation is
+  // driven by the *matrix's* conditioning, which depends on length_scale
+  // and batch_coordinates too, not tau2 alone.
+  mat gp_cov_proposed, gp_chol_proposed;
+  double jitter_proposed = 0.0;
+  buildWellConditionedGPChol(tau2_proposed, length_scale_proposed, gp_cov_proposed, gp_chol_proposed, jitter_proposed);
 
-  // tau2's prior (InvGamma) is expressed directly in tau2-space, so
-  // sampling it via a symmetric walk on log(tau2) needs an explicit
-  // +log(tau2) Jacobian term. length_scale's prior below is instead
-  // written directly as a Normal kernel on log(length_scale) - i.e. a
-  // LogNormal(mean, sd^2) prior on length_scale itself - which already
-  // *is* "LogNormal density + Jacobian" combined (the 1/length_scale
-  // factor in the LogNormal density and the Jacobian factor of
-  // length_scale exactly cancel), so no separate Jacobian term is added
-  // for it here.
-  double proposed_score = gpHyperparameterLogKernel(gp_cov_proposed, gp_cov_inv_proposed)
+  mat L_current = arma::trimatl(gp_chol);
+  mat L_proposed = arma::trimatl(gp_chol_proposed);
+  mat eta_implied(B, n_free);
+  for (uword j = 0; j < n_free; j++) {
+    vec z_j = arma::solve(L_current, eta_alr.col(j) - gp_beta(j));
+    eta_implied.col(j) = gp_beta(j) + L_proposed * z_j;
+  }
+
+  double log_lik_current = 0.0, log_lik_implied = 0.0;
+  for (uword j = 0; j < n_free; j++) {
+    vec eta_other_sum_cur(B, fill::zeros), eta_other_sum_imp(B, fill::zeros);
+    for (uword jp = 0; jp < n_free; jp++) {
+      if (jp == j) continue;
+      eta_other_sum_cur += exp(eta_alr.col(jp));
+      eta_other_sum_imp += exp(eta_implied.col(jp));
+    }
+    log_lik_current += multinomialLogitLogLik(eta_alr.col(j), eta_other_sum_cur, count_bk.col(j), N_b_d);
+    log_lik_implied += multinomialLogitLogLik(eta_implied.col(j), eta_other_sum_imp, count_bk.col(j), N_b_d);
+  }
+
+  // Both tau2 and length_scale now have Inverse-Gamma priors expressed
+  // directly in their own (original, not log-) scale, so sampling either
+  // via a symmetric walk on its log needs the usual explicit
+  // change-of-variables Jacobian (+log(proposed value)) in the acceptance
+  // ratio - length_scale's prior switched from a log-normal (which built
+  // the Jacobian into the density term itself, needing none added
+  // separately - see the earlier version of this function) to Inverse-
+  // Gamma specifically for its far-faster-decaying right tail; see the
+  // header for why that tail behaviour is what actually matters here.
+  double proposed_score = log_lik_implied
     + invGammaLogLikelihood(tau2_proposed, gp_tau2_prior_shape, gp_tau2_prior_rate)
-    - std::pow(log_length_scale_proposed - gp_length_scale_prior_mean, 2.0) / (2.0 * gp_length_scale_prior_sd * gp_length_scale_prior_sd)
-    + log_tau2_proposed;
+    + invGammaLogLikelihood(length_scale_proposed, gp_length_scale_prior_shape, gp_length_scale_prior_rate)
+    + log_tau2_proposed + log_length_scale_proposed;
 
-  double current_score = gpHyperparameterLogKernel(gp_cov, gp_cov_inv)
+  double current_score = log_lik_current
     + invGammaLogLikelihood(gp_tau2, gp_tau2_prior_shape, gp_tau2_prior_rate)
-    - std::pow(log_length_scale_current - gp_length_scale_prior_mean, 2.0) / (2.0 * gp_length_scale_prior_sd * gp_length_scale_prior_sd)
-    + log_tau2_current;
+    + invGammaLogLikelihood(gp_length_scale, gp_length_scale_prior_shape, gp_length_scale_prior_rate)
+    + log_tau2_current + log_length_scale_current;
 
   double u = randu();
   double acceptance_prob = std::min(1.0, std::exp(proposed_score - current_score));
@@ -615,7 +785,9 @@ void sampler::gpHyperparameterMetropolis() {
     gp_length_scale = length_scale_proposed;
     gp_jitter = jitter_proposed;
     gp_cov = gp_cov_proposed;
-    gp_cov_inv = gp_cov_inv_proposed;
+    gp_chol = gp_chol_proposed;
+    eta_alr = eta_implied; // eta moves together with the hyperparameters - the whole point
+    updateSimplexFromALR(n_free); // w_batch must reflect the now-changed eta_alr
     gp_hyperparameter_count++;
   }
 };

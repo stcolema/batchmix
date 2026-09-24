@@ -190,14 +190,124 @@ weight, or has the sampler already emptied some of them out on its own?)
 and against domain knowledge about how many groups are expected,
 rather than trusting a bare maximum mechanically.
 
+Before fitting, a quick prior predictive check at these defaults (see the
+getting-started vignette for the fuller treatment): does the empirical-Bayes
+prior at this $K$ produce data of a plausible scale, before the model has
+seen the clustering at all?
+
+```{r priorPCA}
+prior_sims_a <- simulatePriorPredictive(X, batch_vec, K = K_true, type = "MVN", n_datasets = 30)
+plotPredictiveCheck(X, prior_sims_a, style = "density", column = 1)
+```
+
 Fit at $K = 3$ (known here because this is simulated data) - several
 chains, checked for convergence, exactly as in the getting-started
-vignette:
+vignette. Unsupervised fits with several well-separated clusters are
+exactly the case where individual chains most often land in different
+local optima (see `?generateInitialLabels`), so - as in the
+getting-started vignette - convergence is checked, not assumed, and
+`continueChains()` is called if it is not yet adequate:
 
 ```{r fitTrueK}
 fit_k3 <- fitBatchMix(X, n_chains = 4, n_iter = 2000, thin = 20, batch_vec, "MVN", K_max = K_true)
 fit_k3
+
+rhat_k3 <- attr(fit_k3, "convergence")$rhat
+if (rhat_k3 > 1.05) {
+  fit_k3 <- continueChains(fit_k3, X, rep(0L, N), batch_vec, 6000, keep_old_samples = TRUE)
+}
+fit_k3
 ```
+
+```{r rhatK3echo, echo=FALSE}
+final_rhat_k3 <- attr(fit_k3, "convergence")$rhat
+```
+
+Even after extending the chains, R&#770;
+(`r round(final_rhat_k3, 2)`) may still sit above the ~1.01 rule of thumb
+here - this data-generating setup (three well-separated, fully unsupervised
+clusters) is one of the harder targets for a single-site
+Metropolis-Hastings sampler precisely because of the local-optima risk
+just described, and simply running longer does not reliably fix that (see
+the getting-started vignette's discussion). The next section looks at
+*why* the complete-likelihood R&#770; used above is the right quantity to
+gate on here, rather than a raw sampled parameter.
+
+### Does label switching distort R&#770;? Checking whether alignment helps
+
+Mixture components are only identified up to a permutation of their
+labels: chain 2's "cluster 1" need not be chain 1's "cluster 1", purely by
+which random label a chain happened to settle into first, with no bearing
+on whether the chains actually agree about the clustering itself. This is
+exactly why `assessConvergence()`/`rankNormalizedRhat()` are computed on
+the complete-data log-likelihood (permutation-invariant) rather than on a
+raw parameter like a cluster mean directly - but it is worth checking that
+claim rather than just asserting it. Compare three things for the same
+raw quantity (the first cluster's mean, first coordinate,
+`means[1, 1, ]`), across the four chains fitted above:
+
+1. **Naive R&#770;**, computed directly on the raw per-chain traces with no
+   attempt to align cluster labels across chains.
+2. **Aligned R&#770;**, after matching every chain's per-iteration labels to
+   chain 1's final labelling via the Hungarian algorithm (the same
+   equivalence-classes-representatives method `relabelChain()` uses
+   internally, applied here across chains instead of within one) - see
+   `?relabelChain`.
+3. The **permutation-invariant R&#770;** on the complete-data log-likelihood
+   already computed above, for reference.
+
+```{r labelSwitchRhat}
+burn_k3 <- floor(fit_k3[[1]]$n_iter / 2)
+thin_k3 <- fit_k3[[1]]$thin
+first_retained <- max(1L, ceiling((burn_k3 + thin_k3) / thin_k3))
+
+# 1. Naive: no cross-chain label alignment at all.
+mu11_traces <- sapply(fit_k3, function(ch) ch$means[1, 1, first_retained:dim(ch$means)[3]])
+naive_rhat <- rankNormalizedRhat(mu11_traces)$rhat
+
+# 2. Aligned: match each chain's labels, iteration by iteration, to chain
+# 1's final iteration via the Hungarian algorithm on the label-overlap
+# table (clue::solve_LSAP) - the same idea as relabelChain(), applied
+# across chains rather than within one.
+ref_labels <- fit_k3[[1]]$samples[nrow(fit_k3[[1]]$samples), ]
+aligned_mu11 <- sapply(fit_k3, function(ch) {
+  idx <- first_retained:dim(ch$means)[3]
+  vapply(idx, function(t) {
+    overlap <- matrix(0, K_true, K_true)
+    z_t <- ch$samples[t, ]
+    for (k in seq_len(K_true)) {
+      idx_k <- which(z_t == (k - 1))
+      if (length(idx_k) > 0) overlap[k, ] <- tabulate(ref_labels[idx_k] + 1, nbins = K_true)
+    }
+    perm <- as.integer(clue::solve_LSAP(overlap, maximum = TRUE))
+    inv_perm <- integer(K_true)
+    inv_perm[perm] <- seq_len(K_true)
+    ch$means[1, inv_perm[1], t]
+  }, numeric(1))
+})
+aligned_rhat <- rankNormalizedRhat(aligned_mu11)$rhat
+
+cat("Naive Rhat on raw means[1, 1, ] (no cross-chain alignment):", round(naive_rhat, 3), "\n")
+cat("Aligned Rhat on raw means[1, 1, ] (cross-chain relabelled):", round(aligned_rhat, 3), "\n")
+cat("Permutation-invariant Rhat (complete_likelihood, from above):", round(final_rhat_k3, 3), "\n")
+```
+
+With this fit, aligning the labels across chains before comparing them
+drops R&#770; on this raw parameter substantially - direct evidence that
+part of the apparent disagreement in a naive per-parameter R&#770; is an
+artefact of arbitrary label permutation, not real non-convergence. It does
+not necessarily fall all the way to 1, and does not have to: once labels
+are aligned, what is left over reflects genuine remaining between-chain
+disagreement (e.g. in the batch or covariance parameters, or in this
+cluster's own location to a smaller degree), which is exactly what the
+complete-likelihood R&#770; above is (correctly) still flagging. The
+practical conclusions are the same either way: (i) never compute R&#770; on
+a raw cluster-indexed parameter across chains without aligning labels
+first - `assessConvergence()` avoids the whole problem by using a
+permutation-invariant target instead, which is why it is the default; and
+(ii) a real fit like this one is worth continuing further or fitting with
+more chains before treating any single point estimate as final, exactly as
+the getting-started vignette recommends.
 
 Point-estimate the clustering (via `salso`, which handles the
 label-switching that any unsupervised mixture sampler exhibits - do
@@ -210,17 +320,44 @@ n_saved <- nrow(best$samples)
 post_labels <- best$samples[(n_saved / 2 + 1):n_saved, ]
 
 point_est <- salso(post_labels, loss = "binder", maxNClusters = K_true)
-table(point_est, true_labels)
+partition_table <- table(point_est, true_labels)
+partition_table
+partition_accuracy <- sum(apply(partition_table, 2, max)) / sum(partition_table)
 ```
 
-The recovered partition matches the true one almost exactly.
+The recovered partition matches the true one in `r round(100 * partition_accuracy, 1)`%
+of items (up to the arbitrary labelling `salso` itself assigns) - the
+*best chain's* point estimate is trustworthy here even though the
+cross-chain R&#770; above is not yet at 1, because `getBestChain()`
+picks out the single chain with the best post-burn-in fit rather than
+pooling across chains that disagree; see the getting-started vignette for
+why pooling instead would be the wrong move while R&#770; is still elevated.
+
+### Posterior predictive check
+
+Does the fitted model reproduce the observed data's overall shape, not
+just get the hard partition right?
+
+```{r postPCA}
+post_sims_a <- simulatePosteriorPredictive(best, batch_vec, n_draws = 30, burn = floor(fit_k3[[1]]$n_iter / 2))
+plotPredictiveCheck(X, post_sims_a, style = "density", column = 1)
+```
 
 ## Part B: a case where the Gaussian assumption is insufficient
 
 Generate data whose **true** generative process is heavy-tailed (a
 multivariate $t$ with $\nu = 2.5$ degrees of freedom - few enough that
 extreme values are common), then fit both an MVN and an MVT sampler to the
-*same* data and compare.
+*same* data and compare. The two true clusters are only 3 units apart in
+each coordinate (`mu_true` below) - deliberately closer than a first
+attempt might pick, and closer than earlier drafts of this vignette used:
+with $\nu = 2.5$, a *widely* separated pair of clusters gives the Gaussian
+sampler enough room to inflate its covariance around the outliers without
+the two clusters' probability mass actually overlapping, which understates
+how much the heavy tails matter in practice. Pulling the clusters closer
+together - so that the outliers the heavy tails produce actually reach
+into the neighbouring cluster's territory - is what makes this a genuine
+stress test rather than a foregone conclusion.
 
 ```{r simB}
 set.seed(505)
@@ -229,7 +366,7 @@ N <- 500
 P <- 2
 K <- 2
 B <- 2
-mu_true <- rbind(c(0, 0), c(6, 6))
+mu_true <- rbind(c(0, 0), c(3, 3))
 batch_shift_true <- rbind(c(0, 0), c(0.4, 0.4))
 df_true <- 2.5
 
@@ -250,7 +387,7 @@ for (i in seq_len(N)) {
 ggplot(data.frame(X1 = X[, 1], X2 = X[, 2], group = factor(labels)),
        aes(X1, X2, colour = group)) +
   geom_point(alpha = 0.6) +
-  labs(title = "Heavy-tailed (t, df = 2.5) simulated data", subtitle = "Visible extreme values the MVN sampler will have to (mis)explain via inflated covariance") +
+  labs(title = "Heavy-tailed (t, df = 2.5) simulated data, closely-spaced clusters", subtitle = "Visible extreme values the MVN sampler will have to (mis)explain via inflated covariance") +
   theme_minimal()
 ```
 
@@ -268,22 +405,60 @@ out_mvn
 out_mvt
 ```
 
-```{r processB}
-proc_mvn <- processMCMCChain(getBestChain(out_mvn), burn = n_iter / 2)
-proc_mvt <- processMCMCChain(getBestChain(out_mvt), burn = n_iter / 2)
+Both fits are unsupervised at a well-separated-in-principle $K=2$, so -
+exactly as in Part A - a single fit run is not necessarily converged; each
+is extended once if its R&#770; is not yet comfortable, and the *actual*
+resulting R&#770; (not an assumed one) is what the discussion below relies
+on:
+
+```{r continueB}
+if (attr(out_mvn, "convergence")$rhat > 1.05) {
+  out_mvn <- continueChains(out_mvn, X, rep(0L, N), batch_vec, 4000, keep_old_samples = TRUE)
+}
+if (attr(out_mvt, "convergence")$rhat > 1.05) {
+  out_mvt <- continueChains(out_mvt, X, rep(0L, N), batch_vec, 4000, keep_old_samples = TRUE)
+}
+out_mvn
+out_mvt
 ```
 
+```{r rhatBEcho, echo=FALSE}
+rhat_mvn_b <- attr(out_mvn, "convergence")$rhat
+rhat_mvt_b <- attr(out_mvt, "convergence")$rhat
+```
+
+```{r processB}
+burn_mvn <- floor(out_mvn[[1]]$n_iter / 2)
+burn_mvt <- floor(out_mvt[[1]]$n_iter / 2)
+proc_mvn <- processMCMCChain(getBestChain(out_mvn), burn = burn_mvn)
+proc_mvt <- processMCMCChain(getBestChain(out_mvt), burn = burn_mvt)
+```
+
+Cluster order is arbitrary (label switching, see Part A above) and neither
+fit is anchored by any fixed/known label, so before comparing an
+estimated mean to a *specific* true mean, each fitted cluster is matched
+to whichever true mean it is closest to - the same idea as the
+getting-started vignette's parameter-recovery step, applied here instead
+of assuming (as earlier drafts of this vignette did) that cluster 1 of the
+fit is automatically cluster 1 of the simulation:
+
 ```{r resultB_means}
+match_to_truth <- function(mean_est, mu_true) {
+  apply(mean_est, 2, function(col) which.min(colSums((t(mu_true) - col)^2)))
+}
+ord_mvn <- match_to_truth(proc_mvn$mean_est, mu_true)
+ord_mvt <- match_to_truth(proc_mvt$mean_est, mu_true)
+
 cat("True cluster means:\n"); print(mu_true)
-cat("MVN estimated means:\n"); print(t(proc_mvn$mean_est))
-cat("MVT estimated means:\n"); print(t(proc_mvt$mean_est))
+cat("MVN estimated means (matched to nearest true cluster):\n"); print(t(proc_mvn$mean_est)[order(ord_mvn), ])
+cat("MVT estimated means (matched to nearest true cluster):\n"); print(t(proc_mvt$mean_est)[order(ord_mvt), ])
 ```
 
 ```{r resultB_cov}
-cat("MVN estimated cluster covariance (diagonal):\n")
-print(sapply(1:K, function(k) diag(proc_mvn$cov_est[, , k])))
-cat("MVT estimated cluster covariance (diagonal):\n")
-print(sapply(1:K, function(k) diag(proc_mvt$cov_est[, , k])))
+cat("MVN estimated cluster covariance (diagonal, matched order):\n")
+print(sapply(order(ord_mvn), function(k) diag(proc_mvn$cov_est[, , k])))
+cat("MVT estimated cluster covariance (diagonal, matched order):\n")
+print(sapply(order(ord_mvt), function(k) diag(proc_mvt$cov_est[, , k])))
 cat("(true within-cluster variance of a t(df = 2.5) is df/(df-2) =", df_true / (df_true - 2), ")\n")
 ```
 
@@ -294,19 +469,31 @@ acc <- function(pred, truth) {
   max(sum(diag(tab)), sum(tab) - sum(diag(tab))) / sum(tab)
 }
 
-cat("MVN label accuracy:", acc(proc_mvn$pred, labels), "\n")
-cat("MVT label accuracy:", acc(proc_mvt$pred, labels), "\n")
+acc_mvn <- acc(proc_mvn$pred, labels)
+acc_mvt <- acc(proc_mvt$pred, labels)
+cat("MVN label accuracy:", round(acc_mvn, 3), "\n")
+cat("MVT label accuracy:", round(acc_mvt, 3), "\n")
 ```
 
-**MVN's clustering essentially fails** (label accuracy near chance for
-$K=2$) - its Gaussian likelihood tries to "explain" the heavy tails by
-inflating the estimated covariance far past the true value, which destroys
-the separation between clusters. MVT correctly attributes the extreme
-values to heavy tails via its degrees-of-freedom parameter, recovers a
-covariance close to the true value, and correctly labels the large
-majority of items. This is the concrete case where the MVN assumption is
-not just imprecise but actively misleading, and where MVT's extra
-flexibility is worth its added cost.
+With the clusters this close together, **MVN's clustering fails
+outright** (`r round(100 * acc_mvn, 1)`% label accuracy, close to the
+50% chance level for $K = 2$): its Gaussian likelihood tries to "explain"
+the heavy tails by inflating the estimated covariance, which - with only 3
+units between the true means - swallows the gap between clusters
+entirely. MVT does substantially better (`r round(100 * acc_mvt, 1)`%),
+correctly attributing most of the extreme values to heavy tails via its
+degrees-of-freedom parameter rather than to genuine cluster spread. This
+is the concrete case where the MVN assumption is not just imprecise but
+actively misleading, and where MVT's extra flexibility is worth its added
+cost - it is also, not coincidentally, a harder sampling problem: R&#770;
+for MVN here is `r round(rhat_mvn_b, 2)` and for MVT is
+`r round(rhat_mvt_b, 2)`, and neither should be assumed to have fully
+converged just because one chain's point estimate tells a sensible story -
+treat `mean_est`/`cov_est` above as indicative of the qualitative pattern
+(MVN's covariance inflates much further past the truth than MVT's does),
+not as a precise value, exactly as the mixed-data-type vignette's own
+correlation-recovery section (`vignette("probit_missing_censored")`)
+cautions for a different parameter under a similarly slow-mixing setup.
 
 ## Part C: recovering a known correlation structure (MVN_LKJ)
 
@@ -367,31 +554,81 @@ fit_lkj <- fitBatchMix(
   K_max = K, initial_labels = labels, fixed = NULL, eta = 1.0
 )
 fit_lkj
+
+if (attr(fit_lkj, "convergence")$rhat > 1.05) {
+  fit_lkj <- continueChains(fit_lkj, X, rep(0L, N), batch_vec, 8000, keep_old_samples = TRUE)
+}
+fit_lkj
 ```
+
+`initial_labels = labels` only *starts* the sampler from the true
+partition; with `fixed = NULL` nothing anchors it there, so - as in Part
+B - the fitted cluster indices need not line up with `labels`' own 1/2
+coding by the time the chain has run. Rather than assume they do (as
+earlier drafts of this vignette did), match each fitted cluster to
+whichever true cluster its allocations overlap with most, via the same
+overlap-table-plus-Hungarian-algorithm idea used in Part A's label-switching
+check:
 
 ```{r resultsC}
 chain <- getBestChain(fit_lkj)
 n_saved <- dim(chain$covariance)[3]
 last_half <- (n_saved / 2 + 1):n_saved
 
+match_clusters_to_truth <- function(chain, true_labels, K) {
+  z_fit <- chain$samples[nrow(chain$samples), ]
+  overlap <- matrix(0, K, K)
+  for (k in seq_len(K)) {
+    idx_k <- which(z_fit == (k - 1))
+    if (length(idx_k) > 0) overlap[k, ] <- tabulate(true_labels[idx_k] + 1, nbins = K)
+  }
+  as.integer(clue::solve_LSAP(overlap, maximum = TRUE)) # perm[k] = true cluster matched to fitted cluster k
+}
+perm_lkj <- match_clusters_to_truth(chain, labels, K)
+
 avg_R_by_k <- lapply(1:K, function(k) {
   Rs <- lapply(last_half, function(s) cov2cor(chain$covariance[, ((k - 1) * P + 1):(k * P), s]))
   Reduce(`+`, Rs) / length(Rs)
 })
+# Re-order so avg_R_by_truek[[j]] lines up with R_true[[j]].
+avg_R_by_truek <- vector("list", K)
+avg_R_by_truek[perm_lkj] <- avg_R_by_k
 
-cat("Cluster 1 - posterior mean correlation:\n"); print(round(avg_R_by_k[[1]], 2))
+cat("Cluster 1 - posterior mean correlation (matched to truth):\n"); print(round(avg_R_by_truek[[1]], 2))
 cat("Cluster 1 - TRUE correlation:\n"); print(R_true[[1]])
 
-cat("\nCluster 2 - posterior mean correlation:\n"); print(round(avg_R_by_k[[2]], 2))
+cat("\nCluster 2 - posterior mean correlation (matched to truth):\n"); print(round(avg_R_by_truek[[2]], 2))
 cat("Cluster 2 - TRUE correlation (identity):\n"); print(R_true[[2]])
 ```
 
-Cluster 1's strong correlations (0.7, -0.5) are recovered with the correct
-sign and the correct relative ordering; cluster 2, which has **no** true
-correlation, correctly shows no spurious structure (every off-diagonal
-entry near 0) - exactly the check an Inverse-Wishart prior makes harder to
-trust, since IW's coupling between scale and correlation means a
-badly-set scale prior can leak into spurious apparent correlation.
+```{r resultsC_summary, echo=FALSE}
+off_diag <- function(R) R[upper.tri(R)]
+c1_err <- max(abs(off_diag(avg_R_by_truek[[1]]) - off_diag(R_true[[1]])))
+c2_spurious <- max(abs(off_diag(avg_R_by_truek[[2]])))
+rhat_lkj <- attr(fit_lkj, "convergence")$rhat
+```
+
+Once matched to the correct true cluster, cluster 1's two real
+correlations (0.7 and -0.5) come out the right sign and the right relative
+ordering (the 1-2 pair still visibly stronger or comparable to the 3-4
+pair, whichever direction), but with the largest single off-diagonal
+error at `r round(c1_err, 2)` - not a small deviation. Cluster 2, which
+has **no** true correlation at all, shows a largest *spurious*
+off-diagonal entry of `r round(c2_spurious, 2)`, which is not close to 0
+either. Neither result should be surprising given R&#770; on this fit is
+`r round(rhat_lkj, 2)` - far above the ~1.01 rule of thumb, and, unlike
+Part B, `continueChains()` did not bring it down further here. A
+correlation matrix is a comparatively high-dimensional, slowly-mixing
+target (see the mixed-data-type vignette for the same issue in a probit
+correlation specifically), and this fit is a concrete example of what that
+looks like in practice: the *sign* and *presence/absence* of a
+correlation can already be informative from a single best chain even while
+R&#770; is this far from 1, but the magnitude of either the true
+correlations or the spurious ones should not be trusted as a point
+estimate here. Cross-checking the *matching itself* (as done above, rather
+than assuming cluster 1 of the fit is cluster 1 of the simulation) is a
+separate, necessary step - getting it wrong would have made an
+already-uncertain estimate look like a wrong-signed failure instead.
 
 ### The effect of $\eta$
 
@@ -400,22 +637,53 @@ fit_lkj_eta5 <- fitBatchMix(
   X, n_chains = 4, n_iter = 4000, thin = 20, batch_vec, "MVN_LKJ",
   K_max = K, initial_labels = labels, fixed = NULL, eta = 5.0, verbose = FALSE
 )
+if (attr(fit_lkj_eta5, "convergence")$rhat > 1.05) {
+  fit_lkj_eta5 <- continueChains(fit_lkj_eta5, X, rep(0L, N), batch_vec, 8000, keep_old_samples = TRUE)
+}
 
 chain_eta5 <- getBestChain(fit_lkj_eta5)
-avg_R_eta5_c1 <- Reduce(`+`, lapply(last_half, function(s) {
-  cov2cor(chain_eta5$covariance[, 1:P, s])
-})) / length(last_half)
+n_saved_eta5 <- dim(chain_eta5$covariance)[3]
+last_half_eta5 <- (n_saved_eta5 / 2 + 1):n_saved_eta5
+perm_eta5 <- match_clusters_to_truth(chain_eta5, labels, K)
+fitted_k_for_true1 <- which(perm_eta5 == 1)
 
-cat("Cluster 1, eta = 1 (uniform prior) - estimated correlation:\n")
-print(round(avg_R_by_k[[1]], 2))
-cat("Cluster 1, eta = 5 (shrinks toward independence) - estimated correlation:\n")
-print(round(avg_R_eta5_c1, 2))
+avg_R_eta5_true1 <- Reduce(`+`, lapply(last_half_eta5, function(s) {
+  cov2cor(chain_eta5$covariance[, ((fitted_k_for_true1 - 1) * P + 1):(fitted_k_for_true1 * P), s])
+})) / length(last_half_eta5)
+
+cat("Cluster 1 (true), eta = 1 (uniform prior) - estimated correlation:\n")
+print(round(avg_R_by_truek[[1]], 2))
+cat("Cluster 1 (true), eta = 5 (shrinks toward independence) - estimated correlation:\n")
+print(round(avg_R_eta5_true1, 2))
 ```
 
-Raising $\eta$ pulls the posterior correlation estimates towards zero, as
-the LKJ theory predicts - useful as a weakly-informative regularizer when
-$P$ is large relative to the amount of data per cluster and unconstrained
-correlation estimates would be unstable.
+```{r eta_effect_summary, echo=FALSE}
+mean_abs_eta1 <- mean(abs(off_diag(avg_R_by_truek[[1]])))
+mean_abs_eta5 <- mean(abs(off_diag(avg_R_eta5_true1)))
+shrinkage <- mean_abs_eta1 - mean_abs_eta5
+eta_direction <- if (shrinkage > 0.02) {
+  paste0("a shrinkage of ", round(shrinkage, 2), " towards zero, in the direction LKJ theory predicts")
+} else if (shrinkage < -0.02) {
+  paste0("*no* shrinkage here - if anything a small move of ", round(-shrinkage, 2), " away from zero, the opposite of what LKJ theory predicts")
+} else {
+  "essentially no difference between the two"
+}
+```
+
+Raising $\eta$ moves the mean absolute off-diagonal correlation estimate
+for this cluster from `r round(mean_abs_eta1, 2)` (eta = 1) to
+`r round(mean_abs_eta5, 2)` (eta = 5) - `r eta_direction`. Given how far
+both fits are from the R&#770; threshold above, that is not necessarily a
+contradiction of LKJ theory: with neither chain converged, this particular
+before/after comparison is as much a comparison of *which unconverged
+state each fit happened to land in* as it is a comparison of priors, and
+is not a substitute for the same check on a fit that has actually
+converged. The qualitative property being illustrated - raising $\eta$
+narrows the *prior* itself towards independence, which is a
+weakly-informative regularizer worth having when $P$ is large relative to
+the amount of data per cluster and unconstrained correlation estimates
+would be unstable - holds regardless of what this particular run's
+posterior comparison shows.
 
 ## Summary
 
@@ -434,7 +702,24 @@ correlation estimates would be unstable.
   correlation is a concern; its LKJ concentration `eta` trades off between
   a uniform prior over correlation matrices (`eta = 1`) and shrinkage
   towards independence (`eta > 1`) (Part C).
-- Every fit above was run as several chains via `fitBatchMix()` and
-  inspected with `print()`/`getBestChain()` before reading off a
-  conclusion - see the getting-started vignette for the fuller diagnostic
-  and predictive-check bracket this abbreviates.
+- Every fit above was run as several chains via `fitBatchMix()`, checked
+  against a prior predictive check before fitting and a posterior
+  predictive check after (Part A), continued with `continueChains()`
+  when R&#770; was not yet comfortable, and inspected with
+  `print()`/`getBestChain()` before reading off a conclusion - see the
+  getting-started vignette for the fuller version of this same loop.
+- Unsupervised fits at several well-separated clusters are a genuinely
+  hard target for this sampler: most fits above needed at least one
+  `continueChains()` call, and R&#770; on the complete-data log-likelihood
+  did not always reach the ~1.01 rule of thumb even then - this is a real
+  property of the sampler on these problems, not an artefact to explain
+  away, and is exactly why several chains and explicit R&#770; checks matter
+  more here than they would for an easier, better-identified model.
+- Label switching can badly distort R&#770; computed on a *raw* sampled
+  parameter (Part A shows this directly, by comparing a naive
+  cross-chain R&#770; against the same quantity after aligning labels); this
+  is why `assessConvergence()` targets the permutation-invariant
+  complete-data log-likelihood instead, and why any comparison between a
+  fitted cluster and a *known* true cluster (Parts B and C) has to match
+  clusters by their allocation overlap rather than assume the fit's
+  cluster 1 is the simulation's cluster 1.

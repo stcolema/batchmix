@@ -371,6 +371,7 @@ continueChain <- function(mcmc_output,
     if (batch_weight_prior == "gp") {
       new_samples$gp_tau2 <- rbind(mcmc_output$gp_tau2, new_samples$gp_tau2)
       new_samples$gp_length_scale <- rbind(mcmc_output$gp_length_scale, new_samples$gp_length_scale)
+      new_samples$gp_beta <- cbind(mcmc_output$gp_beta, new_samples$gp_beta)
       if (sample_gp_hyperparameters) {
         comb_gp_hyperparameter_acceptance_rate <- ((mcmc_output$gp_hyperparameter_acceptance_rate * n_iter_old +
           new_samples$gp_hyperparameter_acceptance_rate * n_iter)
