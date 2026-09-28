@@ -233,6 +233,26 @@ public:
   //     used.
   arma::uword weight_prior_type = 0;
   bool sample_gp_hyperparameters = false;
+
+  // =============================================================================
+  // Prediction mode for a new, unfitted batch (see predictNewBatchMVN() etc.
+  // and R/predictNewBatch.R for the full design). When predict_mode is
+  // true, every cluster-level parameter (mu/cov/t_df/gamma) and every
+  // OTHER batch's shift/scale/weight are frozen at whatever they were set
+  // to before the sweep loop starts (one posterior draw from an already-
+  // fitted chain) - only predict_batch's own shift/scale/weight, and the
+  // allocation of items belonging to it (via the ordinary `fixed`
+  // mechanism: every original item is marked fixed = 1, so
+  // updateAllocation() already leaves them untouched with no extra code),
+  // are updated each sweep. This is what lets composition sampling (Rubin,
+  // 1987; BDA3 sec. 1.10) draw from p(new batch's parameters | posterior
+  // draw, new batch's own data) by literally reusing the training
+  // sampler's own conditional updates, restricted to the one new batch -
+  // see the guard clauses in each concrete sampler's
+  // batchShiftMetorpolis()/batchScaleMetropolis()/metropolisStep() and in
+  // updateWeights()/updateGPWeights()/updatePartialPoolingWeights() below.
+  bool predict_mode = false;
+  arma::uword predict_batch = 0;
   double gp_tau2 = 1.0, gp_length_scale = 1.0, gp_jitter = 1e-6,
     eta_proposal_window = 0.1, gp_hyperparameter_proposal_window = 0.1,
     gp_tau2_prior_shape = 2.0, gp_tau2_prior_rate = 4.0,

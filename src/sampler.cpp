@@ -144,10 +144,23 @@ void sampler::updateWeights(){
       updatePartialPoolingWeights();
     } else {
       updateGPWeights();
-      if(sample_gp_hyperparameters) {
+      // gp_tau2/gp_length_scale/gp_chol are fixed at their posterior-draw
+      // value throughout prediction (see sampler.h) - re-estimating them
+      // from one new batch's data alone would contaminate the composition
+      // draw with an update that is supposed to stay conditioned on, not
+      // re-derived from, that draw.
+      if(sample_gp_hyperparameters && !predict_mode) {
         gpHyperparameterMetropolis();
       }
     }
+    return;
+  }
+
+  // The single shared weight vector is likewise frozen throughout
+  // prediction (see sampler.h): it is one of the fixed inputs the
+  // composition draw conditions on, not something the new batch's own
+  // data should update.
+  if(predict_mode) {
     return;
   }
 
@@ -535,7 +548,20 @@ void sampler::updateGPWeights() {
     }
 
     current_col = eta_alr.col(j);
-    eta_proposed = current_col + randn<vec>(B) * eta_proposal_window;
+    if(predict_mode) {
+      // Every OTHER batch's eta is one of the fixed inputs this draw
+      // conditions on (it already reflects all of the original data, via
+      // the posterior draw this sweep loop was seeded from) - only
+      // predict_batch's own entry is free to move. Proposing it alone,
+      // then scoring via the SAME joint GP kernel below (which already
+      // takes the full B-vector), is exactly the correct GP conditional
+      // update: the other entries act as fixed conditioning values inside
+      // multinomialLogitGPLogKernel()'s quadratic form.
+      eta_proposed = current_col;
+      eta_proposed(predict_batch) += randn() * eta_proposal_window;
+    } else {
+      eta_proposed = current_col + randn<vec>(B) * eta_proposal_window;
+    }
 
     proposed_score = multinomialLogitGPLogKernel(eta_proposed, eta_other_sum, count_bk.col(j), N_b_d, gp_chol, gp_beta(j));
     current_score = multinomialLogitGPLogKernel(current_col, eta_other_sum, count_bk.col(j), N_b_d, gp_chol, gp_beta(j));
@@ -546,6 +572,12 @@ void sampler::updateGPWeights() {
     if(u < acceptance_prob) {
       eta_alr.col(j) = eta_proposed;
       eta_count(j)++;
+    }
+
+    if(predict_mode) {
+      // gp_beta(j) is a population hyperparameter fixed at the posterior
+      // draw's value (see sampler.h) - one new batch must not update it.
+      continue;
     }
 
     // Gibbs update gp_beta(j) | eta_{.,j}, gp_cov (conjugate Normal-Normal
@@ -595,7 +627,15 @@ void sampler::updatePartialPoolingWeights() {
     }
 
     current_col = eta_alr.col(j);
-    eta_proposed = current_col + randn<vec>(B) * eta_proposal_window;
+    if(predict_mode) {
+      // See the identical guard in updateGPWeights() - only predict_batch's
+      // own entry is free; every other batch's eta stays at the fixed
+      // posterior-draw value this sweep loop was seeded with.
+      eta_proposed = current_col;
+      eta_proposed(predict_batch) += randn() * eta_proposal_window;
+    } else {
+      eta_proposed = current_col + randn<vec>(B) * eta_proposal_window;
+    }
 
     double log_lik_current = 0.0, log_lik_proposed = 0.0, D_b = 0.0;
     for(uword b = 0; b < B; b++) {
@@ -619,6 +659,13 @@ void sampler::updatePartialPoolingWeights() {
     if(u < acceptance_prob) {
       eta_alr.col(j) = eta_proposed;
       eta_count(j)++;
+    }
+
+    if(predict_mode) {
+      // pp_mu(j)/pp_tau2(j) are population hyperparameters fixed at the
+      // posterior draw's value (see sampler.h) - one new batch must not
+      // update them.
+      continue;
     }
 
     // Gibbs update mu_j | eta_{.,j}, tau2_j (conjugate Normal-Normal, prior
