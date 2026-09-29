@@ -29,7 +29,7 @@ predictNewBatchMVN(
   sample_s_scale,
   weight_prior_type,
   weights_draws,
-  eta_alr_init_draws,
+  eta_logit_init_draws,
   gp_beta_draws,
   pp_mu_draws,
   pp_tau2_draws,
@@ -113,14 +113,15 @@ as in \code{sampleSemisupervisedMVN()}.}
 \item{weights_draws}{n_draws x K matrix of the shared weight vector
 (only meaningful, and only used, if \code{weight_prior_type == 0}).}
 
-\item{eta_alr_init_draws}{(B+1) x (K-1) x n_draws array: every free ALR
-coordinate for every batch INCLUDING the new one (last row), already
+\item{eta_logit_init_draws}{(B+1) x K x n_draws array: every class's
+logit (weights are their softmax) for every batch INCLUDING the new one
+(last row), already
 relabelling-safe and with the new batch's row seeded from its own
 prior/GP-conditional predictive draw - see \code{predictNewBatch()}.
 Ignored if \code{weight_prior_type == 0}.}
 
-\item{gp_beta_draws, pp_mu_draws, pp_tau2_draws}{(K-1) x n_draws matrices:
-the population hyperparameter(s) for the free ALR coordinates, held
+\item{gp_beta_draws, pp_mu_draws, pp_tau2_draws}{K x n_draws matrices:
+the population hyperparameter(s) for the per-class logits, held
 fixed throughout prediction (Rao-Blackwellised point estimates - see
 \code{predictNewBatch()}). Only \code{gp_beta_draws} is used if
 \code{weight_prior_type == 2}; only \code{pp_mu_draws}/\code{pp_tau2_draws}
@@ -167,7 +168,7 @@ p(new batch's parameters, new items' labels | posterior draw,
 conditional updates restricted to the one new batch. This is not called
 directly by users - see \code{predictNewBatch()} in R, which prepares
 every argument below (in particular the relabelling-safe, Rao-
-Blackwellised \code{eta_alr_init}/\code{gp_beta}/\code{pp_mu}/\code{pp_tau2}
+Blackwellised \code{eta_logit_init}/\code{gp_beta}/\code{pp_mu}/\code{pp_tau2}
 - see \code{R/predictNewBatch.R}'s block comment) from the output of
 \code{processMCMCChain()}.
 }

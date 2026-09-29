@@ -29,11 +29,13 @@ version will not reproduce. The same notice is printed by `library(batchmix)`.
   `batch_weight_prior = "global", sample_s_scale = FALSE`. Under partial
   pooling `alpha`/`concentration` are unused. Surplus components are still
   largely emptied, because the default `pp_mu_prior_sd = 10` is diffuse enough
-  to act like a sparse Dirichlet (3 true clusters, `K_max = 8`: about 4.2
-  components occupied, against 4.1 under the old global Dirichlet(1/`K_max`));
-  sharpening `pp_mu_prior_sd` removes this (about 6.5 at 2.5, 7.9 at 1), so
-  pair a sharper prior with a `K_max` near the expected number of clusters.
-  This is an empirical result, not a guarantee (`?runBatchMix`).
+  to act like a sparse Dirichlet (3 true clusters, `K_max = 8`: about 3.8
+  components occupied, against 4.1 under the old global Dirichlet(1/`K_max`)
+  and 7.3 under Dirichlet(1)); sharpening it weakens this (4.8 at 2.5, 7.9 at
+  1), so pair a sharper prior with a `K_max` near the expected number of
+  clusters. This is an empirical result from one setting, not a guarantee
+  (`?runBatchMix`). The weight prior is exchangeable over clusters: batch
+  weights are a softmax of `K` logits with no reference class.
 * **`batch_corrected_data` / `inferred_dataset`** are now the posterior mean of
   each item's batch-free signal, the exact inverse of the fitted batch model.
   They are shrunk towards the item's cluster mean (a denoised estimate), not a

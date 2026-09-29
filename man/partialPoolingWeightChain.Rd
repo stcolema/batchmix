@@ -13,21 +13,23 @@ partialPoolingWeightChain(labels, batch_vec, K, B, n_iter, mu, tau2, eta_pw)
 
 \item{n_iter}{Number of sweeps.}
 
-\item{mu, tau2}{The fixed hyperparameters (for every free coordinate).}
+\item{mu, tau2}{K-vectors: the fixed population mean and class variances.}
 
 \item{eta_pw}{The proposal window (sd) of each scalar random walk.}
 }
 \value{
-A list with the \code{eta} trace (B x (K - 1) x n_iter), the raw
+A list with the \code{eta} trace (B x K x n_iter), the raw
 \code{eta_count}, and \code{eta_moves_per_sweep}.
 }
 \description{
 Runs \code{updatePartialPoolingWeights()} repeatedly,
-resetting the population mean and variance to fixed values before every
-sweep so that the ALR entries of each batch are updated by the Metropolis
-kernel alone, targeting their exact conditional
-\eqn{p(\eta_b \mid counts_b) \propto \exp(c_b \eta_b - N_b \log(1 + e^{\eta_b}))
-N(\eta_b; \mu, \tau^2)} (for K = 2). A batch with no items follows its
-prior N(mu, tau2).
+resetting the population mean and variances to fixed values before every
+sweep so that each batch's logits are updated by the Metropolis and shift
+Gibbs kernels alone, targeting their exact conditional. The weights depend
+on the logits only through differences, so for two classes the logit
+difference \eqn{d = \eta_1 - \eta_2} of a batch with counts \eqn{c_1} and
+\eqn{N} has density
+\eqn{\propto \exp(c_1 d - N \log(1 + e^d)) N(d; \mu_1 - \mu_2, \tau_1^2 +
+\tau_2^2)}; a batch with no items follows the prior.
 }
 \keyword{internal}

@@ -139,18 +139,21 @@ public:
   // Batch-specific mixing weights (opt-in; see updateWeights()'s dispatch on
   // weight_prior_type). Rather than one global weight vector w shared by
   // every batch, each batch b can instead get its own weight vector
-  // w_batch(b, .), built from the same additive-log-ratio (ALR)
-  // parameterisation either way; what differs is the prior tying the K-1
-  // free ALR coordinates together across batches:
+  // w_batch(b, .) = softmax(eta_logit(b, .)) on K exchangeable logits (no
+  // reference class, so every class has the same prior; the common
+  // per-batch shift that softmax cannot see is identified by the prior and
+  // updated by an exact Gibbs step); what differs is the prior tying each
+  // class's logits together across batches:
   //
   //   weight_prior_type == 0 ("global", the default): no batch-specific
   //     weights at all - a single w shared by every batch, exactly the
-  //     original behaviour. w_batch/eta_alr are allocated but never
+  //     original behaviour. w_batch/eta_logit are allocated but never
   //     updated (they stay at their inert uniform/zero initial value).
   //
   //   weight_prior_type == 1 ("partial pooling" / exchangeable): each
-  //     batch's ALR coordinate is a draw eta_{b,j} ~ N(mu_j, tau2_j) from a
-  //     shared, ESTIMATED population mean mu_j and variance tau2_j, with no
+  //     batch's logit for class k is a draw eta_{b,k} ~ N(mu_k, tau2_k) from a
+  //     shared, ESTIMATED population mean mu_k (constrained to sum to zero
+  //     over k) and variance tau2_k, with no
   //     assumed order, distance or covariance structure between batches at
   //     all - batches are exchangeable (Gelman & Hill, 2007, "Data Analysis
   //     Using Regression and Multilevel/Hierarchical Models", ch. 12, for
@@ -162,7 +165,7 @@ public:
   //     to explain the same signal, so no identifiability fix is needed
   //     here beyond the ordinary conjugate hierarchical-model machinery.
   //
-  //   weight_prior_type == 2 ("gp"): the ALR coordinates are linked across
+  //   weight_prior_type == 2 ("gp"): each class's logits are linked across
   //     batches by a Gaussian process over an ordered/spatial
   //     batch_coordinates covariate (maternKernel32() +
   //     multinomialLogitGPLogKernel() in genericFunctions.h/.cpp), for
@@ -172,17 +175,17 @@ public:
   //     known or isn't the point - it estimates only a common mean and
   //     variance, not a length-scale.
   //
-  //     Each free ALR coordinate j has its own estimated intercept
-  //     gp_beta(j) - eta_{.,j} ~ GP(gp_beta(j), K(batch_coordinates)) - not
+  //     Each class k has its own estimated, sum-to-zero intercept
+  //     gp_beta(k) - eta_{.,k} ~ GP(gp_beta(k), K(batch_coordinates)) - not
   //     fixed at 0: Ren, Du, Carin & Dunson (2011), the paper this
   //     construction is otherwise built from, itself decomposes the
   //     logit as z(x)^T beta + w(x) with w ~ GP(0, K), i.e. an intercept
   //     plus a zero-mean deviation process, not a bare zero-mean GP - the
-  //     latter would force every coordinate to revert to an equal-weight
+  //     latter would force every class to revert to an equal-weight
   //     (1/K) split wherever the data are uninformative or far from every
   //     other batch, regardless of the batches' actual overall rate,
   //     unlike "partial pooling"'s pp_mu playing the equivalent role
-  //     there. gp_beta(j) ~ N(0, pp_mu_prior_sd^2) a priori (the same
+  //     there. gp_beta(k) ~ N(0, pp_mu_prior_sd^2) a priori (the same
   //     weakly-informative scale already used for pp_mu, since the two
   //     play an analogous role) and is updated by a conjugate
   //     generalised-least-squares Gibbs step each sweep (see
@@ -222,7 +225,7 @@ public:
   //     numerically-preferred modern approach; gp_cov_inv does not exist as
   //     a field for this reason. Similarly, gpHyperparameterMetropolis()
   //     proposes new (tau2, length_scale) via a non-centred/whitened
-  //     reparameterisation of eta_alr specifically for that step (see its
+  //     reparameterisation of eta_logit specifically for that step (see its
   //     own documentation) - the standard fix for the otherwise-severe
   //     "funnel" coupling between a hierarchical model's variance/
   //     length-scale and its latent values when both are updated in their
@@ -260,7 +263,7 @@ public:
     pp_tau2_prior_shape = 2.0, pp_tau2_prior_rate = 1.0,
     pp_mu_prior_sd = 10.0;
   arma::vec batch_coordinates, pp_mu, pp_tau2, gp_beta;
-  arma::mat gp_cov, gp_chol, w_batch, eta_alr;
+  arma::mat gp_cov, gp_chol, w_batch, eta_logit;
   arma::uvec eta_count;
   // Number of Metropolis moves that each increment of eta_count(j) is spread
   // over per sweep: B when the partial-pooling update proposes each batch's
@@ -296,7 +299,7 @@ public:
   void sampleTauInteractionPosterior();
 
   // Batch-weight-prior setup/updates (shared: only touches
-  // K/B/N_b/labels/batch_vec/w/gp_*/pp_*/eta_alr/w_batch, all declared here).
+  // K/B/N_b/labels/batch_vec/w/gp_*/pp_*/eta_logit/w_batch, all declared here).
   void initialiseBatchWeightPrior(arma::uword _weight_prior_type,
                                    arma::vec _batch_coordinates,
                                    double _gp_tau2,
@@ -308,7 +311,7 @@ public:
                                    double _pp_tau2_prior_rate,
                                    double _pp_mu_prior_sd);
   arma::mat computeBatchClassCounts();
-  void updateSimplexFromALR(arma::uword n_free);
+  void updateSimplexFromLogits();
   void updateGPWeights();
   void updatePartialPoolingWeights();
   void gpHyperparameterMetropolis();

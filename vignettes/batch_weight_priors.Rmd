@@ -27,16 +27,18 @@ Two consequences are worth knowing before reading the comparison below.
 Under partial pooling the Dirichlet concentration `alpha`/`concentration`
 is not used. Surplus components (`K_max` above the number of clusters) are
 still largely emptied, but by a different mechanism: the default
-`pp_mu_prior_sd = 10` on the log-ratios has about the spread of a
-Dirichlet(1/`K_max`) at `K_max` around 8, so it behaves like a sparse prior
-(with 3 true clusters and `K_max = 8`, about 4.2 components stayed occupied,
-against 4.1 under the old global default; `inst/experiments/
-overfitted_weight_priors.R`). Sharpening `pp_mu_prior_sd` removes that (about
-6.5 occupied at 2.5, 7.9 at 1), and it is an empirical finding, not the
-Rousseau-Mengersen guarantee, which is for Dirichlet priors. The log-ratio
-coordinates also use the last cluster as their reference, so the prior is not
-exchangeable over clusters: the last cluster is a priori much less likely to
-be the dominant one (0.008 against 0.14 for each other cluster at
+`pp_mu_prior_sd = 10` on the logits makes pairwise logit differences have a
+standard deviation of about 14, that of a Dirichlet with concentration about
+0.1, so it behaves like a sparse prior (with 3 true clusters and
+`K_max = 8`, about 3.8 components stayed occupied, against 4.1 under the old
+global default and 7.3 under Dirichlet(1); `inst/experiments/
+overfitted_weight_priors.R`). Sharpening `pp_mu_prior_sd` weakens that (4.8
+occupied at 2.5, 7.9 at 1), and it is an empirical finding from one setting,
+not the Rousseau-Mengersen guarantee, which is for Dirichlet priors. The
+weights are a softmax of `K` logits with the same prior for every class (no
+reference class), so the prior is exchangeable over clusters; an earlier
+parameterisation against a reference class made the last cluster a priori much
+less likely to dominate (0.008 against 0.14 for each other cluster at
 `K_max = 8`). And the default also
 partially pools the batch *scales* (`sample_s_scale = TRUE`; Section 8),
 so every fit in this vignette does so, and the three fits differ only in

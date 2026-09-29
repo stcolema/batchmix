@@ -158,16 +158,15 @@ test_that("the diffuse default pp_mu_prior_sd empties surplus components; a shar
   expect_lt(diffuse + 1, sharp)
 })
 
-test_that("the log-ratio prior is not exchangeable over clusters: the reference (last) cluster is rarely dominant", {
-  # Documented limitation, pinned so that a symmetric re-parameterisation
-  # updates this test and the docs together.
+test_that("the weight prior is exchangeable over clusters: no class is a priori more likely to dominate", {
   set.seed(12)
   N <- 40; K <- 6
   X <- matrix(rnorm(N * 2), N, 2)
   batch_vec <- sample(0:1, N, replace = TRUE)
-  sims <- simulatePriorPredictive(X, batch_vec, K = K, type = "MVN", n_datasets = 600)
+  sims <- simulatePriorPredictive(X, batch_vec, K = K, type = "MVN", n_datasets = 1500)
   largest <- unlist(lapply(sims, function(s) max.col(s$params$w_batch, ties.method = "first")))
   freq <- tabulate(largest, K) / length(largest)
-  expect_lt(freq[K], 0.05)
-  expect_true(all(freq[-K] > 0.10))
+  # Each class should be the largest about 1 / K = 0.167 of the time; the
+  # earlier reference-class parameterisation gave the last class ~0.01.
+  expect_true(all(abs(freq - 1 / K) < 0.04))
 })

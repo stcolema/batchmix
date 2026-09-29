@@ -114,11 +114,11 @@ sampler::sampler(
     gp_cov = eye<mat>(B, B);
     gp_chol = eye<mat>(B, B);
     w_batch = ones<mat>(B, K) / (double) K;
-    eta_alr = zeros<mat>(B, (K > 0) ? K - 1 : 0);
-    eta_count = zeros<uvec>((K > 0) ? K - 1 : 0);
-    pp_mu = zeros<vec>((K > 0) ? K - 1 : 0);
-    pp_tau2 = ones<vec>((K > 0) ? K - 1 : 0);
-    gp_beta = zeros<vec>((K > 0) ? K - 1 : 0);
+    eta_logit = zeros<mat>(B, K);
+    eta_count = zeros<uvec>(K);
+    pp_mu = zeros<vec>(K);
+    pp_tau2 = ones<vec>(K);
+    gp_beta = zeros<vec>(K);
   };
 
 // Functions required of all mixture models
@@ -345,17 +345,17 @@ double sampler::structuralExtraBICParams() const {
     extra += (double) (K_occ - 1) * (double) B - (double) K_occ;
 
     if (weight_prior_type == 1) {
-      // Partial pooling: population mean and variance for each of the
-      // K_occ - 1 free ALR coordinates (pp_mu, pp_tau2).
-      extra += 2.0 * (double) (K_occ - 1);
+      // Partial pooling: a sum-to-zero population mean (K_occ - 1 free
+      // values, pp_mu) and a variance for each of the K_occ classes
+      // (pp_tau2).
+      extra += (double) (K_occ - 1) + (double) K_occ;
     } else if (weight_prior_type == 2) {
-      // GP: one estimated intercept (gp_beta) per free ALR coordinate,
-      // always - the GP analogue of partial pooling's per-coordinate
-      // pp_mu (see the header for why this exists). tau2/length_scale are
-      // each a single value SHARED across every coordinate (unlike
-      // pp_mu/pp_tau2, which are per-coordinate), so they contribute only
-      // 2 extra parameters in total, and only when actually estimated
-      // rather than fixed by the user.
+      // GP: one estimated, sum-to-zero intercept (gp_beta) per class - K_occ
+      // - 1 free values, the GP analogue of partial pooling's pp_mu (see the
+      // header for why this exists). tau2/length_scale are each a single
+      // value SHARED across every class (unlike pp_mu/pp_tau2, which are
+      // per-class), so they contribute only 2 extra parameters in total, and
+      // only when actually estimated rather than fixed by the user.
       extra += (double) (K_occ - 1);
       if (sample_gp_hyperparameters) {
         extra += 2.0;
@@ -460,21 +460,21 @@ void sampler::initialiseBatchWeightPrior(
   // for the escalation this now uses instead.
   buildWellConditionedGPChol(gp_tau2, gp_length_scale, gp_cov, gp_chol, gp_jitter);
 
-  // Start from equal weights in every batch (eta = 0 in every ALR
+  // Start from equal weights in every batch (eta = 0 for every class
   // coordinate, and the partial-pooling population mean/variance at their
   // prior means); updateWeights() then updates this via MH/Gibbs from the
   // first sweep, exactly as the unconstrained w vector is only ever set
   // via the Gibbs step in updateWeights(), never a separate "sample from
   // prior" call.
   w_batch = ones<mat>(B, K) / (double) K;
-  eta_alr = zeros<mat>(B, (K > 0) ? K - 1 : 0);
-  eta_count = zeros<uvec>((K > 0) ? K - 1 : 0);
+  eta_logit = zeros<mat>(B, K);
+  eta_count = zeros<uvec>(K);
   eta_moves_per_sweep = (weight_prior_type == 1) ? (double) B : 1.0;
-  pp_mu = zeros<vec>((K > 0) ? K - 1 : 0);
-  pp_tau2 = ones<vec>((K > 0) ? K - 1 : 0) * (pp_tau2_prior_rate / std::max(pp_tau2_prior_shape - 1.0, 1e-6));
+  pp_mu = zeros<vec>(K);
+  pp_tau2 = ones<vec>(K) * (pp_tau2_prior_rate / std::max(pp_tau2_prior_shape - 1.0, 1e-6));
   // gp_beta plays the same role for "gp" that pp_mu plays for "partial
   // pooling" (see the header) - initialised at its own prior mean (0).
-  gp_beta = zeros<vec>((K > 0) ? K - 1 : 0);
+  gp_beta = zeros<vec>(K);
 };
 
 // Per-batch, per-cluster item counts under the current allocation, shared
@@ -489,22 +489,56 @@ arma::mat sampler::computeBatchClassCounts() {
   return count_bk;
 };
 
-// Converts the current eta_alr (B x (K-1)) to per-batch simplex weights
-// w_batch (B x K), and keeps the single global weight vector w in sync as
-// the N_b-weighted average across batches, for any code that still reads
-// w directly. Shared by every batch-weight-prior update.
-void sampler::updateSimplexFromALR(arma::uword n_free) {
+// =============================================================================
+// Batch-specific weights on K exchangeable, softmax-linked logits.
+//
+// Batch b's weights are w_b = softmax(eta_b), eta_b in R^K, with NO reference
+// class. (An earlier version fixed the last class's logit at 0 - the
+// additive-log-ratio parameterisation - which makes the prior non-
+// exchangeable over classes: the reference class was, a priori, far less
+// likely to be the dominant one than any other. Using K logits with the same
+// prior for every class removes that.) softmax is invariant to adding a
+// constant to every logit of a batch, so the likelihood does not identify
+// that common shift; it is identified by the prior alone, and is updated by
+// its own exact Gibbs step below, which keeps the chain from wandering along
+// a direction the data cannot inform.
+
+// log sum_k exp(eta(b, k)), stably.
+static double logSumExpRow(const arma::mat& eta, arma::uword b) {
+  double m = eta.row(b).max();
+  double total = 0.0;
+  for(uword k = 0; k < eta.n_cols; k++) {
+    total += std::exp(eta(b, k) - m);
+  }
+  return m + std::log(total);
+}
+
+// Multinomial log-likelihood (up to a constant) of every batch's class
+// counts given its logits.
+static double softmaxLogLik(const arma::mat& eta, const arma::mat& counts, const arma::vec& N_b_d) {
+  double ll = 0.0;
+  for(uword b = 0; b < eta.n_rows; b++) {
+    ll += arma::accu(counts.row(b) % eta.row(b)) - N_b_d(b) * logSumExpRow(eta, b);
+  }
+  return ll;
+}
+
+// Converts the current logits eta_logit (B x K) to per-batch simplex weights
+// w_batch (B x K) by a softmax; shared by every batch-weight-prior update.
+void sampler::updateSimplexFromLogits() {
   vec N_b_d = conv_to<vec>::from(N_b);
 
-  vec D = ones<vec>(B);
-  for(uword j = 0; j < n_free; j++) {
-    D += exp(eta_alr.col(j));
+  for(uword b = 0; b < B; b++) {
+    double lse = logSumExpRow(eta_logit, b);
+    for(uword k = 0; k < K; k++) {
+      // Floor at the smallest positive normal double so log(w_batch) stays
+      // finite in the allocation step.
+      w_batch(b, k) = std::max(std::exp(eta_logit(b, k) - lse), 1e-300);
+    }
   }
-  for(uword j = 0; j < n_free; j++) {
-    w_batch.col(j) = exp(eta_alr.col(j)) / D;
-  }
-  w_batch.col(K - 1) = 1.0 / D;
 
+  // Keep the single global weight vector w in sync as the N_b-weighted
+  // average across batches, for any code that still reads w directly.
   vec w_avg(K, fill::zeros);
   for(uword k = 0; k < K; k++) {
     w_avg(k) = accu(N_b_d % w_batch.col(k)) / (double) N;
@@ -512,175 +546,194 @@ void sampler::updateSimplexFromALR(arma::uword n_free) {
   w = w_avg;
 };
 
-// One sweep of the GP-structured batch-weight update: K - 1 independent
-// ALR coordinates, each linked across the B batches by its own GP prior
-// centred on its own estimated intercept gp_beta(j) (see the header for
-// why a bare zero-mean GP is a needlessly restrictive special case), each
-// updated by a block Metropolis-Hastings step (propose all B entries of
-// that coordinate at once, accept/reject as a whole) holding every other
-// coordinate fixed - the cyclic scheme documented alongside
-// multinomialLogitGPLogKernel() (Ren, Du, Carin & Dunson, 2011; Linderman,
-// Johnson & Adams, 2015). gp_beta(j) itself is then updated by an exact
-// conjugate Gibbs step, generalised-least-squares rather than the simple
-// sample mean partial pooling's analogous pp_mu update uses, since the
-// deviations eta_{.,j} - gp_beta(j) are correlated (covariance gp_cov),
-// not iid.
+// One sweep of the GP-structured batch-weight update: K independent GP
+// priors, one per class, each over the B batches and centred on its own
+// estimated intercept gp_beta(k) (see the header for why a bare zero-mean GP
+// is a needlessly restrictive special case). Each class's B logits are
+// updated by a block Metropolis-Hastings step (propose all B entries at
+// once, accept/reject as a whole) holding every other class fixed - the
+// cyclic scheme documented alongside multinomialLogitGPLogKernel() (Ren, Du,
+// Carin & Dunson, 2011; Linderman, Johnson & Adams, 2015). The common
+// per-batch shift the likelihood cannot see is then redrawn exactly (its
+// conditional is Gaussian with the GP covariance divided by K), and
+// gp_beta by an exact generalised-least-squares Gibbs step with a
+// sum-to-zero constraint (the intercepts are identified only up to a
+// common constant, which the shift already absorbs).
 void sampler::updateGPWeights() {
 
-  uword n_free = (K > 0) ? K - 1 : 0;
   mat count_bk = computeBatchClassCounts();
   vec N_b_d = conv_to<vec>::from(N_b);
   vec ones_B = ones<vec>(B);
-  // Sigma^-1 * v == solve(L', solve(L, v)) exactly, via two triangular
-  // solves against the Cholesky factor - never Sigma's explicit inverse;
-  // see genericFunctions.h. Both solves below reuse this same L for every
-  // free coordinate this sweep, since gp_chol only changes in
-  // gpHyperparameterMetropolis().
+  // Sigma^-1 * v == solve(L', solve(L, v)) exactly, via triangular solves
+  // against the Cholesky factor - never Sigma's explicit inverse; see
+  // genericFunctions.h. gp_chol only changes in gpHyperparameterMetropolis().
   mat L = arma::trimatl(gp_chol);
   vec L_inv_ones = arma::solve(L, ones_B);
 
-  vec eta_other_sum(B), eta_proposed(B), current_col(B);
-  double proposed_score = 0.0, current_score = 0.0, u = 0.0, acceptance_prob = 0.0;
+  vec eta_proposed(B), current_col(B);
+  double u = 0.0, acceptance_prob = 0.0;
 
-  for(uword j = 0; j < n_free; j++) {
+  for(uword k = 0; k < K; k++) {
 
-    eta_other_sum.zeros();
-    for(uword jp = 0; jp < n_free; jp++) {
-      if(jp == j) continue;
-      eta_other_sum += exp(eta_alr.col(jp));
-    }
-
-    current_col = eta_alr.col(j);
+    current_col = eta_logit.col(k);
+    eta_proposed = current_col;
     if(predict_mode) {
-      // Every OTHER batch's eta is one of the fixed inputs this draw
-      // conditions on (it already reflects all of the original data, via
-      // the posterior draw this sweep loop was seeded from) - only
-      // predict_batch's own entry is free to move. Proposing it alone,
-      // then scoring via the SAME joint GP kernel below (which already
-      // takes the full B-vector), is exactly the correct GP conditional
-      // update: the other entries act as fixed conditioning values inside
-      // multinomialLogitGPLogKernel()'s quadratic form.
-      eta_proposed = current_col;
+      // Every OTHER batch's logits are fixed inputs this draw conditions on
+      // (they already reflect all of the original data, via the posterior
+      // draw this sweep loop was seeded from) - only predict_batch's own
+      // entry is free. Scoring with the SAME joint GP kernel below (which
+      // takes the full B-vector) is exactly the correct GP conditional
+      // update: the other entries act as fixed conditioning values.
       eta_proposed(predict_batch) += randn() * eta_proposal_window;
     } else {
-      eta_proposed = current_col + randn<vec>(B) * eta_proposal_window;
+      eta_proposed += randn<vec>(B) * eta_proposal_window;
     }
 
-    proposed_score = multinomialLogitGPLogKernel(eta_proposed, eta_other_sum, count_bk.col(j), N_b_d, gp_chol, gp_beta(j));
-    current_score = multinomialLogitGPLogKernel(current_col, eta_other_sum, count_bk.col(j), N_b_d, gp_chol, gp_beta(j));
+    mat eta_proposed_mat = eta_logit;
+    eta_proposed_mat.col(k) = eta_proposed;
+
+    double proposed_score = softmaxLogLik(eta_proposed_mat, count_bk, N_b_d)
+      - 0.5 * arma::dot(arma::solve(L, eta_proposed - gp_beta(k)), arma::solve(L, eta_proposed - gp_beta(k)));
+    double current_score = softmaxLogLik(eta_logit, count_bk, N_b_d)
+      - 0.5 * arma::dot(arma::solve(L, current_col - gp_beta(k)), arma::solve(L, current_col - gp_beta(k)));
 
     u = randu();
     acceptance_prob = std::min(1.0, std::exp(proposed_score - current_score));
 
     if(u < acceptance_prob) {
-      eta_alr.col(j) = eta_proposed;
-      eta_count(j)++;
+      eta_logit.col(k) = eta_proposed;
+      eta_count(k)++;
     }
-
-    if(predict_mode) {
-      // gp_beta(j) is a population hyperparameter fixed at the posterior
-      // draw's value (see sampler.h) - one new batch must not update it.
-      continue;
-    }
-
-    // Gibbs update gp_beta(j) | eta_{.,j}, gp_cov (conjugate Normal-Normal
-    // generalised least squares): the deviation model eta_{.,j} = beta_j *
-    // 1 + w, w ~ N(0, gp_cov), combined with a N(0, pp_mu_prior_sd^2)
-    // prior on beta_j, gives posterior precision 1' Sigma^-1 1 +
-    // 1/pp_mu_prior_sd^2 and posterior mean (that precision)^-1 times
-    // 1' Sigma^-1 eta_{.,j} - the ordinary GLS-with-a-prior formula
-    // (Gelman et al., 2013, BDA3, Section 14.8), reducing to the simple
-    // sample-mean update updatePartialPoolingWeights() uses for pp_mu
-    // exactly when gp_cov is diagonal (no correlation to account for).
-    // Both quadratic forms via the same triangular-solve identity as above
-    // (1' Sigma^-1 1 = ||L^-1 1||^2, 1' Sigma^-1 eta = (L^-1 1)' (L^-1 eta)).
-    vec L_inv_eta = arma::solve(L, eta_alr.col(j));
-    double precision_beta = arma::dot(L_inv_ones, L_inv_ones) + 1.0 / (pp_mu_prior_sd * pp_mu_prior_sd);
-    double post_var_beta = 1.0 / precision_beta;
-    double post_mean_beta = post_var_beta * arma::dot(L_inv_ones, L_inv_eta);
-    gp_beta(j) = post_mean_beta + randn() * std::sqrt(post_var_beta);
   }
 
-  updateSimplexFromALR(n_free);
+  if(predict_mode) {
+    // gp_beta and the GP hyperparameters are population quantities fixed at
+    // the posterior draw's value (see sampler.h) - one new batch must not
+    // update them.
+    updateSimplexFromLogits();
+    return;
+  }
+
+  // Exact Gibbs draw of the common shift c (a B-vector added to every
+  // class's logits): the likelihood is invariant to it, and given the
+  // K GP priors N(gp_beta(k) 1, Sigma) its conditional is Gaussian with
+  // mean (1/K) sum_k (gp_beta(k) 1 - eta_.k) and covariance Sigma / K.
+  vec shift_mean(B, fill::zeros);
+  for(uword k = 0; k < K; k++) {
+    shift_mean += gp_beta(k) * ones_B - eta_logit.col(k);
+  }
+  shift_mean /= (double) K;
+  vec shift = shift_mean + (L * randn<vec>(B)) / std::sqrt((double) K);
+  for(uword k = 0; k < K; k++) {
+    eta_logit.col(k) += shift;
+  }
+
+  // Gibbs update gp_beta | eta, gp_cov (conjugate Normal-Normal generalised
+  // least squares): eta_.k = beta_k 1 + w, w ~ N(0, gp_cov), with prior
+  // beta_k ~ N(0, pp_mu_prior_sd^2), gives posterior precision 1' Sigma^-1 1
+  // + 1/pp_mu_prior_sd^2 (the same for every class) and posterior mean
+  // (that precision)^-1 * 1' Sigma^-1 eta_.k (Gelman et al., 2013, BDA3,
+  // Section 14.8). Constraining the intercepts to sum to zero - the prior
+  // restricted to that hyperplane - is done by conditioning the independent
+  // posterior draws on their sum, which for equal variances is subtracting
+  // their mean.
+  double precision_beta = arma::dot(L_inv_ones, L_inv_ones) + 1.0 / (pp_mu_prior_sd * pp_mu_prior_sd);
+  double post_var_beta = 1.0 / precision_beta;
+  vec beta_star(K);
+  for(uword k = 0; k < K; k++) {
+    vec L_inv_eta = arma::solve(L, eta_logit.col(k));
+    double post_mean_beta = post_var_beta * arma::dot(L_inv_ones, L_inv_eta);
+    beta_star(k) = post_mean_beta + randn() * std::sqrt(post_var_beta);
+  }
+  gp_beta = beta_star - arma::mean(beta_star);
+
+  updateSimplexFromLogits();
 };
 
-// One sweep of the partial-pooling (exchangeable) batch-weight update: for
-// each free ALR coordinate j, eta_{b,j} | mu_j, tau2_j ~ N(mu_j, tau2_j)
-// iid across batches b - no assumed order or distance between batches, in
-// contrast to updateGPWeights(). eta_{.,j} itself is updated by a block
-// Metropolis-Hastings step (as in the GP case, since the multinomial-logit
-// likelihood isn't conjugate to anything), but with this simpler diagonal
-// prior; mu_j and tau2_j are then updated by exact Gibbs steps, since
-// (given eta_{.,j}) they form an ordinary conjugate Normal-Normal /
-// Normal-InverseGamma hierarchical model (Gelman & Hill, 2007, ch. 12).
+// One sweep of the partial-pooling (exchangeable) batch-weight update:
+// eta_{b,k} | mu_k, tau2_k ~ N(mu_k, tau2_k) independently over batches b
+// and classes k (mu = (mu_1..mu_K) constrained to sum to zero, tau2_k
+// InvGamma) - no assumed order or distance between batches, in contrast to
+// updateGPWeights(), and the same prior for every class, so the model is
+// exchangeable over classes. eta_b is updated by scalar Metropolis-Hastings
+// steps (the multinomial-logit likelihood isn't conjugate to anything), then
+// the per-batch common shift the likelihood cannot see by an exact Gibbs
+// step, then mu and tau2 by exact Gibbs steps (Gelman & Hill, 2007, ch. 12).
 void sampler::updatePartialPoolingWeights() {
 
-  uword n_free = (K > 0) ? K - 1 : 0;
   mat count_bk = computeBatchClassCounts();
   vec N_b_d = conv_to<vec>::from(N_b);
 
-  vec eta_other_sum(B);
+  // The likelihood (multinomial counts) and the exchangeable prior both
+  // factorise over batches, so each batch's entries are updated by their own
+  // scalar Metropolis steps, holding every other batch and class fixed. A
+  // single joint block random walk (as the GP update must use, since its
+  // prior correlates the batches) has an acceptance rate that falls with B
+  // and forces a tiny window on every batch to suit the worst one. When
+  // predicting a new batch only predict_batch's own entries are free; every
+  // other batch's logits stay at the fixed posterior-draw value this sweep
+  // loop was seeded with.
+  const uword b_first = predict_mode ? predict_batch : 0;
+  const uword b_last = predict_mode ? predict_batch + 1 : B;
 
-  for(uword j = 0; j < n_free; j++) {
-
-    eta_other_sum.zeros();
-    for(uword jp = 0; jp < n_free; jp++) {
-      if(jp == j) continue;
-      eta_other_sum += exp(eta_alr.col(jp));
-    }
-
-    // The likelihood (multinomial counts) and the exchangeable N(mu_j,
-    // tau2_j) prior both factorise over batches, so each batch's entry is
-    // updated by its own scalar Metropolis step, holding every other batch
-    // and coordinate fixed. A single joint B-dimensional random-walk block
-    // (as the GP update must use, since its prior correlates the batches)
-    // has an acceptance rate that falls with B and so forces a tiny window
-    // for every batch to suit the worst one. When predicting a new batch
-    // only predict_batch's own entry is free; every other batch's eta stays
-    // at the fixed posterior-draw value this sweep loop was seeded with.
-    const uword b_first = predict_mode ? predict_batch : 0;
-    const uword b_last = predict_mode ? predict_batch + 1 : B;
-    for(uword b = b_first; b < b_last; b++) {
-      double current_eta = eta_alr(b, j);
+  for(uword b = b_first; b < b_last; b++) {
+    for(uword k = 0; k < K; k++) {
+      double current_eta = eta_logit(b, k);
+      double current_lse = logSumExpRow(eta_logit, b);
       double proposed_eta = current_eta + randn() * eta_proposal_window;
 
-      double log_lik_current = count_bk(b, j) * current_eta
-        - N_b_d(b) * std::log(1.0 + std::exp(current_eta) + eta_other_sum(b));
-      double log_lik_proposed = count_bk(b, j) * proposed_eta
-        - N_b_d(b) * std::log(1.0 + std::exp(proposed_eta) + eta_other_sum(b));
+      eta_logit(b, k) = proposed_eta;
+      double proposed_lse = logSumExpRow(eta_logit, b);
 
-      double prior_current = -0.5 * std::pow(current_eta - pp_mu(j), 2.0) / pp_tau2(j);
-      double prior_proposed = -0.5 * std::pow(proposed_eta - pp_mu(j), 2.0) / pp_tau2(j);
+      double log_ratio = count_bk(b, k) * (proposed_eta - current_eta)
+        - N_b_d(b) * (proposed_lse - current_lse)
+        - 0.5 * (std::pow(proposed_eta - pp_mu(k), 2.0) - std::pow(current_eta - pp_mu(k), 2.0)) / pp_tau2(k);
 
       double u = randu();
-      double acceptance_prob = std::min(1.0, std::exp(log_lik_proposed + prior_proposed - log_lik_current - prior_current));
-
-      if(u < acceptance_prob) {
-        eta_alr(b, j) = proposed_eta;
-        eta_count(j)++;
+      if(u < std::min(1.0, std::exp(log_ratio))) {
+        eta_count(k)++;
+      } else {
+        eta_logit(b, k) = current_eta;
       }
     }
 
-    if(predict_mode) {
-      // pp_mu(j)/pp_tau2(j) are population hyperparameters fixed at the
-      // posterior draw's value (see sampler.h) - one new batch must not
-      // update them.
-      continue;
-    }
-
-    // Gibbs update mu_j | eta_{.,j}, tau2_j (conjugate Normal-Normal, prior
-    // mu_j ~ N(0, pp_mu_prior_sd^2)).
-    vec eta_col = eta_alr.col(j);
-    double post_var = 1.0 / (1.0 / (pp_mu_prior_sd * pp_mu_prior_sd) + (double) B / pp_tau2(j));
-    double post_mean = post_var * (accu(eta_col) / pp_tau2(j));
-    pp_mu(j) = post_mean + randn() * std::sqrt(post_var);
-
-    // Gibbs update tau2_j | eta_{.,j}, mu_j (conjugate InverseGamma).
-    double sum_sq = accu(square(eta_col - pp_mu(j)));
-    pp_tau2(j) = rInvGamma(pp_tau2_prior_shape + 0.5 * (double) B, pp_tau2_prior_rate + 0.5 * sum_sq);
+    // Exact Gibbs draw of batch b's common shift c: softmax is invariant to
+    // it, and given eta_bk + c ~ N(mu_k, tau2_k) its conditional is Gaussian
+    // with precision sum_k 1 / tau2_k.
+    double shift_precision = arma::accu(1.0 / pp_tau2);
+    double shift_mean = arma::accu((pp_mu - eta_logit.row(b).t()) / pp_tau2) / shift_precision;
+    double shift = shift_mean + randn() / std::sqrt(shift_precision);
+    eta_logit.row(b) += shift;
   }
 
-  updateSimplexFromALR(n_free);
+  if(predict_mode) {
+    // pp_mu/pp_tau2 are population hyperparameters fixed at the posterior
+    // draw's value (see sampler.h) - one new batch must not update them.
+    updateSimplexFromLogits();
+    return;
+  }
+
+  // Gibbs update mu | eta, tau2 with prior mu ~ N(0, pp_mu_prior_sd^2 I)
+  // restricted to sum(mu) = 0. The posterior is the independent Normal
+  // (per-class precision 1/sd^2 + B/tau2_k) restricted to that hyperplane,
+  // i.e. the unconstrained draw conditioned on its sum being zero.
+  double prior_precision = 1.0 / (pp_mu_prior_sd * pp_mu_prior_sd);
+  vec post_var(K), mu_star(K);
+  for(uword k = 0; k < K; k++) {
+    double post_precision = prior_precision + (double) B / pp_tau2(k);
+    post_var(k) = 1.0 / post_precision;
+    double post_mean = post_var(k) * (arma::accu(eta_logit.col(k)) / pp_tau2(k));
+    mu_star(k) = post_mean + randn() * std::sqrt(post_var(k));
+  }
+  pp_mu = mu_star - post_var * (arma::accu(mu_star) / arma::accu(post_var));
+
+  // Gibbs update tau2_k | eta_.k, mu_k (conjugate InverseGamma), per class.
+  for(uword k = 0; k < K; k++) {
+    double sum_sq = arma::accu(arma::square(eta_logit.col(k) - pp_mu(k)));
+    pp_tau2(k) = rInvGamma(pp_tau2_prior_shape + 0.5 * (double) B, pp_tau2_prior_rate + 0.5 * sum_sq);
+  }
+
+  updateSimplexFromLogits();
 };
 
 // Builds a Matern-3/2 GP covariance matrix and its LOWER-triangular
@@ -731,13 +784,13 @@ void sampler::buildWellConditionedGPChol(
 // Metropolis-Hastings update for the GP marginal variance (tau2) and
 // length scale, proposed jointly as a symmetric random walk on their logs
 // (keeps both strictly positive), together with a matching update to
-// eta_alr via a NON-CENTRED/WHITENED reparameterisation used for this step
-// only (the rest of the sampler stays in the ordinary "centred" eta_alr
+// eta_logit via a NON-CENTRED/WHITENED reparameterisation used for this step
+// only (the rest of the sampler stays in the ordinary "centred" eta_logit
 // representation - see updateGPWeights()).
 //
-// Why: proposing new hyperparameters while eta_alr stays rigidly fixed
+// Why: proposing new hyperparameters while eta_logit stays rigidly fixed
 // (this function's previous approach, and the textbook-obvious one) directly
-// couples the acceptance ratio to how "surprised" the CURRENT eta_alr is
+// couples the acceptance ratio to how "surprised" the CURRENT eta_logit is
 // under the new covariance - the classic Neal's-funnel pathology of jointly
 // modelling a hierarchical variance/length-scale parameter and the latent
 // values it governs in their natural, entangled form (Neal, 2003, "Slice
@@ -762,7 +815,6 @@ void sampler::buildWellConditionedGPChol(
 // for it, and for gp_cov_inv, entirely.
 void sampler::gpHyperparameterMetropolis() {
 
-  uword n_free = (K > 0) ? K - 1 : 0;
   mat count_bk = computeBatchClassCounts();
   vec N_b_d = conv_to<vec>::from(N_b);
 
@@ -787,23 +839,14 @@ void sampler::gpHyperparameterMetropolis() {
 
   mat L_current = arma::trimatl(gp_chol);
   mat L_proposed = arma::trimatl(gp_chol_proposed);
-  mat eta_implied(B, n_free);
-  for (uword j = 0; j < n_free; j++) {
-    vec z_j = arma::solve(L_current, eta_alr.col(j) - gp_beta(j));
-    eta_implied.col(j) = gp_beta(j) + L_proposed * z_j;
+  mat eta_implied(B, K);
+  for (uword k = 0; k < K; k++) {
+    vec z_k = arma::solve(L_current, eta_logit.col(k) - gp_beta(k));
+    eta_implied.col(k) = gp_beta(k) + L_proposed * z_k;
   }
 
-  double log_lik_current = 0.0, log_lik_implied = 0.0;
-  for (uword j = 0; j < n_free; j++) {
-    vec eta_other_sum_cur(B, fill::zeros), eta_other_sum_imp(B, fill::zeros);
-    for (uword jp = 0; jp < n_free; jp++) {
-      if (jp == j) continue;
-      eta_other_sum_cur += exp(eta_alr.col(jp));
-      eta_other_sum_imp += exp(eta_implied.col(jp));
-    }
-    log_lik_current += multinomialLogitLogLik(eta_alr.col(j), eta_other_sum_cur, count_bk.col(j), N_b_d);
-    log_lik_implied += multinomialLogitLogLik(eta_implied.col(j), eta_other_sum_imp, count_bk.col(j), N_b_d);
-  }
+  double log_lik_current = softmaxLogLik(eta_logit, count_bk, N_b_d);
+  double log_lik_implied = softmaxLogLik(eta_implied, count_bk, N_b_d);
 
   // Both tau2 and length_scale now have Inverse-Gamma priors expressed
   // directly in their own (original, not log-) scale, so sampling either
@@ -833,8 +876,8 @@ void sampler::gpHyperparameterMetropolis() {
     gp_jitter = jitter_proposed;
     gp_cov = gp_cov_proposed;
     gp_chol = gp_chol_proposed;
-    eta_alr = eta_implied; // eta moves together with the hyperparameters - the whole point
-    updateSimplexFromALR(n_free); // w_batch must reflect the now-changed eta_alr
+    eta_logit = eta_implied; // eta moves together with the hyperparameters - the whole point
+    updateSimplexFromLogits(); // w_batch must reflect the now-changed eta_logit
     gp_hyperparameter_count++;
   }
 };

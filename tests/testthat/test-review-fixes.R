@@ -256,7 +256,15 @@ test_that("relabelChain()/processMCMCChain() work on a real MVN fit's raw (0-ind
   X <- matrix(c(rnorm(100, 0, 1), rnorm(100, 3, 1)), ncol = 2, byrow = TRUE)
   batch_vec <- sample(seq(1, 3), replace = TRUE, size = 100)
 
-  mcmc_out <- runBatchMix(X, 1000, 50, batch_vec, "MVN", verbose = FALSE)
+  # A few items are fixed to label 0 so that label 0 is guaranteed to occur:
+  # an unsupervised fit no longer occupies any particular label by chance,
+  # since the weight prior is exchangeable over clusters.
+  init_labels <- sample(0:2, 100, replace = TRUE)
+  init_labels[1:5] <- 0L
+  fixed_0 <- c(rep(1L, 5), rep(0L, 95))
+  mcmc_out <- runBatchMix(X, 1000, 50, batch_vec, "MVN", K_max = 3,
+    initial_labels = init_labels, fixed = fixed_0, verbose = FALSE
+  )
   expect_equal(min(mcmc_out$samples), 0) # sanity: genuinely 0-indexed
   expect_lt(max(mcmc_out$samples), mcmc_out$K_max)
 
