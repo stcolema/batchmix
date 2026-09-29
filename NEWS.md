@@ -10,12 +10,20 @@
   on `runBatchMix()` and `fitBatchMix()` (previously only on
   `batchSemiSupervisedMixtureModel()`). Restore the earlier model with
   `batch_weight_prior = "global", sample_s_scale = FALSE`. Consequences: (i)
-  `alpha`/`concentration` are unused under partial pooling, so an over-large
-  `K_max` is no longer regularised towards empty components by a sparse
-  Dirichlet prior, and (ii) the partial-pooling weight prior is diffuse
-  (`pp_mu_prior_sd = 10` on the log-ratio scale), so weights are close to
-  degenerate a priori and are determined by the data. Every fit's
-  fixed-seed output changes.
+  `alpha`/`concentration` are unused under partial pooling, but surplus
+  components are still largely emptied because the partial-pooling weight
+  prior is diffuse (`pp_mu_prior_sd = 10` on the log-ratio scale, about the
+  spread of a Dirichlet(1/`K_max`) at `K_max` around 8): with 3 true clusters
+  and `K_max = 8`, about 4.2 components stayed occupied, against 4.1 under
+  the old global Dirichlet(1/`K_max`) default. Sharpening `pp_mu_prior_sd`
+  removes this (6.5 at 2.5, 7.9 at 1; see
+  `inst/experiments/overfitted_weight_priors.R`), so it is not a free
+  choice. This is empirical, not a theorem. (ii) The same diffuseness makes
+  weights close to degenerate a priori, determined by the data, and (iii)
+  the log-ratio coordinates use the last cluster as reference, so the prior
+  is not exchangeable over clusters: with `K_max = 8` the last cluster is
+  the largest with prior probability 0.008 against 0.14 for each other
+  cluster. Every fit's fixed-seed output changes.
 * `simulatePriorPredictive()` follows the default model: batch-specific
   weights under partial pooling (`w_batch` in `params`), `rho` drawn from its
   hyperprior when `sample_s_scale = TRUE`, and `m_scale = NULL` (the default)

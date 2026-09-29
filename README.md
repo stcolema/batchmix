@@ -27,9 +27,13 @@ version will not reproduce. The same notice is printed by `library(batchmix)`.
   batch), and the concentration of the batch-scale prior is estimated
   (`sample_s_scale = TRUE`). For the earlier fixed-hyperparameter model use
   `batch_weight_prior = "global", sample_s_scale = FALSE`. Under partial
-  pooling `alpha`/`concentration` are unused, so a generous `K_max` is no
-  longer pushed towards empty components by a sparse Dirichlet prior; choose
-  `K_max` near the number of clusters you expect.
+  pooling `alpha`/`concentration` are unused. Surplus components are still
+  largely emptied, because the default `pp_mu_prior_sd = 10` is diffuse enough
+  to act like a sparse Dirichlet (3 true clusters, `K_max = 8`: about 4.2
+  components occupied, against 4.1 under the old global Dirichlet(1/`K_max`));
+  sharpening `pp_mu_prior_sd` removes this (about 6.5 at 2.5, 7.9 at 1), so
+  pair a sharper prior with a `K_max` near the expected number of clusters.
+  This is an empirical result, not a guarantee (`?runBatchMix`).
 * **`batch_corrected_data` / `inferred_dataset`** are now the posterior mean of
   each item's batch-free signal, the exact inverse of the fitted batch model.
   They are shrunk towards the item's cluster mean (a denoised estimate), not a

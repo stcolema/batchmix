@@ -131,9 +131,11 @@ exchangeable around a population mean $\mu^{w}_j \sim \mathcal{N}(0,
 $w \sim \mathrm{Dirichlet}(\alpha)$ with `batch_weight_prior = "global"`,
 the earlier default, or a Gaussian process over batch coordinates with
 `"gp"` - see the `batch_weight_priors` vignette). Under partial pooling
-$\alpha$ is unused, so a large $K_{\max}$ is not pushed towards empty
-components by a sparse Dirichlet prior: choose $K_{\max}$ near the number of
-clusters you expect. Model comparison across $K$ uses the Bayesian
+$\alpha$ is unused. Surplus components are still largely emptied, because the
+default $10^2$ variance of $\mu^w_j$ gives the log-ratios about the spread
+of a Dirichlet($1/K_{\max}$) at $K_{\max}$ around 8; this is an empirical
+property (not the Rousseau-Mengersen guarantee for Dirichlet priors), it
+depends on $K_{\max}$, and a sharper `pp_mu_prior_sd` removes it. Model comparison across $K$ uses the Bayesian
 information criterion,
 
 $$
@@ -222,11 +224,11 @@ a decisive test: cross-check any candidate $K$ against posterior cluster
 occupancy (do all $K$ clusters retain non-trivial posterior
 weight, or has the sampler already emptied some of them out on its own?)
 and against domain knowledge about how many groups are expected,
-rather than trusting a bare maximum mechanically. Note that `K_max` is a
-hard upper limit on the number of components here: with the default
-partial-pooling weight prior there is no sparse Dirichlet prior to empty
-surplus components, so a `K_max` above the true $K$ will usually keep the
-extra components occupied rather than shrinking them away.
+rather than trusting a bare maximum mechanically. Here `K_max` is the
+number of components fitted at each step of the scan, so the scan compares
+models rather than relying on the prior to empty surplus components (which
+the diffuse default weight prior does only partly and empirically, and not
+at all if `pp_mu_prior_sd` is sharpened).
 
 Before fitting, a quick prior predictive check at the default model,
 including the partially pooled batch weights and scales (see the
@@ -733,9 +735,9 @@ posterior comparison shows.
   cluster structure is genuinely present (Part A). Comparing BICM
   (`calcBICM()`) across candidate $K$ values is a useful rough guide but not
   a decisive test on its own - cross-check against posterior cluster
-  occupancy and domain knowledge, and remember that under the default
-  partial-pooling weights `K_max` is a hard cap, not a sparsity-regularised
-  upper bound.
+  occupancy and domain knowledge, and remember that emptying of surplus
+  components under the default partial-pooling weights is an empirical
+  effect of its diffuse `pp_mu_prior_sd`, not a guarantee.
 - `type = "MVT"` matters specifically when the data has heavier tails than
   a Gaussian can represent - under such contamination MVN's clustering can
   fail outright, while MVT's degrees-of-freedom parameter absorbs the

@@ -133,3 +133,41 @@ test_that("simulatePriorPredictive() reproduces the fixed-hyperparameter model o
     expect_equal(s$params$rho, 3)
   }
 })
+
+# ---- properties of the partial-pooling weight prior that the docs describe ----
+
+test_that("the diffuse default pp_mu_prior_sd empties surplus components; a sharp one does not", {
+  # Documented empirical behaviour (inst/experiments/overfitted_weight_priors.R):
+  # not a theorem, so this compares two settings with a wide margin rather than
+  # pinning a number.
+  set.seed(11)
+  N <- 240
+  X <- rbind(cbind(rnorm(N / 2, 0), rnorm(N / 2, 0)), cbind(rnorm(N / 2, 7), rnorm(N / 2, 7)))
+  batch_vec <- sample(1:2, N, replace = TRUE)
+  mean_occupied <- function(sd, seed) {
+    set.seed(seed)
+    out <- suppressWarnings(runBatchMix(
+      X, n_iter = 2000, thin = 20, batch_vec = batch_vec, type = "MVN", K_max = 6,
+      verbose = FALSE, batch_weight_prior = "partial_pooling", pp_mu_prior_sd = sd
+    ))
+    lab <- out$samples[(nrow(out$samples) / 2 + 1):nrow(out$samples), , drop = FALSE]
+    mean(apply(lab, 1, function(l) length(unique(l))))
+  }
+  diffuse <- mean(vapply(1:2, function(s) mean_occupied(10, s), numeric(1)))
+  sharp <- mean(vapply(1:2, function(s) mean_occupied(1, s), numeric(1)))
+  expect_lt(diffuse + 1, sharp)
+})
+
+test_that("the log-ratio prior is not exchangeable over clusters: the reference (last) cluster is rarely dominant", {
+  # Documented limitation, pinned so that a symmetric re-parameterisation
+  # updates this test and the docs together.
+  set.seed(12)
+  N <- 40; K <- 6
+  X <- matrix(rnorm(N * 2), N, 2)
+  batch_vec <- sample(0:1, N, replace = TRUE)
+  sims <- simulatePriorPredictive(X, batch_vec, K = K, type = "MVN", n_datasets = 600)
+  largest <- unlist(lapply(sims, function(s) max.col(s$params$w_batch, ties.method = "first")))
+  freq <- tabulate(largest, K) / length(largest)
+  expect_lt(freq[K], 0.05)
+  expect_true(all(freq[-K] > 0.10))
+})
