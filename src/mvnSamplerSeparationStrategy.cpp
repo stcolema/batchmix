@@ -524,13 +524,19 @@ void mvnSamplerSeparationStrategy::batchScaleMetropolis() {
   proposed_cov_comb_inv.zeros();
   
   for(uword b = 0; b < B; b++) {
-    
+
+    // Predicting a new batch (see sampler.h): every OTHER batch's scale is
+    // one of the fixed inputs the composition draw conditions on.
+    if(predict_mode && b != predict_batch) {
+      continue;
+    }
+
     next = false;
     acceptance_prob = 0.0, proposed_model_score = 0.0, current_model_score = 0.0;
     proposed_cov_comb.zeros();
-    
+
     for(uword p = 0; p < P; p++) {
-      if((S(p, b) - S_loc) * S_proposal_window < 0.0){ 
+      if((S(p, b) - S_loc) * S_proposal_window < 0.0){
         Rcpp::stop("\n\nCurent batch scale equals S_loc");
       }
       if( (1.0 / S_proposal_window) < 0.0) {
@@ -622,6 +628,12 @@ void mvnSamplerSeparationStrategy::batchShiftMetorpolis() {
   m_proposed.zeros();
   
   for(arma::uword b = 0; b < B; b++) {
+    // Predicting a new batch (see sampler.h): every OTHER batch's shift is
+    // one of the fixed inputs the composition draw conditions on.
+    if(predict_mode && b != predict_batch) {
+      continue;
+    }
+
     for(arma::uword p = 0; p < P; p++){
       // The proposal window is now a diagonal matrix of common entries.
       m_proposed(p) = (arma::randn() * m_proposal_window) + m(p, b);
@@ -1231,27 +1243,35 @@ void mvnSamplerSeparationStrategy::updateBatchCorrectedData() {
 }
 
 void mvnSamplerSeparationStrategy::metropolisStep() {
-  
-  clusterMeanMetropolis();
-  
-  // Metropolis step for cluster parameters
-  // Rcpp::Rcout << "\nR MH.";
-  rMHStep();
-  
-  // Rcpp::Rcout << "\nSigma MH.";
-  sigmaMHStep();
-  
-  // Rcpp::Rcout << "\nNew MH moves complete.";
- 
-  
-  // Metropolis step for batch parameters
-  if(sample_m_scale) {
-    sampleMScalePosterior();
+
+  // Predicting a new batch (see sampler.h): see the identical guard in
+  // mvnSampler::metropolisStep() - cluster parameters (here mean, the
+  // correlation matrix R and sigma), lambda_2/m_scale, and the
+  // interaction term are all frozen while batchScaleMetropolis()/
+  // batchShiftMetorpolis() (already restricted to predict_batch
+  // internally) stay unconditional.
+  if(!predict_mode) {
+    clusterMeanMetropolis();
+
+    // Metropolis step for cluster parameters
+    // Rcpp::Rcout << "\nR MH.";
+    rMHStep();
+
+    // Rcpp::Rcout << "\nSigma MH.";
+    sigmaMHStep();
+
+    // Rcpp::Rcout << "\nNew MH moves complete.";
+
+    if(sample_m_scale) {
+      sampleMScalePosterior();
+    }
   }
+
+  // Metropolis step for batch parameters
   batchScaleMetropolis();
   batchShiftMetorpolis();
 
-  if(include_interaction) {
+  if(include_interaction && !predict_mode) {
     interactionMetropolis();
     sampleTauInteractionPosterior();
   }
