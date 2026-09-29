@@ -20,7 +20,16 @@ weight vector, `"partial_pooling"` lets each batch have its own weight with
 no assumed order or structure (only exchangeable shrinkage towards a common
 mean), and `"gp"` places a Gaussian process over a batch coordinate (e.g.
 collection time), so batches close together are expected to have similar
-proportions. The getting-started and covariance-model vignettes cover the
+proportions. **`"partial_pooling"` is the default** (for a single batch,
+where there is nothing to pool across, the default is `"global"`), and
+`"global"` - the default in earlier versions - now has to be requested.
+Two consequences are worth knowing before reading the comparison below.
+Under partial pooling the Dirichlet concentration `alpha`/`concentration`
+is not used, so the sparse-Dirichlet pressure that used to empty surplus
+components when `K_max` was set generously is gone. And the default also
+partially pools the batch *scales* (`sample_s_scale = TRUE`; Section 8),
+so every fit in this vignette does so, and the three fits differ only in
+their weight prior. The getting-started and covariance-model vignettes cover the
 mean/covariance side of batch correction; this one is specifically about
 the *proportions*, using a
 scenario designed so the three choices disagree with each other.
@@ -307,8 +316,8 @@ ggplot(prop_df, aes(time, true_p1)) +
 
 ## 3. Fit three models
 
-Identical in every respect (data, labels, `type = "MVN"`) except
-`batch_weight_prior`. For `"gp"`, `batch_coordinates` is the actual
+Identical in every respect (data, labels, `type = "MVN"`, and the default
+partial pooling of the batch scales) except `batch_weight_prior`. For `"gp"`, `batch_coordinates` is the actual
 collection time (not batch index), and `sample_gp_hyperparameters = TRUE`
 lets the length scale and marginal variance be estimated rather than fixed
 - important here since there is no reason to assume any particular
@@ -327,13 +336,13 @@ init_labels[fixed == 0] <- sample(0:(K - 1), sum(fixed == 0), replace = TRUE)
 out_global <- fitBatchMix(X_obs, n_chains, n_iter, thin, batch_vec + 1, "MVN",
   initial_labels = init_labels, fixed = fixed,
   control = batchmixControl(n_burn = n_burn0),
-  batch_weight_prior = "global"
+  batch_weight_prior = "global" # the default before partial pooling was introduced
 )
 
 out_pp <- fitBatchMix(X_obs, n_chains, n_iter, thin, batch_vec + 1, "MVN",
   initial_labels = init_labels, fixed = fixed,
   control = batchmixControl(n_burn = n_burn0),
-  batch_weight_prior = "partial_pooling"
+  batch_weight_prior = "partial_pooling" # the default; stated here for clarity
 )
 
 out_gp <- fitBatchMix(X_obs, n_chains, n_iter, thin, batch_vec + 1, "MVN",
@@ -700,3 +709,45 @@ did not, that would be a genuine warning sign about that fit specifically,
 not just about the general limitation of a shared weight. The same check
 could equally be run at the second-wave batch (`r wave2_batch_idx`); it is
 not repeated here to keep this vignette's length reasonable.
+
+## 8. Partial pooling of the batch scales
+
+The same idea is applied, by default, to the batches' variance inflation:
+each $S_{b,p} - 1$ is an exchangeable draw from an InvGamma prior whose
+*concentration* $\rho$ is estimated (`sample_s_scale = TRUE`), so batches
+with few items are shrunk towards the others and how strongly is learnt from
+the data. Only the concentration is estimated, not the prior mean
+$\theta/(\rho - 1)$, which is fixed at the value implied by the initial
+`rho`/`theta`: rescaling every $S_b$ can be absorbed by rescaling the
+cluster covariances, so the mean is not identified separately from them.
+Set `sample_s_scale = FALSE` to fix $\rho$ and $\theta$ instead. The
+posterior for $\rho$ and the batch scale estimates from the
+partial-pooling fit above:
+
+```{r scalePooling}
+rho_pp <- proc_pp$rho
+round(c(mean = mean(rho_pp), quantile(rho_pp, c(0.05, 0.95))), 2)
+
+round(rbind(
+  true = batch_scale_true,
+  estimated = proc_pp$scale_est[1, ]
+), 2)
+```
+
+Do not expect the estimated scales to reproduce the true ones closely. They
+are typically shrunk towards 1 relative to the truth, and only loosely
+track its ordering. Two effects contribute, and this vignette does not
+separate them: batch scales are identified only *relative to the cluster
+covariances* (the least-inflated batch is absorbed into $\Sigma_k$, since
+$S_{b,p} \ge 1$), and partial pooling shrinks each scale towards the
+population, most strongly for batches with few items. Compare batches with
+each other rather than reading the level of an individual $S_{b,p}$ as a
+calibrated inflation factor; `sample_s_scale = FALSE` fixes the prior but
+does not remove the first effect.
+
+A large $\rho$ says the batches' scales are similar to one another (a tight
+prior around its mean); a value near the lower limit of 2 says they differ a
+lot. With only $B$ batches per feature $\rho$ is weakly identified and
+stays close to its prior (mean 4) unless the data are informative, which is
+the reason `s_scale_shape`/`s_scale_rate` exist and why a single-batch
+analysis should switch `sample_s_scale` off.

@@ -1,5 +1,29 @@
 # batchmix 3.0.0
 
+## Breaking changes to defaults and results (read first)
+
+* **Partial pooling is now the default.** `batch_weight_prior` defaults to
+  `"partial_pooling"` (was `"global"`; a single batch still resolves to
+  `"global"`), and `sample_s_scale` defaults to `TRUE` (was `FALSE`), so the
+  concentration of the batch-scale prior is estimated instead of fixed.
+  `sample_s_scale`, `s_scale_shape` and `s_scale_rate` are now also exposed
+  on `runBatchMix()` and `fitBatchMix()` (previously only on
+  `batchSemiSupervisedMixtureModel()`). Restore the earlier model with
+  `batch_weight_prior = "global", sample_s_scale = FALSE`. Consequences: (i)
+  `alpha`/`concentration` are unused under partial pooling, so an over-large
+  `K_max` is no longer regularised towards empty components by a sparse
+  Dirichlet prior, and (ii) the partial-pooling weight prior is diffuse
+  (`pp_mu_prior_sd = 10` on the log-ratio scale), so weights are close to
+  degenerate a priori and are determined by the data. Every fit's
+  fixed-seed output changes.
+* `simulatePriorPredictive()` follows the default model: batch-specific
+  weights under partial pooling (`w_batch` in `params`), `rho` drawn from its
+  hyperprior when `sample_s_scale = TRUE`, and `m_scale = NULL` (the default)
+  draws the batch-shift scale from its InvGamma(3, 1) hyperprior instead of
+  fixing it at 0.01, matching the fitting functions.
+* The startup message now lists these changes and points to the vignettes,
+  which were updated throughout (see the items below).
+
 ## Breaking (soft - old code still works, with a deprecation warning)
 
 * **`fitBatchMix()` is now the package's main entry point**, replacing

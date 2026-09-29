@@ -12,9 +12,16 @@ simulatePriorPredictive(
   column_type = NULL,
   alpha = 1,
   concentration = NULL,
-  m_scale = 0.01,
+  m_scale = NULL,
   rho = 3,
   theta = 1,
+  sample_s_scale = TRUE,
+  s_scale_shape = 2,
+  s_scale_rate = 1,
+  batch_weight_prior = NULL,
+  pp_tau2_shape = 2,
+  pp_tau2_rate = 1,
+  pp_mu_prior_sd = 10,
   eta = 1,
   t_df_shape = 2,
   t_df_rate = 0.1,
@@ -49,18 +56,41 @@ mirroring the C++ constructor exactly), not any latent-scale transform.}
 see \code{\link{batchSemiSupervisedMixtureModel}}. Required for that type.}
 
 \item{alpha}{Symmetric Dirichlet concentration for the prior cluster
-weights (ignored if \code{concentration} is given).}
+weights (ignored if \code{concentration} is given). Only used when the
+weights are global (\code{batch_weight_prior = "global"}).}
 
 \item{concentration}{K-vector of Dirichlet concentrations for the prior
-cluster weights; defaults to \code{rep(alpha, K)}.}
+cluster weights; defaults to \code{rep(alpha, K)}. Only used when the
+weights are global.}
 
-\item{m_scale}{The (fixed) batch-shift prior scale hyperparameter - see
-\code{batchSemiSupervisedMixtureModel(sample_m_scale = ...)}; this
-function always treats it as fixed, i.e. as if \code{sample_m_scale =
-FALSE} (the extra InvGamma hyperprior on \code{m_scale} itself is not
-simulated).}
+\item{m_scale}{The batch-shift prior scale hyperparameter. \code{NULL}
+(the default, matching the fitting functions, which sample it) draws it
+afresh for every dataset from its InvGamma(3, 1) hyperprior; a number
+fixes it, as \code{sample_m_scale = FALSE} does when fitting.}
 
-\item{rho, theta}{Shape/rate of the batch-scale prior.}
+\item{rho, theta}{Shape and scale of the batch-scale prior,
+\eqn{S_{b,p} - 1 \sim \mathrm{InvGamma}(\rho, \theta)}; with
+\code{sample_s_scale = TRUE} they fix the prior mean
+\eqn{\theta / (\rho - 1)} while \eqn{\rho} is redrawn (see below).}
+
+\item{sample_s_scale, s_scale_shape, s_scale_rate}{If \code{TRUE} (the
+default, matching the fitting functions) the concentration of the
+batch-scale prior is drawn for every dataset as \eqn{\rho - 2 \sim
+\mathrm{Gamma}(}\code{s_scale_shape}\eqn{,}\code{s_scale_rate}\eqn{)},
+with \eqn{\theta} set to keep the prior mean fixed; \code{FALSE} uses
+the given \code{rho}, \code{theta} as they are.}
+
+\item{batch_weight_prior}{\code{"partial_pooling"}, \code{"global"} or
+\code{NULL} (the default: partial pooling if there is more than one
+batch, otherwise global), as in \code{\link{runBatchMix}}. Under partial
+pooling each additive-log-ratio coordinate of the batch weights has a
+population mean \eqn{N(0, }\code{pp_mu_prior_sd}\eqn{^2)} and variance
+InvGamma(\code{pp_tau2_shape}, \code{pp_tau2_rate}), and each batch's
+coordinate is drawn from them; the returned \code{params$w_batch} holds
+the resulting B x K weights. (\code{"gp"} is not simulated.)}
+
+\item{pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd}{Partial-pooling
+hyperparameters; see \code{batch_weight_prior}.}
 
 \item{eta}{LKJ concentration parameter; only used if \code{type} is
 'MVN_LKJ' or 'MVN_MIXED'.}
@@ -77,7 +107,9 @@ draw.}
 A list of length \code{n_datasets}; each element is a list with
 \code{X} (the simulated, fully-observed N x P data matrix), \code{labels}
 (the simulated N-vector of prior cluster draws, 0-indexed) and
-\code{params} (the drawn mu/cov/m/S/weights, and t_df if \code{type ==
+\code{params} (the drawn mu/cov/m/S and weights \code{w} - the
+N-weighted average across batches under partial pooling, with the per-batch
+weights in \code{w_batch} - and rho, and t_df if \code{type ==
 "MVT"}).
 }
 \description{

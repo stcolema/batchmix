@@ -353,15 +353,27 @@ test_that("continueChain() preserves the batch-weight-prior/interaction model sp
   n4 <- dim(fit4$gamma)[3]
   expect_equal(n4, n3 + floor(300 / fit3$thin))
 
-  # And the default (global weights, no interaction) path must still work
-  # exactly as before - this fix must not regress the common case.
+  # And the default path (partial pooling of the batch weights and of the
+  # batch-scale concentration, no interaction) must continue correctly too,
+  # as must an explicit "global" fit - this fix must not regress the common
+  # case.
   fit5 <- runBatchMix(X = X, K_max = K, initial_labels = labels, fixed = fixed,
     batch_vec = batch_vec, type = "MVN", n_iter = 300, thin = 10,
     control = batchmixControl(n_burn = 150)
   )
   fit6 <- continueChain(fit5, X, fixed, batch_vec, n_iter = 300, keep_old_samples = TRUE)
-  expect_identical(fit6$batch_weight_prior, "global")
+  expect_identical(fit6$batch_weight_prior, "partial_pooling")
+  expect_true(fit6$sample_s_scale)
   expect_false(fit6$include_interaction)
+
+  fit5g <- runBatchMix(X = X, K_max = K, initial_labels = labels, fixed = fixed,
+    batch_vec = batch_vec, type = "MVN", n_iter = 300, thin = 10,
+    control = batchmixControl(n_burn = 150),
+    batch_weight_prior = "global", sample_s_scale = FALSE
+  )
+  fit6g <- continueChain(fit5g, X, fixed, batch_vec, n_iter = 300, keep_old_samples = TRUE)
+  expect_identical(fit6g$batch_weight_prior, "global")
+  expect_false(fit6g$sample_s_scale)
   expect_equal(fit6$n_iter, fit5$n_iter + 300)
 
   # w_batch/eta_alr are returned unconditionally (batch_weight_prior =

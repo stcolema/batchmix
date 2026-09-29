@@ -111,7 +111,7 @@ batchSemiSupervisedMixtureModel <- function(X,
                                             m_scale = NULL,
                                             rho = 3.0,
                                             theta = 1.0,
-                                            sample_s_scale = FALSE,
+                                            sample_s_scale = TRUE,
                                             s_scale_shape = 2.0,
                                             s_scale_rate = 1.0,
                                             eta = 1.0,
@@ -125,7 +125,7 @@ batchSemiSupervisedMixtureModel <- function(X,
                                             initial_class_df = NULL,
                                             # -- optional structural extensions --
                                             include_interaction = FALSE,
-                                            batch_weight_prior = c("global", "partial_pooling", "gp"),
+                                            batch_weight_prior = NULL,
                                             batch_coordinates = NULL,
                                             gp_tau2 = 1.0,
                                             gp_length_scale = 1.0,
@@ -271,7 +271,14 @@ batchSemiSupervisedMixtureModel <- function(X,
 
   # Validate and map to the integer code the C++ layer expects: 0 = global,
   # 1 = partial pooling, 2 = gp.
-  batch_weight_prior <- match.arg(batch_weight_prior)
+  # NULL (the default) means partial pooling whenever there is more than one
+  # batch, and a single shared weight vector when there is only one (a
+  # population variance across batches is not estimable from one batch).
+  if (is.null(batch_weight_prior)) {
+    batch_weight_prior <- if (B > 1) "partial_pooling" else "global"
+  } else {
+    batch_weight_prior <- match.arg(batch_weight_prior, c("partial_pooling", "global", "gp"))
+  }
   weight_prior_type <- switch(batch_weight_prior,
     global = 0L,
     partial_pooling = 1L,

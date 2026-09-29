@@ -58,6 +58,44 @@ library(batchmix)
 library(ggplot2)
 ```
 
+## What is different in this release
+
+This release changes defaults and results, so an analysis run with an
+earlier version will not reproduce; the notice printed by `library(batchmix)`
+lists the same items. In brief:
+
+- **Partial pooling is on by default.** Each batch has its own mixture
+  weights, drawn exchangeably around an estimated population composition
+  (`batch_weight_prior = "partial_pooling"`; with a single batch there is
+  nothing to pool across and `"global"` is used), and the *concentration* of
+  the batch-scale prior is estimated rather than fixed
+  (`sample_s_scale = TRUE`). Batches with little data are therefore shrunk
+  towards the others, and how strongly is learnt from the data. The
+  population mean of the batch-shift prior was already estimated (`m_scale =
+  NULL`). To recover the earlier fixed-hyperparameter model use
+  `batch_weight_prior = "global", sample_s_scale = FALSE`. The
+  `batch_weight_priors` vignette compares the weight priors in detail.
+- **`alpha`/`concentration` no longer regularise the weights** under partial
+  pooling; they only matter for `"global"` (and for the starting labels from
+  `generateInitialLabels()`). With the global Dirichlet(`1 / K_max`) prior an
+  over-large `K_max` was pushed towards empty components; that pressure is
+  now absent, so choose a `K_max` near the number of clusters you expect
+  rather than a generous upper bound.
+- **`batch_corrected_data` / `inferred_dataset`** are now the posterior mean
+  of each item's batch-free signal, the exact inverse of the fitted batch
+  model, and therefore shrunk towards the item's cluster mean (Step 8).
+- **Sampler fixes change fixed-seed output**: the proposal-window
+  auto-tuning previously moved several windows the wrong way,
+  `mu_proposal_window` is now in units of each cluster's spread, and the
+  `MVN_LKJ`/`MVN_MIXED` prior on the marginal standard deviations was
+  mis-specified (see `NEWS.md`).
+- **Model comparison** should use `calcBICM()` (the BIC at the best retained
+  draw), not the per-iteration `BIC` trace, which uses a single posterior
+  draw.
+- **`salso` is no longer needed**: unsupervised point estimates use
+  `minVI()` on the posterior similarity matrix, which needs the `N x N`
+  matrix in memory.
+
 ## 1. Simulate data with a known batch effect
 
 `generateBatchData()` returns both the `observed_data` (what would be
@@ -152,9 +190,10 @@ Simulate datasets purely from the model's priors (empirical-Bayes priors
 centred/scaled from `X`'s own summary statistics, exactly as the real
 fit's constructor computes them - see `?simulatePriorPredictive`) and look
 at whether they resemble the kind of data expected here. This is
-deliberately done at the *default* hyperparameters - the ones every call
-to `fitBatchMix()`/`runBatchMix()` uses unless overridden - since those are
-the ones being checked.
+deliberately done at the *default* model - partial pooling of the batch
+weights and of the batch-scale concentration, and a sampled batch-shift
+scale, exactly what every call to `fitBatchMix()`/`runBatchMix()` uses
+unless overridden - since that is what is being checked.
 
 ```{r priorPC}
 prior_sims <- simulatePriorPredictive(
@@ -172,8 +211,13 @@ the data closely (it has not seen the clustering yet, so it should not),
 but because the *scale* of variation it is prepared to generate should be
 plausible for data of this kind. A prior predictive envelope that is
 wildly wider or narrower than anything like the observed data is a sign to
-reconsider the prior (or its empirical-Bayes hyperparameters,
-e.g. `rho`/`theta`/`m_scale`) before ever looking at a fit.
+reconsider the prior (or its hyperparameters, e.g. `rho`/`theta` and
+`s_scale_shape`/`s_scale_rate` for the batch scale, `m_scale` for the batch
+shift, `pp_mu_prior_sd`/`pp_tau2_shape`/`pp_tau2_rate` for the batch
+weights) before ever looking at a fit. Note that the default partial-pooling
+prior on the weights is deliberately diffuse (`pp_mu_prior_sd = 10` on the
+log-ratio scale): a priori a batch's weights can be close to degenerate, and
+it is the data that pull them back.
 
 A scalar summary makes the same check quantitative - the classical
 prior/posterior predictive check (BDA3 Eq. 6.9): compute a test statistic
@@ -203,6 +247,8 @@ n_iter <- 2000
 thin <- 20
 n_chains <- 4
 
+# `alpha` here only builds the starting labels: under the default partial
+# pooling the mixture weights have no Dirichlet(alpha) prior.
 alpha <- 1
 initial_labels <- generateInitialLabels(alpha, K, fixed, true_labels)
 
@@ -212,6 +258,12 @@ mcmc_output <- fitBatchMix(
   fixed = fixed
 )
 ```
+
+This fit uses the defaults described above: partial pooling of the batch
+weights (`batch_weight_prior = "partial_pooling"`) and of the batch-scale
+concentration (`sample_s_scale = TRUE`). Pass `batch_weight_prior =
+"global", sample_s_scale = FALSE` to `fitBatchMix()` for the earlier
+fixed-hyperparameter model.
 
 `fitBatchMix()` returns a `batchmix_fit_list` and, since `n_chains >= 2`,
 has already computed the cross-chain convergence diagnostics used in Step
@@ -347,6 +399,16 @@ is flagging rather than resolving it, which is a meaningfully weaker
 guarantee than "all chains agree" and is exactly why R&#770; is still
 reported rather than hidden once a best chain has been picked.
 
+The per-iteration `BIC` used above to rank chains plugs the log-likelihood
+at a single posterior draw into the BIC formula, so it is a trace, not a
+model-selection value: a posterior draw sits below the maximum-likelihood
+fit, which over-penalises complexity, and it is noisy. To compare models
+(e.g. different `K_max`, `type`, or weight prior) use `calcBICM()`, the BIC
+at the best retained draw (Raftery et al., 2007); `summary()` and
+`assessConvergence()` report it too. With missing, censored or binary data
+its likelihood includes the imputed/latent values, so do not compare it
+across models that differ in that respect (`?calcBICM`).
+
 ## 6. Posterior predictive check
 
 Now simulate replicate datasets from the *fitted* posterior - each
@@ -468,6 +530,39 @@ ggplot(shift_recovery_df, aes(true_shift, est_shift, colour = batch)) +
   theme_minimal()
 ```
 
+Because partial pooling is on, the fit also estimates each batch's class
+proportions and how much they are allowed to differ between batches. Every
+batch was simulated here with the *same* class proportions, so the
+batch-specific estimates below should scatter around $1/K$ (the columns are
+the sampler's cluster indices, in arbitrary order). How much scatter
+remains is the partial-pooling compromise, not a defect: with a few dozen
+to a hundred items per batch each batch's proportions are only loosely
+determined, and the population variance `pp_tau2` of the log-ratio
+coordinates has a wide posterior that its prior (InvGamma(2, 1), mean 1)
+pulls up, so a moderate `pp_tau2` here does not mean the batches truly
+differ. If you know the proportions are equal across batches,
+`batch_weight_prior = "global"` encodes that and is more efficient; if you
+do not, partial pooling protects against the cost of assuming it wrongly.
+The concentration `rho` of the batch-scale prior is likewise learnt from
+only `B` batches per feature, so expect it to remain close to its prior
+(mean 4) unless the batches are very alike or very different.
+
+```{r partialPoolingEstimates}
+# Posterior mean class proportions, one row per batch (B x K)
+round(chain_used$w_batch_est, 2)
+
+# True proportions (equal across batches in this simulation)
+round(group_weights, 2)
+
+# Posterior mean of the population variance of the log-ratio coordinates
+# (one per free coordinate; K - 1 of them)
+round(rowMeans(chain_used$pp_tau2), 2)
+
+# Posterior mean concentration of the batch-scale prior (larger = batches more
+# alike; prior mean 4)
+round(mean(chain_used$rho), 2)
+```
+
 ## 8. Did the batch correction work?
 
 The real test: compare the model's inferred batch-corrected data
@@ -529,7 +624,8 @@ when the within-cluster correlations are weak.
 
 - Simulate with a known ground truth first, so every later step - priors,
   fit, and correction - can be checked against something.
-- Prior predictive check: are the *default* priors capable of generating
+- Prior predictive check: are the *default* priors (now including partial
+  pooling of the batch weights and scales) capable of generating
   plausible-looking data at this `K`/`B`, before any fitting happens?
 - Fit several chains, not one, and check acceptance rates, likelihood
   traces and \(\hat{R}\)/ESS (`print()`/`summary()` on the fit report all

@@ -5,8 +5,27 @@
 #' Densities available are the multivariate normal and the multivariate t.
 #' The model sampler is implemented in C++. This package is aimed at analysis of
 #' low-dimensional data generated across several batches. See
-#' (Coleman et al. (2022))[https://doi.org/10.1101/2022.01.14.476352] for
+#' \href{https://doi.org/10.1101/2022.01.14.476352}{Coleman et al. (2022)} for
 #' details of the model.
+#'
+#' @section Defaults that changed in this release:
+#' Partial pooling is on by default: each batch has its own mixture weights
+#' (\code{batch_weight_prior = "partial_pooling"}, or \code{"global"} for one
+#' batch) and the concentration of the batch-scale prior is estimated
+#' (\code{sample_s_scale = TRUE}). For the earlier fixed-hyperparameter model
+#' use \code{batch_weight_prior = "global", sample_s_scale = FALSE}. Under
+#' partial pooling \code{alpha}/\code{concentration} are unused, so choose
+#' \code{K_max} near the number of clusters expected. The batch-corrected
+#' data are now the posterior mean of each item's batch-free signal, several
+#' sampler corrections change fixed-seed output, models should be compared
+#' with \code{\link{calcBICM}}, and \code{salso} is no longer needed (see
+#' \code{\link{minVI}}). \code{news(package = "batchmix")} has the details.
+#'
+#' @section Where to start:
+#' \code{\link{fitBatchMix}} is the main entry point. Read the vignettes
+#' (\code{browseVignettes("batchmix")}): \code{batchmix_workflow} (start
+#' here), \code{batch_weight_priors}, \code{covariance_models} and
+#' \code{probit_missing_censored}.
 #' @name batchmix-package
 #' @aliases batchmix
 #' @docType package

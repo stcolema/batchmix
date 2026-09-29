@@ -61,15 +61,35 @@
 #' \code{0} for a continuous column, \code{1} for a binary/probit column -
 #' see \code{\link{batchSemiSupervisedMixtureModel}}. Required for that type.
 #' @param alpha Symmetric Dirichlet concentration for the prior cluster
-#' weights (ignored if \code{concentration} is given).
+#' weights (ignored if \code{concentration} is given). Only used when the
+#' weights are global (\code{batch_weight_prior = "global"}).
 #' @param concentration K-vector of Dirichlet concentrations for the prior
-#' cluster weights; defaults to \code{rep(alpha, K)}.
-#' @param m_scale The (fixed) batch-shift prior scale hyperparameter - see
-#' \code{batchSemiSupervisedMixtureModel(sample_m_scale = ...)}; this
-#' function always treats it as fixed, i.e. as if \code{sample_m_scale =
-#' FALSE} (the extra InvGamma hyperprior on \code{m_scale} itself is not
-#' simulated).
-#' @param rho,theta Shape/rate of the batch-scale prior.
+#' cluster weights; defaults to \code{rep(alpha, K)}. Only used when the
+#' weights are global.
+#' @param m_scale The batch-shift prior scale hyperparameter. \code{NULL}
+#' (the default, matching the fitting functions, which sample it) draws it
+#' afresh for every dataset from its InvGamma(3, 1) hyperprior; a number
+#' fixes it, as \code{sample_m_scale = FALSE} does when fitting.
+#' @param rho,theta Shape and scale of the batch-scale prior,
+#' \eqn{S_{b,p} - 1 \sim \mathrm{InvGamma}(\rho, \theta)}; with
+#' \code{sample_s_scale = TRUE} they fix the prior mean
+#' \eqn{\theta / (\rho - 1)} while \eqn{\rho} is redrawn (see below).
+#' @param sample_s_scale,s_scale_shape,s_scale_rate If \code{TRUE} (the
+#' default, matching the fitting functions) the concentration of the
+#' batch-scale prior is drawn for every dataset as \eqn{\rho - 2 \sim
+#' \mathrm{Gamma}(}\code{s_scale_shape}\eqn{,}\code{s_scale_rate}\eqn{)},
+#' with \eqn{\theta} set to keep the prior mean fixed; \code{FALSE} uses
+#' the given \code{rho}, \code{theta} as they are.
+#' @param batch_weight_prior \code{"partial_pooling"}, \code{"global"} or
+#' \code{NULL} (the default: partial pooling if there is more than one
+#' batch, otherwise global), as in \code{\link{runBatchMix}}. Under partial
+#' pooling each additive-log-ratio coordinate of the batch weights has a
+#' population mean \eqn{N(0, }\code{pp_mu_prior_sd}\eqn{^2)} and variance
+#' InvGamma(\code{pp_tau2_shape}, \code{pp_tau2_rate}), and each batch's
+#' coordinate is drawn from them; the returned \code{params$w_batch} holds
+#' the resulting B x K weights. (\code{"gp"} is not simulated.)
+#' @param pp_tau2_shape,pp_tau2_rate,pp_mu_prior_sd Partial-pooling
+#' hyperparameters; see \code{batch_weight_prior}.
 #' @param eta LKJ concentration parameter; only used if \code{type} is
 #' 'MVN_LKJ' or 'MVN_MIXED'.
 #' @param t_df_shape,t_df_rate,t_df_loc Hyperparameters of the (shifted
@@ -81,7 +101,9 @@
 #' @return A list of length \code{n_datasets}; each element is a list with
 #' \code{X} (the simulated, fully-observed N x P data matrix), \code{labels}
 #' (the simulated N-vector of prior cluster draws, 0-indexed) and
-#' \code{params} (the drawn mu/cov/m/S/weights, and t_df if \code{type ==
+#' \code{params} (the drawn mu/cov/m/S and weights \code{w} - the
+#' N-weighted average across batches under partial pooling, with the per-batch
+#' weights in \code{w_batch} - and rho, and t_df if \code{type ==
 #' "MVT"}).
 #' @seealso \code{\link{simulatePosteriorPredictive}},
 #' \code{\link{plotPredictiveCheck}}
@@ -93,9 +115,16 @@ simulatePriorPredictive <- function(X,
                                     column_type = NULL,
                                     alpha = 1,
                                     concentration = NULL,
-                                    m_scale = 0.01,
+                                    m_scale = NULL,
                                     rho = 3.0,
                                     theta = 1.0,
+                                    sample_s_scale = TRUE,
+                                    s_scale_shape = 2.0,
+                                    s_scale_rate = 1.0,
+                                    batch_weight_prior = NULL,
+                                    pp_tau2_shape = 2.0,
+                                    pp_tau2_rate = 1.0,
+                                    pp_mu_prior_sd = 10.0,
                                     eta = 1.0,
                                     t_df_shape = 2.0,
                                     t_df_rate = 0.1,
@@ -132,6 +161,16 @@ simulatePriorPredictive <- function(X,
     concentration <- rep(alpha, K)
   }
 
+  if (is.null(batch_weight_prior)) {
+    batch_weight_prior <- if (B > 1) "partial_pooling" else "global"
+  } else {
+    batch_weight_prior <- match.arg(batch_weight_prior, c("partial_pooling", "global"))
+  }
+  s_scale_prior_mean <- theta / (rho - 1.0)
+  if (sample_s_scale && rho <= 2) {
+    stop("sample_s_scale = TRUE requires rho > 2.")
+  }
+
   # Empirical-Bayes hyperparameters. Mirrors mvnSampler::mvnSampler() /
   # mvnSamplerSeparationStrategy::mvnSamplerSeparationStrategy() exactly
   # (kappa is a fixed constant in both, never user-configurable - if that
@@ -154,7 +193,8 @@ simulatePriorPredictive <- function(X,
   global_cov <- stats::cov(X_imputed)
   iw_scale <- global_cov / K^(2 / P)
   delta_2 <- mean(diag(global_cov))
-  lambda_2 <- m_scale
+  sample_m_scale <- is.null(m_scale)
+  lambda_2 <- if (sample_m_scale) NA_real_ else m_scale
   # m(p, b) ~ N(batch_shift_prior_mean, delta_2 * lambda_2), i.e. standard
   # deviation sqrt(delta_2 * lambda_2) - see sampleMPrior() in
   # src/mvnSampler.cpp/mvnSamplerSeparationStrategy.cpp:
@@ -162,7 +202,7 @@ simulatePriorPredictive <- function(X,
   # lambda_2)), so the standard deviation multiplying the standard normal
   # draw is its inverse square root, not the precision (or its reciprocal)
   # directly.
-  batch_shift_prior_scale <- sqrt(delta_2 * lambda_2)
+  batch_shift_prior_scale <- if (sample_m_scale) NA_real_ else sqrt(delta_2 * lambda_2)
   S_loc <- 1.0
 
   draw_cov <- function() {
@@ -186,11 +226,46 @@ simulatePriorPredictive <- function(X,
   }
 
   simulate_one <- function() {
-    # Prior cluster weights: w ~ Dirichlet(concentration), via the same
-    # Gamma-normalisation construction sampler::updateWeights() itself uses
-    # when every N_k is zero (i.e. before any data is assigned).
-    g <- stats::rgamma(K, shape = concentration, rate = 1)
-    w <- g / sum(g)
+    # Batch-specific prior weights. Partial pooling: each of the K - 1
+    # additive-log-ratio coordinates (last cluster as reference) has a
+    # population mean and variance, and every batch's coordinate is an
+    # exchangeable draw around them (sampler::updatePartialPoolingWeights()).
+    # Global: one weight vector, w ~ Dirichlet(concentration), via the same
+    # Gamma-normalisation sampler::updateWeights() uses when every N_k is 0.
+    if (batch_weight_prior == "partial_pooling") {
+      w_batch <- matrix(1 / K, B, K)
+      if (K > 1) {
+        pp_mu <- stats::rnorm(K - 1, 0, pp_mu_prior_sd)
+        pp_tau2 <- 1 / stats::rgamma(K - 1, shape = pp_tau2_shape, rate = pp_tau2_rate)
+        eta_alr <- vapply(seq_len(K - 1), function(j) {
+          stats::rnorm(B, pp_mu[j], sqrt(pp_tau2[j]))
+        }, numeric(B))
+        eta_alr <- matrix(eta_alr, nrow = B)
+        expo <- cbind(exp(eta_alr), 1)
+        w_batch <- expo / rowSums(expo)
+      }
+      N_b <- tabulate(batch_vec + 1L, nbins = B)
+      w <- as.numeric(crossprod(N_b, w_batch) / sum(N_b))
+    } else {
+      g <- stats::rgamma(K, shape = concentration, rate = 1)
+      w <- g / sum(g)
+      w_batch <- matrix(w, B, K, byrow = TRUE)
+    }
+
+    # Batch-shift prior scale (sampled per dataset when m_scale = NULL, as the
+    # sampler's own default does) and batch-scale concentration.
+    shift_scale <- if (sample_m_scale) {
+      sqrt(delta_2 / stats::rgamma(1, shape = 3, rate = 1))
+    } else {
+      batch_shift_prior_scale
+    }
+    if (sample_s_scale) {
+      rho_draw <- 2 + stats::rgamma(1, shape = s_scale_shape, rate = s_scale_rate)
+      theta_draw <- s_scale_prior_mean * (rho_draw - 1)
+    } else {
+      rho_draw <- rho
+      theta_draw <- theta
+    }
 
     mu <- matrix(0, P, K)
     cov <- array(0, dim = c(P, P, K))
@@ -206,8 +281,8 @@ simulatePriorPredictive <- function(X,
     m <- matrix(0, P, B)
     S <- matrix(0, P, B)
     for (b in seq_len(B)) {
-      m[, b] <- stats::rnorm(P, mean = 0, sd = 1) * batch_shift_prior_scale
-      S[, b] <- S_loc + 1 / stats::rgamma(P, shape = rho, rate = theta)
+      m[, b] <- stats::rnorm(P, mean = 0, sd = 1) * shift_scale
+      S[, b] <- S_loc + 1 / stats::rgamma(P, shape = rho_draw, rate = theta_draw)
       # Binary columns' batch scale is fixed at 1 too (sampleSPrior() in
       # src/mvnSamplerMixed.cpp) - the same identification device as sigma.
       if (is_mixed) {
@@ -215,7 +290,9 @@ simulatePriorPredictive <- function(X,
       }
     }
 
-    labels <- sample(seq_len(K), N, replace = TRUE, prob = w) - 1L
+    labels <- vapply(seq_len(N), function(n) {
+      sample.int(K, 1L, prob = w_batch[batch_vec[n] + 1L, ])
+    }, integer(1)) - 1L
 
     X_sim <- matrix(NA_real_, N, P)
     for (n in seq_len(N)) {
@@ -248,7 +325,7 @@ simulatePriorPredictive <- function(X,
     list(
       X = X_sim,
       labels = labels,
-      params = list(mu = mu, cov = cov, m = m, S = S, w = w, t_df = t_df)
+      params = list(mu = mu, cov = cov, m = m, S = S, w = w, w_batch = w_batch, rho = rho_draw, t_df = t_df)
     )
   }
 
