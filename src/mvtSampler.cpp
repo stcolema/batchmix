@@ -33,7 +33,8 @@ mvtSampler::mvtSampler(
   double _m_scale,
   double _rho,
   double _theta,
-  bool _sample_m_scale
+  bool _sample_m_scale,
+  bool _sample_s_scale
 ) : mvnSampler(
   _K,
   _B,
@@ -49,7 +50,8 @@ mvtSampler::mvtSampler(
   _m_scale,
   _rho,
   _theta,
-  _sample_m_scale
+  _sample_m_scale,
+  _sample_s_scale
 ) {
   
   n_param_cluster = 2 + P + P * (P + 1) * 0.5;
@@ -475,6 +477,9 @@ void mvtSampler::metropolisStep() {
 
     if(sample_m_scale) {
       sampleMScalePosterior();
+    }
+    if(sample_s_scale) {
+      sScaleConcentrationMetropolis();
     }
   }
 

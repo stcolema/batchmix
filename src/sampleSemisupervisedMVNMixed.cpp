@@ -49,7 +49,11 @@ Rcpp::List sampleSemisupervisedMVNMixed(
     double gp_hyperparameter_proposal_window,
     double pp_tau2_shape,
     double pp_tau2_rate,
-    double pp_mu_prior_sd
+    double pp_mu_prior_sd,
+    bool sample_s_scale,
+    double a_s,
+    double b_s,
+    double s_scale_proposal_window
 ) {
 
   mvnSamplerMixed my_sampler(K,
@@ -70,8 +74,12 @@ Rcpp::List sampleSemisupervisedMVNMixed(
     sample_m_scale,
     eta,
     column_type,
-    censor_code
+    censor_code,
+    sample_s_scale
   );
+  my_sampler.a_s = a_s;
+  my_sampler.b_s = b_s;
+  my_sampler.s_scale_proposal_window = s_scale_proposal_window;
 
   if(batch_coordinates.n_elem != B) {
     batch_coordinates = arma::regspace<arma::vec>(0, B - 1);
@@ -110,7 +118,8 @@ Rcpp::List sampleSemisupervisedMVNMixed(
   m_saved.zeros();
   gamma_saved.zeros();
 
-  arma::vec gp_tau2_saved = zeros<vec>(n_saved),
+  arma::vec rho_saved = zeros<vec>(n_saved),
+    gp_tau2_saved = zeros<vec>(n_saved),
     gp_length_scale_saved = zeros<vec>(n_saved);
   arma::mat pp_mu_saved(( K > 0) ? K - 1 : 0, n_saved, arma::fill::zeros),
     pp_tau2_saved((K > 0) ? K - 1 : 0, n_saved, arma::fill::zeros),
@@ -129,6 +138,7 @@ Rcpp::List sampleSemisupervisedMVNMixed(
   arma::uvec prev_gamma_count = my_sampler.gamma_count;
   arma::uvec prev_eta_count = my_sampler.eta_count;
   arma::uword prev_gp_hyperparameter_count = my_sampler.gp_hyperparameter_count;
+  arma::uword prev_s_scale_count = my_sampler.s_scale_count;
 
   for(arma::uword r = 0; r < n_iter; r++){
 
@@ -158,6 +168,10 @@ Rcpp::List sampleSemisupervisedMVNMixed(
           my_sampler.gp_hyperparameter_proposal_window = robbinsMonroUpdate(my_sampler.gp_hyperparameter_proposal_window, gp_hyper_rate, 0.234, n_adapt);
         }
       }
+      if(sample_s_scale) {
+        double s_scale_rate = (double) (my_sampler.s_scale_count - prev_s_scale_count);
+        my_sampler.s_scale_proposal_window = robbinsMonroUpdate(my_sampler.s_scale_proposal_window, s_scale_rate, 0.234, n_adapt);
+      }
     }
     prev_mu_count = my_sampler.mu_count;
     prev_r_count = my_sampler.r_count;
@@ -167,6 +181,7 @@ Rcpp::List sampleSemisupervisedMVNMixed(
     prev_gamma_count = my_sampler.gamma_count;
     prev_eta_count = my_sampler.eta_count;
     prev_gp_hyperparameter_count = my_sampler.gp_hyperparameter_count;
+    prev_s_scale_count = my_sampler.s_scale_count;
 
     my_sampler.updateAllocation();
 
@@ -196,6 +211,7 @@ Rcpp::List sampleSemisupervisedMVNMixed(
       gamma_saved.slice( save_int ) = arma::reshape(arma::mat(my_sampler.gamma.memptr(), my_sampler.gamma.n_elem, 1, false), P, K * B);
       w_batch_saved.slice( save_int ) = my_sampler.w_batch;
       eta_alr_saved.slice( save_int ) = my_sampler.eta_alr;
+      rho_saved( save_int ) = my_sampler.rho;
       gp_tau2_saved( save_int ) = my_sampler.gp_tau2;
       gp_length_scale_saved( save_int ) = my_sampler.gp_length_scale;
       pp_mu_saved.col( save_int ) = my_sampler.pp_mu;
@@ -251,5 +267,9 @@ Rcpp::List sampleSemisupervisedMVNMixed(
   out["final_gamma_proposal_window"] = my_sampler.gamma_proposal_window;
   out["final_eta_proposal_window"] = my_sampler.eta_proposal_window;
   out["final_gp_hyperparameter_proposal_window"] = my_sampler.gp_hyperparameter_proposal_window;
+  out["rho"] = rho_saved;
+  out["sample_s_scale"] = sample_s_scale;
+  out["s_scale_acceptance_rate"] = (double) my_sampler.s_scale_count / n_iter;
+  out["final_s_scale_proposal_window"] = my_sampler.s_scale_proposal_window;
   return out;
 };

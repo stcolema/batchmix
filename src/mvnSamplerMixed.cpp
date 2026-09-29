@@ -41,7 +41,8 @@ mvnSamplerMixed::mvnSamplerMixed(
   bool _sample_m_scale,
   double _eta,
   arma::uvec _column_type,
-  arma::umat _censor_code
+  arma::umat _censor_code,
+  bool _sample_s_scale
 ) : mvnSamplerSeparationStrategy(_K,
 _B,
 _mu_proposal_window,
@@ -58,7 +59,8 @@ _m_scale,
 _rho,
 _theta,
 _sample_m_scale,
-_eta
+_eta,
+_sample_s_scale
 ) {
 
   column_type = _column_type;
@@ -306,6 +308,41 @@ void mvnSamplerMixed::batchScaleMetropolis() {
     }
   }
 };
+
+// As mvnSamplerSeparationStrategy::sScaleConcentrationMetropolis(), but
+// excludes binary/probit columns (column_type == 1) from the InvGamma
+// log-likelihood sum - see the header comment for why.
+void mvnSamplerMixed::sScaleConcentrationMetropolis() {
+
+  double log_conc_current = std::log(rho - 2.0);
+  double log_conc_proposed = log_conc_current + randn() * s_scale_proposal_window;
+  double rho_proposed = 2.0 + std::exp(log_conc_proposed);
+  double theta_proposed = s_scale_prior_mean * (rho_proposed - 1.0);
+
+  double current_score = 0.0, proposed_score = 0.0;
+  for (uword b = 0; b < B; b++) {
+    for (uword p = 0; p < P; p++) {
+      if(column_type(p) == 1) {
+        continue;
+      }
+      double s_b_p = S(p, b) - S_loc;
+      current_score += invGammaLogLikelihood(s_b_p, rho, theta);
+      proposed_score += invGammaLogLikelihood(s_b_p, rho_proposed, theta_proposed);
+    }
+  }
+
+  current_score += gammaLogLikelihood(rho - 2.0, a_s, b_s) + std::log(rho - 2.0);
+  proposed_score += gammaLogLikelihood(rho_proposed - 2.0, a_s, b_s) + std::log(rho_proposed - 2.0);
+
+  double u = randu();
+  double acceptance_prob = std::min(1.0, std::exp(proposed_score - current_score));
+
+  if (u < acceptance_prob) {
+    rho = rho_proposed;
+    theta = theta_proposed;
+    s_scale_count++;
+  }
+}
 
 // As mvnSamplerSeparationStrategy::sigmaMHStep(), but sigma_{k,p} is never
 // proposed (and so never moves from 1) for binary columns p.
