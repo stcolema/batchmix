@@ -433,6 +433,57 @@ predictNewBatchMVN <- function(X, X_new, K, B, batch_vec, fixed_new, labels_new_
     .Call('_batchmix_predictNewBatchMVN', PACKAGE = 'batchmix', X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, weight_prior_type, weights_draws, eta_alr_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin)
 }
 
+#' @title Predict a new batch (MVN_MIXED), given its own data
+#' @description As \code{predictNewBatchMVN()}, but for the mixed-type
+#' sampler (\code{type = "MVN_MIXED"}, continuous/binary/censored
+#' columns) - see that function's documentation for the full design.
+#' \code{column_type} (which columns are continuous/binary/censored) is
+#' per-COLUMN metadata fixed at training time and so applies unchanged to
+#' \code{X_new}; \code{censor_code_new} is \code{X_new}'s own per-item
+#' censoring indicator, in the same convention as the original fit's
+#' \code{censor_code}.
+#' @inheritParams predictNewBatchMVN
+#' @param column_type P-vector as at training time (0 = continuous,
+#' 1 = binary/probit, 2 = censored - see \code{sampleSemisupervisedMVNMixed()}).
+#' @param censor_code_new N_new x P matrix, \code{X_new}'s own censoring
+#' indicator (same convention as the original fit's \code{censor_code}).
+predictNewBatchMVNMixed <- function(X, X_new, K, B, batch_vec, fixed_new, labels_new_init, column_type, censor_code, censor_code_new, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, weight_prior_type, weights_draws, eta_alr_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin) {
+    .Call('_batchmix_predictNewBatchMVNMixed', PACKAGE = 'batchmix', X, X_new, K, B, batch_vec, fixed_new, labels_new_init, column_type, censor_code, censor_code_new, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, weight_prior_type, weights_draws, eta_alr_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin)
+}
+
+#' @title Predict a new batch (MVN_LKJ), given its own data
+#' @description As \code{predictNewBatchMVN()}, but for the LKJ
+#' separation-strategy sampler (\code{type = "MVN_LKJ"}) - see that
+#' function's documentation for the full design. The cluster covariance
+#' is frozen directly via \code{cov_draws} exactly as for MVN; its
+#' internal correlation/variance decomposition (R/sigma) is never
+#' touched during prediction (\code{rMHStep()}/\code{sigmaMHStep()} are
+#' skipped whenever \code{predict_mode} is set - see
+#' src/mvnSamplerSeparationStrategy.cpp), since only the resulting
+#' covariance matrix, not its decomposition, is needed for prediction.
+#' @inheritParams predictNewBatchMVN
+predictNewBatchMVNSeparationStrategy <- function(X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, weight_prior_type, weights_draws, eta_alr_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin) {
+    .Call('_batchmix_predictNewBatchMVNSeparationStrategy', PACKAGE = 'batchmix', X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, weight_prior_type, weights_draws, eta_alr_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin)
+}
+
+#' @title Predict a new batch (MVT), given its own data
+#' @description As \code{predictNewBatchMVN()}, but for the multivariate
+#' t sampler - see that function's documentation for the full design
+#' (composition sampling restricted to one new batch via
+#' \code{sampler::predict_mode}). The only addition is \code{t_df_draws}:
+#' each cluster's degrees-of-freedom parameter is frozen at its posterior
+#' draw's value throughout prediction, exactly like the cluster mean/
+#' covariance (\code{mvtSampler::metropolisStep()} skips
+#' \code{clusterDFMetropolis()} whenever \code{predict_mode} is set - see
+#' src/mvtSampler.cpp).
+#' @inheritParams predictNewBatchMVN
+#' @param t_df_draws n_draws x K matrix of cluster degrees-of-freedom.
+#' @param t_df_proposal_window Inert (t_df is never proposed during
+#' prediction); accepted only for constructor-signature parity.
+predictNewBatchMVT <- function(X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, t_df_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, weight_prior_type, weights_draws, eta_alr_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, n_pred_iter, pred_burn, pred_thin) {
+    .Call('_batchmix_predictNewBatchMVT', PACKAGE = 'batchmix', X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, t_df_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, weight_prior_type, weights_draws, eta_alr_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, n_pred_iter, pred_burn, pred_thin)
+}
+
 #' @title Sample semi-supervised MVN Mixture model
 #' @description Performs MCMC sampling for a mixture model.
 #' @param X The data matrix to perform clustering upon (items to cluster in

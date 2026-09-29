@@ -331,6 +331,16 @@
 #' \code{NULL}.
 #' @param pred_thin Thinning factor applied to the recorded sweeps.
 #' Ignored if \code{X_new} is \code{NULL}.
+#' @param column_type,censor_code Only for \code{processed_chain$type == "MVN_MIXED"}:
+#' the SAME \code{column_type}/\code{censor_code} originally passed to
+#' \code{\link{batchSemiSupervisedMixtureModel}} (again not stored on the
+#' fit object - same convention as \code{X}/\code{batch_vec}). Required,
+#' and only used, when \code{X_new} is supplied and the type is
+#' \code{"MVN_MIXED"}.
+#' @param censor_code_new Only for \code{type == "MVN_MIXED"}: \code{X_new}'s
+#' own censoring indicator, same convention as \code{censor_code}. Defaults
+#' to no censoring (all-zero) if \code{X_new} has any censored/binary
+#' columns but this is left \code{NULL}.
 #' @return A named list. Always present:
 #' \itemize{
 #'   \item \code{weight_draws}: \code{n_saved x K} matrix, one predictive
@@ -355,7 +365,8 @@
 #' @export
 predictNewBatch <- function(processed_chain, X, batch_vec = NULL, new_batch_coordinate = NULL, X_new = NULL,
                              fixed_new = NULL, labels_new_init = NULL,
-                             n_draws = NULL, n_pred_iter = 200, pred_burn = NULL, pred_thin = 1) {
+                             n_draws = NULL, n_pred_iter = 200, pred_burn = NULL, pred_thin = 1,
+                             column_type = NULL, censor_code = NULL, censor_code_new = NULL) {
   if (is.null(processed_chain$mean_est)) {
     stop("processed_chain must be the output of processMCMCChain() (burn-in applied, point estimates computed).")
   }
@@ -472,6 +483,27 @@ predictNewBatch <- function(processed_chain, X, batch_vec = NULL, new_batch_coor
     },
     n_pred_iter = n_pred_iter, pred_burn = pred_burn, pred_thin = pred_thin
   )
+
+  if (type == "MVT") {
+    args$t_df_draws <- processed_chain$t_df[draw_idx, , drop = FALSE] # n_draws x K, matching predictNewBatchMVT()'s t_df_draws.row(t)
+    args$t_df_proposal_window <- processed_chain$t_df_proposal_window %||% 0.015
+    # matches predictNewBatchMVT()'s parameter order (t_df_draws sits right
+    # after cov_draws; t_df_proposal_window right after S_proposal_window) -
+    # do.call() matches by name, so list order here doesn't actually matter,
+    # but keeping this comment next to both insertions for anyone reading it.
+  }
+  if (type == "MVN_MIXED") {
+    if (is.null(column_type) || is.null(censor_code)) {
+      stop("column_type and censor_code (the same ones passed to the original fit) are required for type = 'MVN_MIXED'.")
+    }
+    args$column_type <- as.integer(column_type)
+    args$censor_code <- matrix(as.integer(censor_code), nrow(X), ncol(X))
+    args$censor_code_new <- if (is.null(censor_code_new)) {
+      matrix(0L, N_new, ncol(X_new))
+    } else {
+      matrix(as.integer(censor_code_new), N_new, ncol(X_new))
+    }
+  }
 
   raw <- do.call(get(.predictNewBatchDriverName(type)), args)
 
