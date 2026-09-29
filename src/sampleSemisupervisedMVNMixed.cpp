@@ -166,7 +166,7 @@ Rcpp::List sampleSemisupervisedMVNMixed(
         my_sampler.gamma_proposal_window = robbinsMonroUpdate(my_sampler.gamma_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(arma::vectorise(my_sampler.gamma_count - prev_gamma_count))), 0.234, n_adapt);
       }
       if(weight_prior_type > 0 && K > 1) {
-        my_sampler.eta_proposal_window = robbinsMonroUpdate(my_sampler.eta_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.eta_count - prev_eta_count)), 0.234, n_adapt);
+        my_sampler.eta_proposal_window = robbinsMonroUpdate(my_sampler.eta_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.eta_count - prev_eta_count)) / my_sampler.eta_moves_per_sweep, 0.234, n_adapt);
         if(weight_prior_type == 2 && sample_gp_hyperparameters) {
           double gp_hyper_rate = (double) (my_sampler.gp_hyperparameter_count - prev_gp_hyperparameter_count);
           my_sampler.gp_hyperparameter_proposal_window = robbinsMonroUpdate(my_sampler.gp_hyperparameter_proposal_window, gp_hyper_rate, 0.234, n_adapt);
@@ -255,7 +255,7 @@ Rcpp::List sampleSemisupervisedMVNMixed(
   out["gamma_acceptance_rate"] = arma::conv_to< arma::vec >::from(arma::vectorise(my_sampler.gamma_count)) / n_iter;
   out["w_batch"] = w_batch_saved;
   out["eta_alr"] = eta_alr_saved;
-  out["eta_acceptance_rate"] = arma::conv_to< arma::vec >::from(my_sampler.eta_count) / n_iter;
+  out["eta_acceptance_rate"] = arma::conv_to< arma::vec >::from(my_sampler.eta_count) / (n_iter * my_sampler.eta_moves_per_sweep);
   out["gp_tau2"] = gp_tau2_saved;
   out["gp_length_scale"] = gp_length_scale_saved;
   out["pp_mu"] = pp_mu_saved;

@@ -72,3 +72,23 @@ test_that("assessConvergence + getBestChain integrate with fitBatchMix", {
   extended <- continueChains(chains, X, rep(0L, N), batch_vec, n_iter = 100)
   expect_false(is.null(attr(extended, "best_chain")))
 })
+
+test_that("calcBICM() is the maximum post-burn-in per-draw BIC and assessConvergence() reports it", {
+  chain <- list(n_iter = 100, thin = 10, BIC = c(-50, -40, -30, -20, -10, -35, -45, -25, -60, -55))
+  # burn = 50 drops the first 5 saved draws (iterations 10..50).
+  expect_equal(calcBICM(chain, burn = 50), max(c(-35, -45, -25, -60, -55)))
+  # The best draw overall lies in the burn-in and must be excluded.
+  expect_lt(calcBICM(chain, burn = 50), max(chain$BIC))
+  # Default burn-in is half the chain.
+  expect_equal(calcBICM(chain), calcBICM(chain, burn = 50))
+  # A chain trimmed by processMCMCChain() has already had its burn-in applied.
+  trimmed <- chain
+  trimmed$BIC <- chain$BIC[6:10]
+  expect_equal(calcBICM(trimmed), max(trimmed$BIC))
+  # The maximum can never be below the mean.
+  expect_gte(calcBICM(chain), mean(chain$BIC[6:10]))
+
+  chains <- list(chain, modifyList(chain, list(BIC = chain$BIC - 5)))
+  conv <- suppressWarnings(assessConvergence(chains, burn = 50, statistic = "BIC"))
+  expect_equal(conv$chain_bicm, c(calcBICM(chains[[1]], 50), calcBICM(chains[[2]], 50)))
+})

@@ -400,25 +400,17 @@ void mvtSampler::clusterDFMetropolis() {
   }
 }
 
-// Full-dataset Student-t log-likelihood (t_df held fixed; pdf_coef and
-// cov_comb_log_det are constant w.r.t. gamma and dropped, as elsewhere in
-// this class) under a given mean_sum, used by interactionMetropolis().
-double mvtSampler::interactionDataLogLikelihood(arma::mat mean_sum_arg) {
-  double score = 0.0;
-  for(arma::uword n = 0; n < N; n++) {
-    arma::uword c = labels(n) * B + batch_vec(n);
-    arma::vec diff = X_t.col(n) - mean_sum_arg.col(c);
-    double u = arma::as_scalar(diff.t() * cov_comb_inv.slice(c) * diff);
-    score += -0.5 * (t_df(labels(n)) + P) * log(1.0 + (1.0 / t_df(labels(n))) * u);
-  }
-  return score;
-};
-
 // Block Metropolis-Hastings update for gamma(p, ., .) - see
 // mvnSampler::interactionMetropolis() for the sum-to-zero-subspace
 // derivation; the only difference here is the Student-t (rather than
 // Gaussian) data log-likelihood used to score each candidate.
 void mvtSampler::interactionMetropolis() {
+
+  arma::uvec combined_group = labels * B + batch_vec;
+  arma::vec t_df_item(N);
+  for(arma::uword n = 0; n < N; n++) {
+    t_df_item(n) = t_df(labels(n));
+  }
 
   for(arma::uword p = 0; p < P; p++) {
 
@@ -433,6 +425,7 @@ void mvtSampler::interactionMetropolis() {
     arma::mat proposed_mean_sum = mean_sum;
     double prior_current = 0.0, prior_proposed = 0.0;
     arma::mat current_gamma_p(K, B), proposed_gamma_p(K, B);
+    arma::vec delta_cell(K * B);
 
     for(arma::uword k = 0; k < K; k++) {
       for(arma::uword b = 0; b < B; b++) {
@@ -442,15 +435,16 @@ void mvtSampler::interactionMetropolis() {
         prior_current += -0.5 * std::pow(current_gamma_p(k, b), 2.0) / tau2_interaction(p);
         prior_proposed += -0.5 * std::pow(proposed_gamma_p(k, b), 2.0) / tau2_interaction(p);
 
-        proposed_mean_sum(p, k * B + b) = mean_sum(p, k * B + b) - current_gamma_p(k, b) + proposed_gamma_p(k, b);
+        delta_cell(k * B + b) = proposed_gamma_p(k, b) - current_gamma_p(k, b);
+        proposed_mean_sum(p, k * B + b) = mean_sum(p, k * B + b) + delta_cell(k * B + b);
       }
     }
 
-    double current_model_score = interactionDataLogLikelihood(mean_sum) + prior_current;
-    double proposed_model_score = interactionDataLogLikelihood(proposed_mean_sum) + prior_proposed;
+    double log_ratio = interactionLogLikDeltaImpl(X_t, combined_group, mean_sum, cov_comb_inv, p, delta_cell, t_df_item)
+      + prior_proposed - prior_current;
 
     double u = arma::randu();
-    double acceptance_prob = std::min(1.0, std::exp(proposed_model_score - current_model_score));
+    double acceptance_prob = std::min(1.0, std::exp(log_ratio));
 
     if(u < acceptance_prob) {
       for(arma::uword k = 0; k < K; k++) {

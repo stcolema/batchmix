@@ -314,6 +314,44 @@
   less variable than the true batch-free data. Also corrected the
   `probit_missing_censored` vignette, which stated the congruence form
   `Delta_b Sigma Delta_b` rather than the diagonal inflation the code uses.
+* **`salso` is no longer a dependency.** It needed a Rust toolchain to build
+  from source, which is a barrier on clusters and managed laptops without
+  admin rights. `predictFromMultipleChains()` now uses `minVI(method =
+  "greedy")` on the posterior similarity matrix: the best of the
+  `avg`/`comp`/`draws` candidates refined by greedy single-item relocation
+  under the same Jensen lower bound to the expected Variation of Information
+  (new `minVIGreedyRefine()`, in C++). On simulated planted-partition
+  problems it matched `salso`'s exact expected VI. The trade-off: `minVI()`
+  works from the `N x N` similarity matrix (`8 N^2` bytes), so it is not
+  suitable for tens of thousands of items, where `salso`'s PSM-free search
+  would be. `nCores` is now ignored. The covariance-models vignette now uses
+  `minVI()` (VI loss) in place of `salso(loss = "binder")`. Also fixed
+  `VI.lb()` rejecting a clustering that carries attributes (as `minVI()`'s
+  output does).
+* **New `calcBICM()`, and BICM reported by `summary()` and
+  `assessConvergence()` (`chain_bicm`).** The stored per-iteration `BIC`
+  plugs the log-likelihood at a single posterior draw into the BIC formula;
+  a draw sits below the maximum-likelihood fit, so this over-penalises
+  complexity and is noisy. BICM (Raftery et al., 2007) uses the best
+  post-burn-in draw instead. The per-iteration `BIC` is kept as a trace, and
+  chain selection is unchanged. BICM shares the missing-data caveat
+  documented at `?calcBICM`: the working (imputed/latent) likelihood is not
+  the observed-data likelihood.
+* Efficiency: the cluster-mean random walk is now shaped by each cluster's
+  covariance (`mu' = mu + w chol(Sigma_k) z`; `mu_proposal_window` is now in
+  units of the cluster's spread); the partial-pooling batch-weight update
+  proposes each batch's entry separately rather than as one B-dimensional
+  block (`eta_acceptance_rate` is now a per-move rate); and the interaction
+  update scores the change in log-likelihood incrementally instead of
+  re-evaluating every item's full quadratic form twice per feature. The
+  GP-correlated weight update keeps its block proposal, since its prior
+  correlates the batches. Each change is checked against the exact target
+  distribution in `test-mcmc-kernel-fixes.R`.
+* Robustness: a label draw can no longer index out of range when the
+  cumulative allocation probabilities round below 1; `sample_s_scale = TRUE`
+  with `rho <= 2` now errors instead of silently leaving `rho` frozen at its
+  initial value; dead empirical-Bayes code and the constructors' console
+  output were removed.
 * Numeric output changes for a fixed seed: every golden fixture whose run has
   an empty cluster or uses `MVN_LKJ`/`MVN_MIXED` is regenerated (see
   `tests/testthat/test-mcmc-kernel-fixes.R` for the prior-recovery tests).

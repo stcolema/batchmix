@@ -28,8 +28,10 @@
 #' VI.lb(mcmc_outputs[[1]]$samples[1, ], psm)
 #' }
 VI.lb <- function(cls, psm) {
-  if (is.vector(cls)) {
-    cls <- t(cls)
+  # A single clustering (possibly carrying attributes, as minVI()'s output
+  # does, which makes is.vector() FALSE) is treated as one row.
+  if (is.null(dim(cls))) {
+    cls <- t(as.vector(cls))
   }
   n <- nrow(psm)
   n_inds <- seq(1, n)

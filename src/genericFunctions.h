@@ -503,6 +503,20 @@ double robbinsMonroUpdateReciprocal(
   double kappa = 0.6
 );
 
+// Change in the data log-likelihood when feature p of every cell's mean moves
+// by delta_cell(c) (c = cell_of_item(n) indexes mean_sum's columns and
+// cov_comb_inv's slices); see genericFunctions.cpp. `t_df_item` is empty for
+// a Gaussian likelihood, else the per-item Student-t degrees of freedom.
+double interactionLogLikDeltaImpl(
+  const arma::mat& X_t,
+  const arma::uvec& cell_of_item,
+  const arma::mat& mean_sum,
+  const arma::cube& cov_comb_inv,
+  arma::uword p,
+  const arma::vec& delta_cell,
+  const arma::vec& t_df_item
+);
+
 // Posterior mean of each item's latent batch-free signal; see
 // genericFunctions.cpp.
 arma::mat batchCorrectedPosteriorMean(

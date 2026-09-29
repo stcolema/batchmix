@@ -38,14 +38,19 @@ clustering(s)
 
 * `.$method`: the point method used to infer the clustering(s)
 
-Names are due to legacy reasons - this function is replacing the
+Names are due to legacy reasons - this function replaces the
 `salso::salso` function and name choices are to minimise workflow damage.
+
+Every method works from the `n x n` PSM, which needs `8 n^2` bytes; for very
+large `n` (tens of thousands of items) this can exceed memory, unlike the
+PSM-free search in `salso`, the trade-off for not depending on a Rust
+toolchain.
 }
 \description{
 Local implementation of S. Wade's `minVI` function from their
 `mcclust.ext` package (available from github).
-Reimplemented here to avoid dependency on a non-CRAN package and we have
-dropped the `greedy` method. Finds the optimal partition by minimising the
+Reimplemented here to avoid dependency on a non-CRAN package. Finds the
+optimal partition by minimising the
 lower bound to the Variation of Information obtained from Jensen's inequality
 where the expectation and log are reversed. For full details please see the
 aforementioned package and Wade and Ghahramani, 2018, 'Bayesian Cluster

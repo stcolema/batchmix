@@ -286,3 +286,55 @@ test_that("processMCMCChain() computes allocation_probability/prob/pred for a fu
   accuracy <- max(sum(diag(tab)), sum(tab) - sum(diag(tab))) / sum(tab)
   expect_gt(accuracy, 0.85)
 })
+
+test_that("minVI(method = 'greedy') recovers a planted partition and never worsens its starting point", {
+  set.seed(5)
+  truth <- rep(1:3, times = c(12, 10, 8))
+  n <- length(truth)
+  # Noisy sampled partitions: each draw relabels the truth and moves ~10% of items.
+  draws <- t(vapply(seq_len(200), function(i) {
+    cl <- sample(3)[truth]
+    flip <- sample(n, 3)
+    cl[flip] <- sample(3, 3, replace = TRUE)
+    cl
+  }, numeric(n)))
+  psm <- createSimilarityMat(draws)
+
+  start <- as.vector(minVI(psm, draws, method = "avg", max.k = 6))
+  est <- minVI(psm, draws, method = "greedy", max.k = 6)
+
+  expect_lte(VI.lb(est, psm), VI.lb(start, psm) + 1e-10)
+  expect_equal(attr(est, "info")$expectedLoss, VI.lb(est, psm), tolerance = 1e-8)
+  # Same partition as the truth, up to labelling.
+  expect_equal(length(unique(paste(est, truth))), 3)
+  expect_equal(length(unique(est)), 3)
+})
+
+test_that("greedy refinement repairs a partition with misallocated items", {
+  set.seed(6)
+  truth <- rep(1:2, each = 15)
+  draws <- matrix(rep(truth, 50), nrow = 50, byrow = TRUE)
+  psm <- createSimilarityMat(draws)
+
+  # Single-item moves cannot split one big cluster (each lone move worsens
+  # the bound), which is why minVI() starts them from hclust candidates; a
+  # start that is right up to a few misallocated items is what it must repair.
+  bad_start <- truth
+  bad_start[c(1, 2, 20, 21, 22)] <- 3 - bad_start[c(1, 2, 20, 21, 22)]
+  refined <- minVIGreedyRefine(psm, bad_start)
+  expect_lt(refined$value, VI.lb(bad_start, psm))
+  expect_equal(length(unique(paste(refined$labels, truth))), 2)
+  expect_equal(refined$value, VI.lb(truth, psm), tolerance = 1e-10)
+})
+
+test_that("predictFromMultipleChains() no longer needs salso for unsupervised point estimates", {
+  d <- make_characterization_data(N = 30, K = 2)
+  set.seed(9)
+  chains <- fitBatchMix(
+    d$X, n_chains = 2, n_iter = 40, thin = 5, batch_vec = d$batch_vec, type = "MVN",
+    K_max = 2, verbose = FALSE
+  )
+  pred <- suppressWarnings(predictFromMultipleChains(chains, burn = 20))
+  expect_length(pred$pred, d$N)
+  expect_false("salso" %in% loadedNamespaces())
+})

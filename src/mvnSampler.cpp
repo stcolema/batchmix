@@ -49,7 +49,6 @@ _fixed) {
   // runs (see the driver loop in sampleSemisupervisedMVN.cpp).
   mat X_imputed = imputeColumnMeans(X);
 
-  rowvec X_min = min(X_imputed), X_max = max(X_imputed);
   mat global_cov = arma::cov(X_imputed);
 
   n_param_cluster = 1 + P + P * (P + 1) * 0.5;
@@ -62,16 +61,8 @@ _fixed) {
   mat mean_mat = mean(X_imputed, 0).t();
   xi = mean_mat.col(0);
 
-  // Empirical Bayes fora diagonal covariance matrix
-  mat scale_param = X_imputed.each_row() - xi.t();
-  vec diag_entries(P);
-  // double scale_entry = accu(scale_param % scale_param, 0) / (N * std::pow(K, 1.0 / (double) P));
-  
-  double scale_entry = (accu(global_cov.diag()) / P) / std::pow(K, 2.0 / (double) P);
-  
-  diag_entries.fill(scale_entry);
-  scale = diagmat( diag_entries );
-  
+  // Empirical-Bayes inverse-Wishart scale: the global covariance shrunk by
+  // K^(2/P), so each of the K components is a priori a fraction of the total spread.
   scale = global_cov / std::pow(K, 2.0 / (double) P);
   
   // The mean of the prior distribution for the batch shift, m, parameter
@@ -94,6 +85,9 @@ _fixed) {
   theta = _theta;
   sample_s_scale = _sample_s_scale;
   s_scale_prior_mean = theta / (rho - 1.0);
+  if(sample_s_scale && rho <= 2.0) {
+    Rcpp::stop("sample_s_scale = TRUE requires rho > 2 (the batch-scale concentration is sampled on log(rho - 2) so that S_b has a finite prior variance); got rho = %f.", rho);
+  }
 
   // Set the size of the objects to hold the component specific parameters
   mu.set_size(P, K);
@@ -748,10 +742,18 @@ void mvnSampler::clusterMeanMetropolis() {
         }
       }
     } else {
-      for(arma::uword p = 0; p < P; p++){
-        // The proposal window is now a diagonal matrix of common entries.
-        mu_proposed(p) = (arma::randn() * mu_proposal_window) + mu(p, k);
+      // Random walk shaped like the cluster's own covariance,
+      // mu' = mu + window * chol(Sigma_k) z, z ~ N(0, I). Sigma_k is fixed
+      // while mu is updated, so the proposal is symmetric and needs no
+      // Hastings term. An isotropic step (as used previously) is poorly
+      // matched to a correlated or unequal-variance cluster: it must be
+      // small enough for the tightest direction and so crawls along the
+      // widest. The window is now in units of the cluster's own spread.
+      arma::mat chol_cov_k;
+      if(!arma::chol(chol_cov_k, cov.slice(k), "lower")) {
+        chol_cov_k = arma::diagmat(arma::sqrt(cov.slice(k).diag()));
       }
+      mu_proposed = mu.col(k) + mu_proposal_window * (chol_cov_k * arma::randn<arma::vec>(P));
       for(arma::uword b = 0; b < B; b++) {
         proposed_mean_sum.col(b) = mu_proposed + m.col(b);
         if(include_interaction) {
@@ -795,14 +797,6 @@ void mvnSampler::clusterMeanMetropolis() {
 void mvnSampler::interactionMetropolis() {
 
   arma::uvec combined_group = labels * B + batch_vec;
-  arma::uvec all_items = arma::regspace<arma::uvec>(0, N - 1);
-
-  arma::vec cov_det_flat(K * B);
-  for(arma::uword k = 0; k < K; k++) {
-    for(arma::uword b = 0; b < B; b++) {
-      cov_det_flat(k * B + b) = cov_comb_log_det(k, b);
-    }
-  }
 
   for(arma::uword p = 0; p < P; p++) {
 
@@ -817,6 +811,7 @@ void mvnSampler::interactionMetropolis() {
     arma::mat proposed_mean_sum = mean_sum;
     double prior_current = 0.0, prior_proposed = 0.0;
     arma::mat current_gamma_p(K, B), proposed_gamma_p(K, B);
+    arma::vec delta_cell(K * B);
 
     for(arma::uword k = 0; k < K; k++) {
       for(arma::uword b = 0; b < B; b++) {
@@ -826,16 +821,20 @@ void mvnSampler::interactionMetropolis() {
         prior_current += -0.5 * std::pow(current_gamma_p(k, b), 2.0) / tau2_interaction(p);
         prior_proposed += -0.5 * std::pow(proposed_gamma_p(k, b), 2.0) / tau2_interaction(p);
 
-        proposed_mean_sum(p, k * B + b) = mean_sum(p, k * B + b) - current_gamma_p(k, b) + proposed_gamma_p(k, b);
+        delta_cell(k * B + b) = proposed_gamma_p(k, b) - current_gamma_p(k, b);
+        proposed_mean_sum(p, k * B + b) = mean_sum(p, k * B + b) + delta_cell(k * B + b);
       }
     }
 
     // Symmetric (Gaussian, projected) proposal: no Hastings correction needed.
-    double current_model_score = groupLikelihood(all_items, combined_group, cov_det_flat, mean_sum, cov_comb_inv) + prior_current;
-    double proposed_model_score = groupLikelihood(all_items, combined_group, cov_det_flat, proposed_mean_sum, cov_comb_inv) + prior_proposed;
+    // Only feature p of the cell means moves, so score the change in the
+    // data log-likelihood directly instead of re-evaluating both full
+    // quadratic forms for every item (see interactionLogLikDeltaImpl()).
+    double log_ratio = interactionLogLikDeltaImpl(X_t, combined_group, mean_sum, cov_comb_inv, p, delta_cell, arma::vec())
+      + prior_proposed - prior_current;
 
     double u = arma::randu();
-    double acceptance_prob = std::min(1.0, std::exp(proposed_model_score - current_model_score));
+    double acceptance_prob = std::min(1.0, std::exp(log_ratio));
 
     if(u < acceptance_prob) {
       for(arma::uword k = 0; k < K; k++) {

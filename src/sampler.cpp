@@ -228,7 +228,9 @@ void sampler::updateAllocation() {
     u = randu<double>( );
 
     if(fixed(n) == 0) {
-      labels(n) = sum(u > cumsum(comp_prob));
+      // The cumulative sum can round to just below 1, in which case u could
+      // exceed it and return K (out of range); clamp to the last component.
+      labels(n) = std::min((arma::uword) sum(u > cumsum(comp_prob)), K - 1);
 
       // The allocation probability for each class
       alloc.row(n) = comp_prob.t();
@@ -467,6 +469,7 @@ void sampler::initialiseBatchWeightPrior(
   w_batch = ones<mat>(B, K) / (double) K;
   eta_alr = zeros<mat>(B, (K > 0) ? K - 1 : 0);
   eta_count = zeros<uvec>((K > 0) ? K - 1 : 0);
+  eta_moves_per_sweep = (weight_prior_type == 1) ? (double) B : 1.0;
   pp_mu = zeros<vec>((K > 0) ? K - 1 : 0);
   pp_tau2 = ones<vec>((K > 0) ? K - 1 : 0) * (pp_tau2_prior_rate / std::max(pp_tau2_prior_shape - 1.0, 1e-6));
   // gp_beta plays the same role for "gp" that pp_mu plays for "partial
@@ -616,7 +619,7 @@ void sampler::updatePartialPoolingWeights() {
   mat count_bk = computeBatchClassCounts();
   vec N_b_d = conv_to<vec>::from(N_b);
 
-  vec eta_other_sum(B), eta_proposed(B), current_col(B);
+  vec eta_other_sum(B);
 
   for(uword j = 0; j < n_free; j++) {
 
@@ -626,39 +629,36 @@ void sampler::updatePartialPoolingWeights() {
       eta_other_sum += exp(eta_alr.col(jp));
     }
 
-    current_col = eta_alr.col(j);
-    if(predict_mode) {
-      // See the identical guard in updateGPWeights() - only predict_batch's
-      // own entry is free; every other batch's eta stays at the fixed
-      // posterior-draw value this sweep loop was seeded with.
-      eta_proposed = current_col;
-      eta_proposed(predict_batch) += randn() * eta_proposal_window;
-    } else {
-      eta_proposed = current_col + randn<vec>(B) * eta_proposal_window;
-    }
+    // The likelihood (multinomial counts) and the exchangeable N(mu_j,
+    // tau2_j) prior both factorise over batches, so each batch's entry is
+    // updated by its own scalar Metropolis step, holding every other batch
+    // and coordinate fixed. A single joint B-dimensional random-walk block
+    // (as the GP update must use, since its prior correlates the batches)
+    // has an acceptance rate that falls with B and so forces a tiny window
+    // for every batch to suit the worst one. When predicting a new batch
+    // only predict_batch's own entry is free; every other batch's eta stays
+    // at the fixed posterior-draw value this sweep loop was seeded with.
+    const uword b_first = predict_mode ? predict_batch : 0;
+    const uword b_last = predict_mode ? predict_batch + 1 : B;
+    for(uword b = b_first; b < b_last; b++) {
+      double current_eta = eta_alr(b, j);
+      double proposed_eta = current_eta + randn() * eta_proposal_window;
 
-    double log_lik_current = 0.0, log_lik_proposed = 0.0, D_b = 0.0;
-    for(uword b = 0; b < B; b++) {
-      D_b = 1.0 + std::exp(current_col(b)) + eta_other_sum(b);
-      log_lik_current += count_bk(b, j) * current_col(b) - N_b_d(b) * std::log(D_b);
-      D_b = 1.0 + std::exp(eta_proposed(b)) + eta_other_sum(b);
-      log_lik_proposed += count_bk(b, j) * eta_proposed(b) - N_b_d(b) * std::log(D_b);
-    }
+      double log_lik_current = count_bk(b, j) * current_eta
+        - N_b_d(b) * std::log(1.0 + std::exp(current_eta) + eta_other_sum(b));
+      double log_lik_proposed = count_bk(b, j) * proposed_eta
+        - N_b_d(b) * std::log(1.0 + std::exp(proposed_eta) + eta_other_sum(b));
 
-    // Diagonal N(mu_j, tau2_j) prior - no matrix inversion needed, unlike
-    // the GP case's full covariance.
-    double prior_current = -0.5 * accu(square(current_col - pp_mu(j))) / pp_tau2(j);
-    double prior_proposed = -0.5 * accu(square(eta_proposed - pp_mu(j))) / pp_tau2(j);
+      double prior_current = -0.5 * std::pow(current_eta - pp_mu(j), 2.0) / pp_tau2(j);
+      double prior_proposed = -0.5 * std::pow(proposed_eta - pp_mu(j), 2.0) / pp_tau2(j);
 
-    double current_score = log_lik_current + prior_current;
-    double proposed_score = log_lik_proposed + prior_proposed;
+      double u = randu();
+      double acceptance_prob = std::min(1.0, std::exp(log_lik_proposed + prior_proposed - log_lik_current - prior_current));
 
-    double u = randu();
-    double acceptance_prob = std::min(1.0, std::exp(proposed_score - current_score));
-
-    if(u < acceptance_prob) {
-      eta_alr.col(j) = eta_proposed;
-      eta_count(j)++;
+      if(u < acceptance_prob) {
+        eta_alr(b, j) = proposed_eta;
+        eta_count(j)++;
+      }
     }
 
     if(predict_mode) {
