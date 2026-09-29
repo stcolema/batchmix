@@ -83,10 +83,11 @@
 #' @param batch_weight_prior \code{"partial_pooling"}, \code{"global"} or
 #' \code{NULL} (the default: partial pooling if there is more than one
 #' batch, otherwise global), as in \code{\link{runBatchMix}}. Under partial
-#' pooling each additive-log-ratio coordinate of the batch weights has a
-#' population mean \eqn{N(0, }\code{pp_mu_prior_sd}\eqn{^2)} and variance
+#' pooling each class's logit (weights are their softmax) has a
+#' population mean \eqn{N(0, }\code{pp_mu_prior_sd}\eqn{^2)} (over the K
+#' classes, restricted to sum to zero) and variance
 #' InvGamma(\code{pp_tau2_shape}, \code{pp_tau2_rate}), and each batch's
-#' coordinate is drawn from them; the returned \code{params$w_batch} holds
+#' logit is drawn from them; the returned \code{params$w_batch} holds
 #' the resulting B x K weights. (\code{"gp"} is not simulated.)
 #' @param pp_tau2_shape,pp_tau2_rate,pp_mu_prior_sd Partial-pooling
 #' hyperparameters; see \code{batch_weight_prior}.
@@ -226,24 +227,22 @@ simulatePriorPredictive <- function(X,
   }
 
   simulate_one <- function() {
-    # Batch-specific prior weights. Partial pooling: each of the K - 1
-    # additive-log-ratio coordinates (last cluster as reference) has a
-    # population mean and variance, and every batch's coordinate is an
+    # Batch-specific prior weights. Partial pooling: each class's logit has
+    # a population mean and variance, and every batch's logit is an
     # exchangeable draw around them (sampler::updatePartialPoolingWeights()).
     # Global: one weight vector, w ~ Dirichlet(concentration), via the same
     # Gamma-normalisation sampler::updateWeights() uses when every N_k is 0.
     if (batch_weight_prior == "partial_pooling") {
-      w_batch <- matrix(1 / K, B, K)
-      if (K > 1) {
-        pp_mu <- stats::rnorm(K - 1, 0, pp_mu_prior_sd)
-        pp_tau2 <- 1 / stats::rgamma(K - 1, shape = pp_tau2_shape, rate = pp_tau2_rate)
-        eta_alr <- vapply(seq_len(K - 1), function(j) {
-          stats::rnorm(B, pp_mu[j], sqrt(pp_tau2[j]))
-        }, numeric(B))
-        eta_alr <- matrix(eta_alr, nrow = B)
-        expo <- cbind(exp(eta_alr), 1)
-        w_batch <- expo / rowSums(expo)
-      }
+      # K exchangeable logits per batch (no reference class): population
+      # mean mu ~ N(0, pp_mu_prior_sd^2 I) restricted to sum(mu) = 0, class
+      # variances tau2_k ~ InvGamma, eta_bk ~ N(mu_k, tau2_k), weights =
+      # softmax(eta_b) (sampler::updatePartialPoolingWeights()).
+      pp_mu <- stats::rnorm(K, 0, pp_mu_prior_sd)
+      pp_mu <- pp_mu - mean(pp_mu)
+      pp_tau2 <- 1 / stats::rgamma(K, shape = pp_tau2_shape, rate = pp_tau2_rate)
+      eta <- matrix(stats::rnorm(B * K, rep(pp_mu, each = B), sqrt(rep(pp_tau2, each = B))), nrow = B)
+      expo <- exp(eta - apply(eta, 1, max))
+      w_batch <- expo / rowSums(expo)
       N_b <- tabulate(batch_vec + 1L, nbins = B)
       w <- as.numeric(crossprod(N_b, w_batch) / sum(N_b))
     } else {

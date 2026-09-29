@@ -461,7 +461,7 @@ lkjLogLikelihood <- function(R, eta) {
 #' conditional updates restricted to the one new batch. This is not called
 #' directly by users - see \code{predictNewBatch()} in R, which prepares
 #' every argument below (in particular the relabelling-safe, Rao-
-#' Blackwellised \code{eta_alr_init}/\code{gp_beta}/\code{pp_mu}/\code{pp_tau2}
+#' Blackwellised \code{eta_logit_init}/\code{gp_beta}/\code{pp_mu}/\code{pp_tau2}
 #' - see \code{R/predictNewBatch.R}'s block comment) from the output of
 #' \code{processMCMCChain()}.
 #' @param X The ORIGINAL training data (items in rows).
@@ -512,13 +512,14 @@ lkjLogLikelihood <- function(R, eta) {
 #' as in \code{sampleSemisupervisedMVN()}.
 #' @param weights_draws n_draws x K matrix of the shared weight vector
 #' (only meaningful, and only used, if \code{weight_prior_type == 0}).
-#' @param eta_alr_init_draws (B+1) x (K-1) x n_draws array: every free ALR
-#' coordinate for every batch INCLUDING the new one (last row), already
+#' @param eta_logit_init_draws (B+1) x K x n_draws array: every class's
+#' logit (weights are their softmax) for every batch INCLUDING the new one
+#' (last row), already
 #' relabelling-safe and with the new batch's row seeded from its own
 #' prior/GP-conditional predictive draw - see \code{predictNewBatch()}.
 #' Ignored if \code{weight_prior_type == 0}.
-#' @param gp_beta_draws,pp_mu_draws,pp_tau2_draws (K-1) x n_draws matrices:
-#' the population hyperparameter(s) for the free ALR coordinates, held
+#' @param gp_beta_draws,pp_mu_draws,pp_tau2_draws K x n_draws matrices:
+#' the population hyperparameter(s) for the per-class logits, held
 #' fixed throughout prediction (Rao-Blackwellised point estimates - see
 #' \code{predictNewBatch()}). Only \code{gp_beta_draws} is used if
 #' \code{weight_prior_type == 2}; only \code{pp_mu_draws}/\code{pp_tau2_draws}
@@ -540,8 +541,8 @@ lkjLogLikelihood <- function(R, eta) {
 #' \code{shift_new}/\code{scale_new} (P x n_total), \code{weight_new}
 #' (K x n_total), where n_total = n_draws times the number of sweeps kept
 #' per draw.
-predictNewBatchMVN <- function(X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_alr_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin) {
-    .Call('_batchmix_predictNewBatchMVN', PACKAGE = 'batchmix', X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_alr_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin)
+predictNewBatchMVN <- function(X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_logit_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin) {
+    .Call('_batchmix_predictNewBatchMVN', PACKAGE = 'batchmix', X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_logit_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin)
 }
 
 #' @title Predict a new batch (MVN_MIXED), given its own data
@@ -558,8 +559,8 @@ predictNewBatchMVN <- function(X, X_new, K, B, batch_vec, fixed_new, labels_new_
 #' 1 = binary/probit, 2 = censored - see \code{sampleSemisupervisedMVNMixed()}).
 #' @param censor_code_new N_new x P matrix, \code{X_new}'s own censoring
 #' indicator (same convention as the original fit's \code{censor_code}).
-predictNewBatchMVNMixed <- function(X, X_new, K, B, batch_vec, fixed_new, labels_new_init, column_type, censor_code, censor_code_new, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_alr_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin) {
-    .Call('_batchmix_predictNewBatchMVNMixed', PACKAGE = 'batchmix', X, X_new, K, B, batch_vec, fixed_new, labels_new_init, column_type, censor_code, censor_code_new, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_alr_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin)
+predictNewBatchMVNMixed <- function(X, X_new, K, B, batch_vec, fixed_new, labels_new_init, column_type, censor_code, censor_code_new, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_logit_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin) {
+    .Call('_batchmix_predictNewBatchMVNMixed', PACKAGE = 'batchmix', X, X_new, K, B, batch_vec, fixed_new, labels_new_init, column_type, censor_code, censor_code_new, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_logit_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin)
 }
 
 #' @title Predict a new batch (MVN_LKJ), given its own data
@@ -573,8 +574,8 @@ predictNewBatchMVNMixed <- function(X, X_new, K, B, batch_vec, fixed_new, labels
 #' src/mvnSamplerSeparationStrategy.cpp), since only the resulting
 #' covariance matrix, not its decomposition, is needed for prediction.
 #' @inheritParams predictNewBatchMVN
-predictNewBatchMVNSeparationStrategy <- function(X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_alr_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin) {
-    .Call('_batchmix_predictNewBatchMVNSeparationStrategy', PACKAGE = 'batchmix', X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_alr_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin)
+predictNewBatchMVNSeparationStrategy <- function(X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_logit_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin) {
+    .Call('_batchmix_predictNewBatchMVNSeparationStrategy', PACKAGE = 'batchmix', X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_logit_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin)
 }
 
 #' @title Predict a new batch (MVT), given its own data
@@ -593,8 +594,8 @@ predictNewBatchMVNSeparationStrategy <- function(X, X_new, K, B, batch_vec, fixe
 #' @param t_df_draws n_draws x K matrix of cluster degrees-of-freedom.
 #' @param t_df_proposal_window Inert (t_df is never proposed during
 #' prediction); accepted only for constructor-signature parity.
-predictNewBatchMVT <- function(X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, t_df_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_alr_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, n_pred_iter, pred_burn, pred_thin) {
-    .Call('_batchmix_predictNewBatchMVT', PACKAGE = 'batchmix', X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, t_df_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_alr_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, n_pred_iter, pred_burn, pred_thin)
+predictNewBatchMVT <- function(X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, t_df_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_logit_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, n_pred_iter, pred_burn, pred_thin) {
+    .Call('_batchmix_predictNewBatchMVT', PACKAGE = 'batchmix', X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, t_df_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_logit_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, n_pred_iter, pred_burn, pred_thin)
 }
 
 #' @title Prior-only MVN_LKJ chain (internal)
@@ -621,18 +622,20 @@ priorOnlyLKJChain <- function(X, K, B, labels, batch_vec, n_iter, eta, r_pw, sig
 
 #' @title Partial-pooling batch-weight chain with fixed hyperparameters (internal)
 #' @description Runs \code{updatePartialPoolingWeights()} repeatedly,
-#' resetting the population mean and variance to fixed values before every
-#' sweep so that the ALR entries of each batch are updated by the Metropolis
-#' kernel alone, targeting their exact conditional
-#' \eqn{p(\eta_b \mid counts_b) \propto \exp(c_b \eta_b - N_b \log(1 + e^{\eta_b}))
-#' N(\eta_b; \mu, \tau^2)} (for K = 2). A batch with no items follows its
-#' prior N(mu, tau2).
+#' resetting the population mean and variances to fixed values before every
+#' sweep so that each batch's logits are updated by the Metropolis and shift
+#' Gibbs kernels alone, targeting their exact conditional. The weights depend
+#' on the logits only through differences, so for two classes the logit
+#' difference \eqn{d = \eta_1 - \eta_2} of a batch with counts \eqn{c_1} and
+#' \eqn{N} has density
+#' \eqn{\propto \exp(c_1 d - N \log(1 + e^d)) N(d; \mu_1 - \mu_2, \tau_1^2 +
+#' \tau_2^2)}; a batch with no items follows the prior.
 #' @param labels,batch_vec 0-indexed cluster and batch labels of the items.
 #' @param K,B Number of clusters and batches.
 #' @param n_iter Number of sweeps.
-#' @param mu,tau2 The fixed hyperparameters (for every free coordinate).
+#' @param mu,tau2 K-vectors: the fixed population mean and class variances.
 #' @param eta_pw The proposal window (sd) of each scalar random walk.
-#' @return A list with the \code{eta} trace (B x (K - 1) x n_iter), the raw
+#' @return A list with the \code{eta} trace (B x K x n_iter), the raw
 #' \code{eta_count}, and \code{eta_moves_per_sweep}.
 #' @keywords internal
 #' @export
@@ -705,11 +708,12 @@ partialPoolingWeightChain <- function(labels, batch_vec, K, B, n_iter, mu, tau2,
 #' @param weight_prior_type Integer; 0 = "global" (the default) - a single
 #' mixture weight vector shared by every batch, exactly the original
 #' behaviour. 1 = "partial pooling" - each batch gets its own weight
-#' vector, with the K-1 additive-log-ratio (ALR) coordinates drawn
-#' exchangeably around a shared, estimated population mean/variance (no
+#' vector (the softmax of K exchangeable logits, with no reference class),
+#' the logits drawn exchangeably around a shared, estimated population
+#' mean (constrained to sum to zero) and class variances (no
 #' assumed order, distance or covariance structure between batches - see
 #' ``pp_tau2_shape``/``pp_tau2_rate``/``pp_mu_prior_sd``). 2 = "gp" - as
-#' partial pooling, but the ALR coordinates are instead linked by a
+#' partial pooling, but each class's logits are instead linked by a
 #' Gaussian process over ``batch_coordinates``, for batches with a genuine
 #' known ordering in time or space.
 #' @param batch_coordinates A B-vector of 1-D coordinates for the batches
@@ -717,8 +721,8 @@ partialPoolingWeightChain <- function(labels, batch_vec, K, B, n_iter, mu, tau2,
 #' used if ``weight_prior_type`` is 2.
 #' @param gp_tau2,gp_length_scale GP marginal variance and length scale for
 #' the batch-weight kernel; only used if ``weight_prior_type`` is 2.
-#' @param eta_proposal_window Proposal window for the ALR-coordinate
-#' block Metropolis-Hastings update; used if ``weight_prior_type`` is 1 or 2.
+#' @param eta_proposal_window Proposal window for the logit
+#' Metropolis-Hastings update; used if ``weight_prior_type`` is 1 or 2.
 #' @param sample_gp_hyperparameters Bool; if true, ``gp_tau2`` and
 #' ``gp_length_scale`` are themselves updated by Metropolis-Hastings rather
 #' than held fixed; only used if ``weight_prior_type`` is 2.
@@ -726,10 +730,11 @@ partialPoolingWeightChain <- function(labels, batch_vec, K, B, n_iter, mu, tau2,
 #' hyperparameter update; only used if ``weight_prior_type`` is 2 and
 #' ``sample_gp_hyperparameters`` is true.
 #' @param pp_tau2_shape,pp_tau2_rate Shape/rate of the InvGamma hyperprior
-#' on each ALR coordinate's population variance tau2_j; only used if
+#' on each class's population variance tau2_k; only used if
 #' ``weight_prior_type`` is 1.
-#' @param pp_mu_prior_sd Prior standard deviation for each ALR
-#' coordinate's population mean mu_j (prior mu_j ~ N(0, pp_mu_prior_sd^2));
+#' @param pp_mu_prior_sd Prior standard deviation of each class's
+#' population logit mu_k before the sum-to-zero constraint (prior mu_k ~
+#' N(0, pp_mu_prior_sd^2));
 #' only used if ``weight_prior_type`` is 1.
 #' @param sample_s_scale Bool; if true, the batch-scale prior's
 #' concentration (rho) is estimated by Metropolis-Hastings rather than
@@ -885,11 +890,12 @@ sampleSemisupervisedMVNSeparationStrategy <- function(X, K, B, labels, batch_vec
 #' @param weight_prior_type Integer; 0 = "global" (the default) - a single
 #' mixture weight vector shared by every batch, exactly the original
 #' behaviour. 1 = "partial pooling" - each batch gets its own weight
-#' vector, with the K-1 additive-log-ratio (ALR) coordinates drawn
-#' exchangeably around a shared, estimated population mean/variance (no
+#' vector (the softmax of K exchangeable logits, with no reference class),
+#' the logits drawn exchangeably around a shared, estimated population
+#' mean (constrained to sum to zero) and class variances (no
 #' assumed order, distance or covariance structure between batches - see
 #' ``pp_tau2_shape``/``pp_tau2_rate``/``pp_mu_prior_sd``). 2 = "gp" - as
-#' partial pooling, but the ALR coordinates are instead linked by a
+#' partial pooling, but each class's logits are instead linked by a
 #' Gaussian process over ``batch_coordinates``, for batches with a genuine
 #' known ordering in time or space.
 #' @param batch_coordinates A B-vector of 1-D coordinates for the batches
@@ -897,8 +903,8 @@ sampleSemisupervisedMVNSeparationStrategy <- function(X, K, B, labels, batch_vec
 #' used if ``weight_prior_type`` is 2.
 #' @param gp_tau2,gp_length_scale GP marginal variance and length scale for
 #' the batch-weight kernel; only used if ``weight_prior_type`` is 2.
-#' @param eta_proposal_window Proposal window for the ALR-coordinate
-#' block Metropolis-Hastings update; used if ``weight_prior_type`` is 1 or 2.
+#' @param eta_proposal_window Proposal window for the logit
+#' Metropolis-Hastings update; used if ``weight_prior_type`` is 1 or 2.
 #' @param sample_gp_hyperparameters Bool; if true, ``gp_tau2`` and
 #' ``gp_length_scale`` are themselves updated by Metropolis-Hastings rather
 #' than held fixed; only used if ``weight_prior_type`` is 2.
@@ -906,10 +912,11 @@ sampleSemisupervisedMVNSeparationStrategy <- function(X, K, B, labels, batch_vec
 #' hyperparameter update; only used if ``weight_prior_type`` is 2 and
 #' ``sample_gp_hyperparameters`` is true.
 #' @param pp_tau2_shape,pp_tau2_rate Shape/rate of the InvGamma hyperprior
-#' on each ALR coordinate's population variance tau2_j; only used if
+#' on each class's population variance tau2_k; only used if
 #' ``weight_prior_type`` is 1.
-#' @param pp_mu_prior_sd Prior standard deviation for each ALR
-#' coordinate's population mean mu_j (prior mu_j ~ N(0, pp_mu_prior_sd^2));
+#' @param pp_mu_prior_sd Prior standard deviation of each class's
+#' population logit mu_k before the sum-to-zero constraint (prior mu_k ~
+#' N(0, pp_mu_prior_sd^2));
 #' only used if ``weight_prior_type`` is 1.
 #' @return Named list of the different quantities drawn by the sampler.
 sampleSemisupervisedMVT <- function(X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, n_iter, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_df, initial_m, initial_S, mu_initialised, cov_initialised, df_initialised, m_initialised, S_initialised, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd, sample_s_scale, a_s, b_s, s_scale_proposal_window) {

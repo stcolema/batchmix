@@ -12,18 +12,26 @@
   `batch_weight_prior = "global", sample_s_scale = FALSE`. Consequences: (i)
   `alpha`/`concentration` are unused under partial pooling, but surplus
   components are still largely emptied because the partial-pooling weight
-  prior is diffuse (`pp_mu_prior_sd = 10` on the log-ratio scale, about the
-  spread of a Dirichlet(1/`K_max`) at `K_max` around 8): with 3 true clusters
-  and `K_max = 8`, about 4.2 components stayed occupied, against 4.1 under
-  the old global Dirichlet(1/`K_max`) default. Sharpening `pp_mu_prior_sd`
-  removes this (6.5 at 2.5, 7.9 at 1; see
-  `inst/experiments/overfitted_weight_priors.R`), so it is not a free
-  choice. This is empirical, not a theorem. (ii) The same diffuseness makes
-  weights close to degenerate a priori, determined by the data, and (iii)
-  the log-ratio coordinates use the last cluster as reference, so the prior
-  is not exchangeable over clusters: with `K_max = 8` the last cluster is
-  the largest with prior probability 0.008 against 0.14 for each other
-  cluster. Every fit's fixed-seed output changes.
+  prior is diffuse (`pp_mu_prior_sd = 10` on the logit scale: pairwise logit
+  differences have standard deviation about 14, that of a Dirichlet with
+  concentration about 0.1): with 3 true clusters and `K_max = 8`, about 3.8
+  components stayed occupied, against 4.1 under the old global
+  Dirichlet(1/`K_max`) default and 7.3 under Dirichlet(1). Sharpening
+  `pp_mu_prior_sd` to 2.5 gave 4.8 and to 1 gave 7.9 (see
+  `inst/experiments/overfitted_weight_priors.R`). This is empirical, not a
+  theorem, and from one setting. (ii) The same diffuseness makes weights
+  close to degenerate a priori, determined by the data. (iii) **The weight
+  prior is now exchangeable over clusters.** Batch weights are the softmax of
+  `K` logits with the same prior for every class (population mean
+  constrained to sum to zero, class variances `tau2_k`), instead of `K - 1`
+  log-ratios against the last class as reference; the reference
+  parameterisation made the last cluster the dominant one with prior
+  probability 0.008 (against 0.14 for each other cluster at `K_max = 8`). The
+  common per-batch shift that softmax cannot see is updated by its own exact
+  Gibbs step. This applies to `"gp"` too (`K` independent GPs with sum-to-zero
+  intercepts). Outputs change shape and name accordingly: `eta_alr` is now
+  `eta_logit` (`B x K x iterations`), and `pp_mu`, `pp_tau2` and `gp_beta` have
+  `K` rows. Every fit's fixed-seed output changes.
 * `simulatePriorPredictive()` follows the default model: batch-specific
   weights under partial pooling (`w_batch` in `params`), `rho` drawn from its
   hyperprior when `sample_s_scale = TRUE`, and `m_scale = NULL` (the default)

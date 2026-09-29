@@ -83,10 +83,11 @@ the given \code{rho}, \code{theta} as they are.}
 \item{batch_weight_prior}{\code{"partial_pooling"}, \code{"global"} or
 \code{NULL} (the default: partial pooling if there is more than one
 batch, otherwise global), as in \code{\link{runBatchMix}}. Under partial
-pooling each additive-log-ratio coordinate of the batch weights has a
-population mean \eqn{N(0, }\code{pp_mu_prior_sd}\eqn{^2)} and variance
+pooling each class's logit (weights are their softmax) has a
+population mean \eqn{N(0, }\code{pp_mu_prior_sd}\eqn{^2)} (over the K
+classes, restricted to sum to zero) and variance
 InvGamma(\code{pp_tau2_shape}, \code{pp_tau2_rate}), and each batch's
-coordinate is drawn from them; the returned \code{params$w_batch} holds
+logit is drawn from them; the returned \code{params$w_batch} holds
 the resulting B x K weights. (\code{"gp"} is not simulated.)}
 
 \item{pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd}{Partial-pooling

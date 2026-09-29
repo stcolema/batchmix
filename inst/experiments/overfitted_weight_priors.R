@@ -8,14 +8,18 @@
 # seeds, one chain of 4000 iterations each, so treat it as a demonstration of
 # the direction and rough size of the effect, not a precise estimate.
 #
-# Result recorded when this was written (means over the four seeds):
+# Result recorded when this was written (means over the four seeds; partial
+# pooling with K exchangeable logits and no reference class):
 #   global, alpha = 1/K_max   kocc 4.08  extra_frac 0.063
 #   global, alpha = 1         kocc 7.27  extra_frac 0.226
-#   partial pooling, sd 10    kocc 4.21  extra_frac 0.059   (the default)
-#   partial pooling, sd 2.5   kocc 6.46  extra_frac 0.149
-#   partial pooling, sd 1     kocc 7.90  extra_frac 0.314
-# The diffuse default log-ratio prior behaves like a sparse Dirichlet;
-# sharpening it removes that. Rousseau & Mengersen (2011, JRSS-B 73(5))
+#   partial pooling, sd 10    kocc 3.81  extra_frac 0.036   (the default)
+#   partial pooling, sd 2.5   kocc 4.83  extra_frac 0.048
+#   partial pooling, sd 1     kocc 7.85  extra_frac 0.269
+# (An earlier parameterisation against a reference class gave 4.21, 6.46 and
+# 7.90 for sd 10, 2.5 and 1: it was not exchangeable over clusters and less
+# sparse at moderate sd.)
+# The diffuse default logit prior behaves like a sparse Dirichlet; a much
+# sharper one does not. Rousseau & Mengersen (2011, JRSS-B 73(5))
 # prove the emptying behaviour for Dirichlet priors with concentration below
 # half the component parameter dimension; nothing here is a theorem for the
 # logistic-normal prior.

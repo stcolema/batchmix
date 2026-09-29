@@ -55,7 +55,7 @@ Rcpp::List predictNewBatchMVNMixed(
     bool sample_s_scale,
     arma::uword weight_prior_type,
     arma::mat weights_draws,
-    arma::cube eta_alr_init_draws,
+    arma::cube eta_logit_init_draws,
     arma::mat gp_beta_draws,
     arma::mat pp_mu_draws,
     arma::mat pp_tau2_draws,

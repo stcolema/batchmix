@@ -77,11 +77,12 @@
 //' @param weight_prior_type Integer; 0 = "global" (the default) - a single
 //' mixture weight vector shared by every batch, exactly the original
 //' behaviour. 1 = "partial pooling" - each batch gets its own weight
-//' vector, with the K-1 additive-log-ratio (ALR) coordinates drawn
-//' exchangeably around a shared, estimated population mean/variance (no
+//' vector (the softmax of K exchangeable logits, with no reference class),
+//' the logits drawn exchangeably around a shared, estimated population
+//' mean (constrained to sum to zero) and class variances (no
 //' assumed order, distance or covariance structure between batches - see
 //' ``pp_tau2_shape``/``pp_tau2_rate``/``pp_mu_prior_sd``). 2 = "gp" - as
-//' partial pooling, but the ALR coordinates are instead linked by a
+//' partial pooling, but each class's logits are instead linked by a
 //' Gaussian process over ``batch_coordinates``, for batches with a genuine
 //' known ordering in time or space.
 //' @param batch_coordinates A B-vector of 1-D coordinates for the batches
@@ -89,8 +90,8 @@
 //' used if ``weight_prior_type`` is 2.
 //' @param gp_tau2,gp_length_scale GP marginal variance and length scale for
 //' the batch-weight kernel; only used if ``weight_prior_type`` is 2.
-//' @param eta_proposal_window Proposal window for the ALR-coordinate
-//' block Metropolis-Hastings update; used if ``weight_prior_type`` is 1 or 2.
+//' @param eta_proposal_window Proposal window for the logit
+//' Metropolis-Hastings update; used if ``weight_prior_type`` is 1 or 2.
 //' @param sample_gp_hyperparameters Bool; if true, ``gp_tau2`` and
 //' ``gp_length_scale`` are themselves updated by Metropolis-Hastings rather
 //' than held fixed; only used if ``weight_prior_type`` is 2.
@@ -98,10 +99,11 @@
 //' hyperparameter update; only used if ``weight_prior_type`` is 2 and
 //' ``sample_gp_hyperparameters`` is true.
 //' @param pp_tau2_shape,pp_tau2_rate Shape/rate of the InvGamma hyperprior
-//' on each ALR coordinate's population variance tau2_j; only used if
+//' on each class's population variance tau2_k; only used if
 //' ``weight_prior_type`` is 1.
-//' @param pp_mu_prior_sd Prior standard deviation for each ALR
-//' coordinate's population mean mu_j (prior mu_j ~ N(0, pp_mu_prior_sd^2));
+//' @param pp_mu_prior_sd Prior standard deviation of each class's
+//' population logit mu_k before the sum-to-zero constraint (prior mu_k ~
+//' N(0, pp_mu_prior_sd^2));
 //' only used if ``weight_prior_type`` is 1.
 //' @param sample_s_scale Bool; if true, the batch-scale prior's
 //' concentration (rho) is estimated by Metropolis-Hastings rather than

@@ -207,30 +207,34 @@ test_that("interactionLogLikDelta() equals the full before/after log-likelihood 
   )
 })
 
-test_that("per-batch partial-pooling update targets each batch's exact conditional", {
-  # K = 2 so there is one free ALR coordinate. Batch 0: 30 items, 20 in
-  # cluster 0; batch 1: 6 items, 1 in cluster 0; batch 2: empty (prior only).
+test_that("partial-pooling update targets each batch's exact conditional (logit difference, K = 2)", {
+  # Batch 0: 30 items, 20 in cluster 0; batch 1: 6 items, 1 in cluster 0;
+  # batch 2: empty (prior only). For two classes the weights depend on the
+  # logits only through d = eta_1 - eta_2, whose exact conditional given the
+  # fixed hyperparameters is
+  #   p(d) ~ exp(c_1 d - N log(1 + e^d)) N(d; mu_1 - mu_2, tau2_1 + tau2_2).
   labels <- c(rep(0L, 20), rep(1L, 10), 0L, rep(1L, 5))
   batch_vec <- c(rep(0L, 30), rep(1L, 6))
-  mu <- 0.5; tau2 <- 1.5
+  mu <- c(0.4, -0.4); tau2 <- c(1.0, 0.8)
 
   set.seed(41)
   out <- partialPoolingWeightChain(labels, batch_vec, K = 2L, B = 3L, n_iter = 40000L,
     mu = mu, tau2 = tau2, eta_pw = 1.0)
   expect_equal(out$eta_moves_per_sweep, 3)
 
+  d_chain <- out$eta[, 1, 5001:40000] - out$eta[, 2, 5001:40000] # B x draws
   quantiles_of_target <- function(c_b, n_b, probs) {
-    grid <- seq(-8, 8, length.out = 20001)
-    dens <- exp(c_b * grid - n_b * log1p(exp(grid)) + dnorm(grid, mu, sqrt(tau2), log = TRUE))
+    grid <- seq(-12, 12, length.out = 40001)
+    dens <- exp(c_b * grid - n_b * log1p(exp(grid)) +
+      dnorm(grid, mu[1] - mu[2], sqrt(sum(tau2)), log = TRUE))
     cdf <- cumsum(dens) / sum(dens)
     vapply(probs, function(q) grid[which(cdf >= q)[1]], numeric(1))
   }
   probs <- c(0.1, 0.5, 0.9)
-  chain <- out$eta[, 1, 5001:40000]
   for (spec in list(list(b = 1, c = 20, n = 30), list(b = 2, c = 1, n = 6), list(b = 3, c = 0, n = 0))) {
     expect_lt(
-      max(abs(unname(quantile(chain[spec$b, ], probs)) - quantiles_of_target(spec$c, spec$n, probs))),
-      0.12
+      max(abs(unname(quantile(d_chain[spec$b, ], probs)) - quantiles_of_target(spec$c, spec$n, probs))),
+      0.15
     )
   }
 
@@ -238,6 +242,27 @@ test_that("per-batch partial-pooling update targets each batch's exact condition
   rate <- out$eta_count[1] / (40000 * out$eta_moves_per_sweep)
   expect_gt(rate, 0.05)
   expect_lt(rate, 0.95)
+})
+
+test_that("an empty batch's logits follow their prior exactly, for K = 4 classes", {
+  # With no data the conditional is the prior: eta_bk ~ N(mu_k, tau2_k)
+  # independently (the common shift is redrawn from its own exact Gibbs
+  # conditional, so the shift-invariant logit differences are what is
+  # identified).
+  labels <- rep(0:3, each = 5)
+  batch_vec <- rep(0L, 20) # batches 1 and 2 are empty
+  mu <- c(1.0, 0.0, -0.5, -0.5); tau2 <- c(0.5, 1.0, 1.5, 2.0)
+
+  set.seed(42)
+  out <- partialPoolingWeightChain(labels, batch_vec, K = 4L, B = 3L, n_iter = 30000L,
+    mu = mu, tau2 = tau2, eta_pw = 1.0)
+  eta <- out$eta[3, , 3001:30000] # K x draws, an empty batch
+  diffs <- eta[1, ] - eta[2, ]
+  expect_lt(abs(mean(diffs) - (mu[1] - mu[2])), 0.06)
+  expect_lt(abs(var(diffs) - (tau2[1] + tau2[2])), 0.15)
+  diffs34 <- eta[3, ] - eta[4, ]
+  expect_lt(abs(mean(diffs34)), 0.08)
+  expect_lt(abs(var(diffs34) - (tau2[3] + tau2[4])), 0.25)
 })
 
 test_that("sample_s_scale = TRUE rejects rho <= 2 instead of silently freezing rho", {

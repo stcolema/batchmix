@@ -78,13 +78,13 @@ lists the same items. In brief:
 - **`alpha`/`concentration` no longer regularise the weights** under partial
   pooling; they only matter for `"global"` (and for the starting labels from
   `generateInitialLabels()`). Surplus components are still largely emptied,
-  because the default `pp_mu_prior_sd = 10` on the log-ratios is diffuse
+  because the default `pp_mu_prior_sd = 10` on the logits is diffuse
   enough to act like a sparse Dirichlet (a simulation with 3 true clusters
-  and `K_max = 8` kept about 4.2 components occupied, against 4.1 under the
+  and `K_max = 8` kept about 3.8 components occupied, against 4.1 under the
   old global default). That is an empirical property, not a guarantee, it
-  depends on `K_max`, and sharpening `pp_mu_prior_sd` removes it, so keep the
-  default unless you also choose `K_max` close to the number of clusters you
-  expect.
+  depends on `K_max`, and a much sharper `pp_mu_prior_sd` (1 gave 7.9
+  occupied) removes it, so keep the default unless you also choose `K_max`
+  close to the number of clusters you expect.
 - **`batch_corrected_data` / `inferred_dataset`** are now the posterior mean
   of each item's batch-free signal, the exact inverse of the fitted batch
   model, and therefore shrunk towards the item's cluster mean (Step 8).
@@ -220,7 +220,7 @@ reconsider the prior (or its hyperparameters, e.g. `rho`/`theta` and
 shift, `pp_mu_prior_sd`/`pp_tau2_shape`/`pp_tau2_rate` for the batch
 weights) before ever looking at a fit. Note that the default partial-pooling
 prior on the weights is deliberately diffuse (`pp_mu_prior_sd = 10` on the
-log-ratio scale): a priori a batch's weights can be close to degenerate, and
+logit scale): a priori a batch's weights can be close to degenerate, and
 it is the data that pull them back.
 
 A scalar summary makes the same check quantitative - the classical
@@ -541,8 +541,8 @@ batch-specific estimates below should scatter around $1/K$ (the columns are
 the sampler's cluster indices, in arbitrary order). How much scatter
 remains is the partial-pooling compromise, not a defect: with a few dozen
 to a hundred items per batch each batch's proportions are only loosely
-determined, and the population variance `pp_tau2` of the log-ratio
-coordinates has a wide posterior that its prior (InvGamma(2, 1), mean 1)
+determined, and the population variance `pp_tau2` of the batch logits
+has a wide posterior that its prior (InvGamma(2, 1), mean 1)
 pulls up, so a moderate `pp_tau2` here does not mean the batches truly
 differ. If you know the proportions are equal across batches,
 `batch_weight_prior = "global"` encodes that and is more efficient; if you
@@ -558,8 +558,8 @@ round(chain_used$w_batch_est, 2)
 # True proportions (equal across batches in this simulation)
 round(group_weights, 2)
 
-# Posterior mean of the population variance of the log-ratio coordinates
-# (one per free coordinate; K - 1 of them)
+# Posterior mean of the population variance of the batch logits
+# (one per class; K of them)
 round(rowMeans(chain_used$pp_tau2), 2)
 
 # Posterior mean concentration of the batch-scale prior (larger = batches more

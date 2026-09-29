@@ -114,18 +114,20 @@ Rcpp::List priorOnlyLKJChain(
 
 //' @title Partial-pooling batch-weight chain with fixed hyperparameters (internal)
 //' @description Runs \code{updatePartialPoolingWeights()} repeatedly,
-//' resetting the population mean and variance to fixed values before every
-//' sweep so that the ALR entries of each batch are updated by the Metropolis
-//' kernel alone, targeting their exact conditional
-//' \eqn{p(\eta_b \mid counts_b) \propto \exp(c_b \eta_b - N_b \log(1 + e^{\eta_b}))
-//' N(\eta_b; \mu, \tau^2)} (for K = 2). A batch with no items follows its
-//' prior N(mu, tau2).
+//' resetting the population mean and variances to fixed values before every
+//' sweep so that each batch's logits are updated by the Metropolis and shift
+//' Gibbs kernels alone, targeting their exact conditional. The weights depend
+//' on the logits only through differences, so for two classes the logit
+//' difference \eqn{d = \eta_1 - \eta_2} of a batch with counts \eqn{c_1} and
+//' \eqn{N} has density
+//' \eqn{\propto \exp(c_1 d - N \log(1 + e^d)) N(d; \mu_1 - \mu_2, \tau_1^2 +
+//' \tau_2^2)}; a batch with no items follows the prior.
 //' @param labels,batch_vec 0-indexed cluster and batch labels of the items.
 //' @param K,B Number of clusters and batches.
 //' @param n_iter Number of sweeps.
-//' @param mu,tau2 The fixed hyperparameters (for every free coordinate).
+//' @param mu,tau2 K-vectors: the fixed population mean and class variances.
 //' @param eta_pw The proposal window (sd) of each scalar random walk.
-//' @return A list with the \code{eta} trace (B x (K - 1) x n_iter), the raw
+//' @return A list with the \code{eta} trace (B x K x n_iter), the raw
 //' \code{eta_count}, and \code{eta_moves_per_sweep}.
 //' @keywords internal
 //' @export
@@ -136,8 +138,8 @@ Rcpp::List partialPoolingWeightChain(
   arma::uword K,
   arma::uword B,
   arma::uword n_iter,
-  double mu,
-  double tau2,
+  arma::vec mu,
+  arma::vec tau2,
   double eta_pw
 ) {
   uword N = labels.n_elem;
@@ -150,12 +152,12 @@ Rcpp::List partialPoolingWeightChain(
   s.initialiseBatchWeightPrior(1, arma::regspace<arma::vec>(0, B - 1), 1.0, 1.0,
     eta_pw, false, 0.1, 2.0, 1.0, 10.0);
 
-  cube eta_trace(B, K - 1, n_iter);
+  cube eta_trace(B, K, n_iter);
   for(uword it = 0; it < n_iter; it++) {
-    s.pp_mu.fill(mu);
-    s.pp_tau2.fill(tau2);
+    s.pp_mu = mu;
+    s.pp_tau2 = tau2;
     s.updateWeights();
-    eta_trace.slice(it) = s.eta_alr;
+    eta_trace.slice(it) = s.eta_logit;
   }
 
   return Rcpp::List::create(

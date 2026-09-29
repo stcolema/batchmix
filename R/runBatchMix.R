@@ -140,33 +140,36 @@
 #' (where a between-batch variance cannot be estimated):
 #' \itemize{
 #'   \item \code{"partial_pooling"} (the default): each batch gets its own
-#'   weight vector, with the K-1 additive-log-ratio (ALR) coordinates of each
-#'   batch's weights drawn exchangeably around a shared, estimated population
-#'   mean and variance - no assumed order, distance or covariance structure
-#'   between batches. The population variance is learnt: it pulls batches
-#'   with little data towards the common composition and lets well-observed
-#'   batches differ. Under this prior the Dirichlet concentration
-#'   \code{alpha}/\code{concentration} is \strong{not used}. Surplus
-#'   components (\code{K_max} above the number of clusters) are nevertheless
-#'   still largely emptied, because the default \code{pp_mu_prior_sd = 10}
-#'   gives the log-ratios about the spread of a Dirichlet(1/\code{K_max}) at
-#'   \code{K_max} around 8 (in a simulation with 3 true clusters and
-#'   \code{K_max = 8}, about 4.2 components stayed occupied, against 4.1
-#'   under the earlier global Dirichlet(1/\code{K_max}) default). Sharpening
-#'   \code{pp_mu_prior_sd} removes this (about 6.5 occupied at 2.5, 7.9 at 1),
-#'   so do so only with a \code{K_max} near the number of clusters expected.
-#'   This is an empirical finding, not the Rousseau-Mengersen guarantee (which
-#'   is for a Dirichlet prior), and it depends on \code{K_max}. Note also
-#'   that the last cluster is the reference category of the log-ratio
-#'   coordinates, so the prior is not exchangeable over clusters: with
-#'   \code{K_max = 8} it makes the last cluster the largest one with prior
-#'   probability about 0.008, against 0.14 for each of the others.
+#'   weight vector \eqn{w_b = \mathrm{softmax}(\eta_b)} on K exchangeable
+#'   logits, \eqn{\eta_{bk} \sim N(\mu_k, \tau_k^2)} independently over
+#'   batches and classes, around a shared, estimated population mean
+#'   \eqn{\mu} (restricted to sum to zero) and class variances
+#'   \eqn{\tau_k^2} - no assumed order, distance or covariance structure
+#'   between batches, and no reference class, so the prior is the same for
+#'   every cluster. (An earlier version fixed the last cluster's logit at 0,
+#'   which made that cluster a priori far less likely to dominate than any
+#'   other; that asymmetry is gone.) The population variance is learnt: it
+#'   pulls batches with little data towards the common composition and lets
+#'   well-observed batches differ. Under this prior the Dirichlet
+#'   concentration \code{alpha}/\code{concentration} is \strong{not used}.
+#'   Surplus components (\code{K_max} above the number of clusters) are
+#'   nevertheless still largely emptied, because the default
+#'   \code{pp_mu_prior_sd = 10} makes the logits very diffuse (a pairwise
+#'   logit difference has standard deviation about 14, that of a
+#'   Dirichlet with concentration about 0.1). In a simulation with 3 true
+#'   clusters and \code{K_max = 8}, about 3.8 components stayed occupied
+#'   (4.1 under the earlier global Dirichlet(1/\code{K_max}) default, 7.3
+#'   under Dirichlet(1)); sharpening \code{pp_mu_prior_sd} to 2.5 gave 4.8 and
+#'   to 1 gave 7.9. This is an empirical finding, not the Rousseau-Mengersen
+#'   guarantee (which is for a Dirichlet prior), it is from one setting, and
+#'   it depends on \code{K_max}: the equivalent Dirichlet concentration
+#'   scales with neither \code{K_max} nor the data.
 #'   \item \code{"global"}: a single mixture weight vector shared by every
 #'   batch, with the symmetric Dirichlet(\code{alpha}) prior - the behaviour
 #'   before partial pooling became the default. Appropriate when batches are
 #'   known to contain the same mixture proportions.
 #'   \item \code{"gp"}: each batch gets its own weight vector as above, but
-#'   the ALR coordinates are instead linked across batches by a Gaussian
+#'   each class's logits are instead linked across batches by a Gaussian
 #'   process prior over \code{batch_coordinates} - for batches collected
 #'   over a genuine, known ordering in time or space, where nearby batches
 #'   are expected to be more similar than distant ones. Requires more
@@ -187,14 +190,18 @@
 #' rather than held fixed at the values passed in; only used if
 #' \code{batch_weight_prior} is \code{"gp"}.
 #' @param pp_tau2_shape,pp_tau2_rate Shape/rate of the InvGamma hyperprior
-#' on each ALR coordinate's population variance (how much pooling there is
+#' on each class's population variance (how much pooling there is
 #' across batches: small values of the resulting tau2 pull batches strongly
 #' towards their shared mean, large values let them vary close to
 #' independently); only used if \code{batch_weight_prior} is
 #' \code{"partial_pooling"}.
-#' @param pp_mu_prior_sd Prior standard deviation for each ALR coordinate's
-#' population mean (the shared value batches are pooled towards); only used
-#' if \code{batch_weight_prior} is \code{"partial_pooling"}.
+#' @param pp_mu_prior_sd Prior standard deviation of each class's population
+#' logit before the sum-to-zero constraint (the shared value batches are
+#' pooled towards); pairwise logit differences then have standard deviation
+#' about \code{1.4 * pp_mu_prior_sd}. It also governs how strongly surplus
+#' components are emptied (see \code{batch_weight_prior}). Only used if
+#' \code{batch_weight_prior} is \code{"partial_pooling"} (or \code{"gp"}, for
+#' the intercepts).
 #' @param column_type Only used if \code{type} is 'MVN_MIXED': a P-vector, 0
 #' for a continuous column, 1 for a binary column observed via a probit
 #' link. Defaults to all-continuous.

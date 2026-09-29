@@ -300,7 +300,7 @@ test_that("continueChain() preserves the batch-weight-prior/interaction model sp
   # weight_prior_type = 0 / include_interaction = FALSE regardless of what
   # the original chain used - changing what was being fitted, not just how.
   # It also never combined the new weight-prior trace fields (w_batch,
-  # eta_alr, gp_tau2, gp_length_scale, pp_mu, pp_tau2, gamma) with the old
+  # eta_logit, gp_tau2, gp_length_scale, pp_mu, pp_tau2, gamma) with the old
   # chain's, so even when the spec happened to match, continuing a chain
   # silently dropped everything before the continuation for these fields.
   set.seed(321)
@@ -376,14 +376,14 @@ test_that("continueChain() preserves the batch-weight-prior/interaction model sp
   expect_false(fit6g$sample_s_scale)
   expect_equal(fit6$n_iter, fit5$n_iter + 300)
 
-  # w_batch/eta_alr are returned unconditionally (batch_weight_prior =
+  # w_batch/eta_logit are returned unconditionally (batch_weight_prior =
   # "global" just makes every batch's row identical within an iteration),
   # so they must be combined for "global" too - this was missed in an
   # earlier version of this same fix, which only combined them when
-  # batch_weight_prior != "global", silently truncating w_batch/eta_alr
+  # batch_weight_prior != "global", silently truncating w_batch/eta_logit
   # back down to just the new segment for the (most common) default case.
   n5 <- dim(fit5$w_batch)[3]
   n6 <- dim(fit6$w_batch)[3]
   expect_equal(n6, n5 + floor(300 / fit5$thin))
-  expect_equal(dim(fit6$eta_alr)[3], n6)
+  expect_equal(dim(fit6$eta_logit)[3], n6)
 })

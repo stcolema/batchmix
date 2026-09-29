@@ -123,19 +123,22 @@ prior mean $\theta / (\rho - 1)$ stays at the value implied by the initial
 `rho`/`theta` (only the concentration is identifiable, because rescaling
 every $S_b$ is compensated by rescaling the cluster covariances;
 `sample_s_scale = FALSE` fixes $\rho, \theta$ instead). And each batch has
-its own mixture weights: the additive-log-ratio coordinates
-$\mathrm{alr}(w_b)_j \sim \mathcal{N}(\mu^{w}_j, \tau^{2}_j)$ are
-exchangeable around a population mean $\mu^{w}_j \sim \mathcal{N}(0,
-10^2)$ and variance $\tau^2_j \sim \mathrm{InvGamma}(2, 1)$
+its own mixture weights, the softmax of $K$ logits
+$\eta_{bk} \sim \mathcal{N}(\mu^{w}_k, \tau^{2}_k)$, exchangeable over
+batches around a population mean $\mu^{w}$ (with $\mu^{w}_k \sim
+\mathcal{N}(0, 10^2)$, constrained to sum to zero) and class variances
+$\tau^2_k \sim \mathrm{InvGamma}(2, 1)$; there is no reference class, so
+every cluster has the same prior
 (`batch_weight_prior = "partial_pooling"`; one shared
 $w \sim \mathrm{Dirichlet}(\alpha)$ with `batch_weight_prior = "global"`,
 the earlier default, or a Gaussian process over batch coordinates with
 `"gp"` - see the `batch_weight_priors` vignette). Under partial pooling
-$\alpha$ is unused. Surplus components are still largely emptied, because the
-default $10^2$ variance of $\mu^w_j$ gives the log-ratios about the spread
-of a Dirichlet($1/K_{\max}$) at $K_{\max}$ around 8; this is an empirical
-property (not the Rousseau-Mengersen guarantee for Dirichlet priors), it
-depends on $K_{\max}$, and a sharper `pp_mu_prior_sd` removes it. Model comparison across $K$ uses the Bayesian
+$\alpha$ is unused. Surplus components are still largely emptied, because
+the default $10^2$ variance of $\mu^w_k$ makes pairwise logit differences
+have a standard deviation of about 14, that of a Dirichlet with
+concentration about 0.1; this is an empirical property from one simulation
+(not the Rousseau-Mengersen guarantee for Dirichlet priors), it depends on
+$K_{\max}$, and a much sharper `pp_mu_prior_sd` weakens it. Model comparison across $K$ uses the Bayesian
 information criterion,
 
 $$
