@@ -1,0 +1,137 @@
+// predictNewBatchMVN.h
+// =============================================================================
+// include guard
+#ifndef PREDICTNEWBATCHMVN_H
+#define PREDICTNEWBATCHMVN_H
+
+// =============================================================================
+// included dependencies
+# include <RcppArmadillo.h>
+# include "mvnSampler.h"
+
+// =============================================================================
+// predictNewBatchMVN function header
+
+//' @title Predict a new batch (MVN), given its own data
+//' @description Composition-sampling posterior predictive (Rubin, 1987;
+//' Gelman, Carlin, Stern, Dunson, Vehtari & Rubin, 2013, "Bayesian Data
+//' Analysis," 3rd ed., sec. 1.10) for a batch not seen during training,
+//' now with that batch's own (unlabelled, or partially labelled) data
+//' observed. For each of \code{n_draws} retained posterior draws from an
+//' already-fitted chain, this appends \code{X_new} as one new batch, fixes
+//' every cluster parameter and population hyperparameter at that draw's
+//' value (see \code{sampler::predict_mode} in src/sampler.h), and runs
+//' \code{n_pred_iter} Metropolis/Gibbs sweeps that update ONLY the new
+//' batch's own shift, scale, weight and item allocations - i.e. draws from
+//' p(new batch's parameters, new items' labels | posterior draw,
+//' \code{X_new}) by literally reusing the training sampler's own
+//' conditional updates restricted to the one new batch. This is not called
+//' directly by users - see \code{predictNewBatch()} in R, which prepares
+//' every argument below (in particular the relabelling-safe, Rao-
+//' Blackwellised \code{eta_alr_init}/\code{gp_beta}/\code{pp_mu}/\code{pp_tau2}
+//' - see \code{R/predictNewBatch.R}'s block comment) from the output of
+//' \code{processMCMCChain()}.
+//' @param X The ORIGINAL training data (items in rows).
+//' @param X_new The new batch's data (items in rows); may contain NaN for
+//' missing entries, handled the same way as \code{X} was at training time.
+//' @param K Number of components (must match the original fit's K_max).
+//' @param B Number of ORIGINAL batches (not counting the new one).
+//' @param batch_vec The original batch labels for \code{X}, 0-indexed.
+//' @param fixed_new Binary vector for \code{X_new}: 1 for any item whose
+//' label is already known (semi-supervised), 0 otherwise.
+//' @param labels_new_init Initial/known labels for \code{X_new}'s items
+//' (0-indexed); only entries where \code{fixed_new == 1} matter, since
+//' every unfixed item's label is redrawn every sweep regardless of its
+//' starting value.
+//' @param label_draws N x n_draws matrix, the original items' sampled
+//' labels at each retained posterior iteration (\code{processed_chain$samples},
+//' transposed) - frozen for the whole prediction run (every original item
+//' is marked fixed internally), but still needed every draw since the
+//' per-batch/per-cluster counts several updates depend on drift with it.
+//' @param means_draws P x K x n_draws array of cluster means.
+//' @param cov_draws P x (P*K) x n_draws array of cluster covariances (same
+//' column layout as the training driver's own \code{covariance} output).
+//' @param batch_shift_draws,batch_scale_draws P x B x n_draws arrays of the
+//' ORIGINAL batches' shift/scale at each draw.
+//' @param shift_new_init,scale_new_init P x n_draws matrices: the new
+//' batch's own shift/scale, seeded from its prior/GP-conditional
+//' predictive draw (see \code{predictNewBatch()}'s no-data path) and then
+//' refined by this function's Metropolis sweeps.
+//' @param m_scale,rho,theta Batch shift/scale prior hyperparameters, as at
+//' training time.
+//' @param lambda_2_draws n_draws vector: the shift-prior hyperparameter at
+//' each draw (used, held fixed throughout prediction, when the original
+//' fit had \code{sample_m_scale = TRUE}; ignored - \code{m_scale} used
+//' instead - otherwise).
+//' @param sample_m_scale Whether the original fit sampled \code{lambda_2}.
+//' @param weight_prior_type 0 = "global", 1 = "partial_pooling", 2 = "gp" -
+//' as in \code{sampleSemisupervisedMVN()}.
+//' @param weights_draws n_draws x K matrix of the shared weight vector
+//' (only meaningful, and only used, if \code{weight_prior_type == 0}).
+//' @param eta_alr_init_draws (B+1) x (K-1) x n_draws array: every free ALR
+//' coordinate for every batch INCLUDING the new one (last row), already
+//' relabelling-safe and with the new batch's row seeded from its own
+//' prior/GP-conditional predictive draw - see \code{predictNewBatch()}.
+//' Ignored if \code{weight_prior_type == 0}.
+//' @param gp_beta_draws,pp_mu_draws,pp_tau2_draws (K-1) x n_draws matrices:
+//' the population hyperparameter(s) for the free ALR coordinates, held
+//' fixed throughout prediction (Rao-Blackwellised point estimates - see
+//' \code{predictNewBatch()}). Only \code{gp_beta_draws} is used if
+//' \code{weight_prior_type == 2}; only \code{pp_mu_draws}/\code{pp_tau2_draws}
+//' if \code{weight_prior_type == 1}.
+//' @param gp_tau2_draws,gp_length_scale_draws n_draws vectors of the GP
+//' kernel hyperparameters at each draw; only used if
+//' \code{weight_prior_type == 2}.
+//' @param batch_coordinates_new (B+1)-vector: the original batches'
+//' coordinates plus the new batch's own, in that order; only used if
+//' \code{weight_prior_type == 2}.
+//' @param eta_proposal_window,m_proposal_window,S_proposal_window Proposal
+//' windows for the new batch's weight/shift/scale Metropolis updates
+//' (reuse the original fit's final tuned windows).
+//' @param n_pred_iter Number of sweeps to run PER retained posterior draw.
+//' @param pred_burn Sweeps discarded (per draw) before recording starts.
+//' @param pred_thin Thinning factor for the recorded sweeps.
+//' @return Named list of the new batch's predictive draws: \code{label_new}
+//' (n_total x N_new), \code{alloc_new} (N_new x K x n_total),
+//' \code{shift_new}/\code{scale_new} (P x n_total), \code{weight_new}
+//' (K x n_total), where n_total = n_draws times the number of sweeps kept
+//' per draw.
+// [[Rcpp::export]]
+Rcpp::List predictNewBatchMVN(
+    arma::mat X,
+    arma::mat X_new,
+    arma::uword K,
+    arma::uword B,
+    arma::uvec batch_vec,
+    arma::uvec fixed_new,
+    arma::uvec labels_new_init,
+    arma::umat label_draws,
+    arma::cube means_draws,
+    arma::cube cov_draws,
+    arma::cube batch_shift_draws,
+    arma::cube batch_scale_draws,
+    arma::mat shift_new_init,
+    arma::mat scale_new_init,
+    double m_scale,
+    arma::vec lambda_2_draws,
+    bool sample_m_scale,
+    double rho,
+    double theta,
+    arma::uword weight_prior_type,
+    arma::mat weights_draws,
+    arma::cube eta_alr_init_draws,
+    arma::mat gp_beta_draws,
+    arma::mat pp_mu_draws,
+    arma::mat pp_tau2_draws,
+    arma::vec gp_tau2_draws,
+    arma::vec gp_length_scale_draws,
+    arma::vec batch_coordinates_new,
+    double eta_proposal_window,
+    double m_proposal_window,
+    double S_proposal_window,
+    arma::uword n_pred_iter,
+    arma::uword pred_burn,
+    arma::uword pred_thin
+);
+
+#endif /* PREDICTNEWBATCHMVN_H */

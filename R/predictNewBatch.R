@@ -140,6 +140,18 @@
 # (mu_j, tau2_j). gp_tau2/gp_length_scale are single values shared across
 # every coordinate (not class-indexed), so are unaffected by relabelling
 # and are used as sampled.
+#
+# Returns a list: `weight_draws` (n_saved x K, always present - the public
+# result for the no-data case) plus, when weight_prior != "global" and
+# there's more than one class, the auxiliary per-draw quantities
+# predictNewBatch()'s X_new path needs to seed and then refine the same
+# draw via composition sampling: `eta_known` (B x n_free x n_saved, the
+# ORIGINAL batches' relabelling-safe ALR coordinates), `eta_star` (n_saved
+# x n_free, the new batch's own seeded predictive draw - identical to what
+# produced `weight_draws`), and the Rao-Blackwellised population
+# hyperparameter(s) to hold fixed throughout prediction: `beta_hat`
+# (n_free x n_saved, "gp") or `mu_hat`/`tau2_hat` (n_free x n_saved each,
+# "partial_pooling").
 .predictiveWeightDraws <- function(processed_chain, new_batch_coordinate = NULL) {
   K <- processed_chain$K_max
   B <- processed_chain$B
@@ -151,7 +163,7 @@
   }
 
   if (weight_prior == "global") {
-    return(processed_chain$weights)
+    return(list(weight_draws = processed_chain$weights))
   }
 
   if (weight_prior == "gp" && is.null(new_batch_coordinate)) {
@@ -164,15 +176,18 @@
   n_free <- K - 1
   weight_draws <- matrix(1, n_saved, K) # K == 1 edge case: trivially all mass on the one class
   if (n_free == 0) {
-    return(weight_draws)
+    return(list(weight_draws = weight_draws))
   }
 
   eta_star <- matrix(0, n_saved, n_free)
+  eta_known_arr <- array(0, dim = c(B, n_free, n_saved))
+  beta_hat <- mu_hat <- tau2_hat <- matrix(0, n_free, n_saved)
   mu_prior_sd <- processed_chain$pp_mu_prior_sd %||% 10.0
 
   for (t in seq_len(n_saved)) {
     wb <- processed_chain$w_batch[, , t]
     eta_known <- log(wb[, seq_len(n_free), drop = FALSE] / wb[, K]) # B x n_free, relabelling-safe
+    eta_known_arr[, , t] <- eta_known
 
     if (weight_prior == "gp") {
       gp_tau2 <- processed_chain$gp_tau2[t]
@@ -187,6 +202,7 @@
       for (j in seq_len(n_free)) {
         e <- eta_known[, j]
         beta_j <- .gpBetaPosteriorMean(e, L, mu_prior_sd)
+        beta_hat[j, t] <- beta_j
         solved <- forwardsolve(L, e - beta_j)
         solved <- backsolve(t(L), solved)
         mean_star <- beta_j + sum(k_star * solved)
@@ -200,6 +216,8 @@
       for (j in seq_len(n_free)) {
         e <- eta_known[, j]
         post <- .ppMuTau2PosteriorMean(e, mu_prior_sd, tau2_prior_shape, tau2_prior_rate)
+        mu_hat[j, t] <- post$mu
+        tau2_hat[j, t] <- post$tau2
         eta_star[t, j] <- stats::rnorm(1, post$mu, sqrt(post$tau2))
       }
     }
@@ -208,7 +226,11 @@
   D <- 1 + rowSums(exp(eta_star))
   weight_draws[, seq_len(n_free)] <- exp(eta_star) / D
   weight_draws[, K] <- 1 / D
-  weight_draws
+
+  list(
+    weight_draws = weight_draws, eta_known = eta_known_arr, eta_star = eta_star,
+    beta_hat = beta_hat, mu_hat = mu_hat, tau2_hat = tau2_hat
+  )
 }
 
 # Posterior-predictive draws of a new batch's own shift (m*) and scale
@@ -244,61 +266,121 @@
   list(shift = shift_draws, scale = scale_draws)
 }
 
+.predictNewBatchDriverName <- function(type) {
+  switch(type,
+    MVN = "predictNewBatchMVN",
+    MVT = "predictNewBatchMVT",
+    MVN_LKJ = "predictNewBatchMVNSeparationStrategy",
+    MVN_MIXED = "predictNewBatchMVNMixed",
+    stop("Type not recognised. Please use one of 'MVN', 'MVT', 'MVN_LKJ' or 'MVN_MIXED'.")
+  )
+}
+
 #' @title Predict a new batch
 #' @description Posterior-predictive quantities for a batch not seen
 #' during fitting, for any model \code{type} and any \code{batch_weight_prior}.
 #' With no new data (\code{X_new = NULL}), draws the new batch's own class
-#' weights, and location/scale shift, straight from their fitted priors -
+#' weights and location/scale shift straight from their fitted priors -
 #' for \code{batch_weight_prior = "gp"} this is a genuine Gaussian process
 #' prediction at \code{new_batch_coordinate} (e.g. a future collection
-#' time); see the file-level comment in \code{R/predictNewBatch.R} for the
-#' full statistical justification, including why \code{"gp"}/\code{"partial_pooling"}
-#' weights have a real cross-batch predictive distribution but batch scale
-#' currently does not (a known asymmetry in the underlying model, not
-#' something this function can fix). \code{X_new} (classifying actual new
-#' data arriving under the new batch) is not yet supported by this
-#' function.
+#' time). With \code{X_new} supplied, additionally classifies that data by
+#' composition sampling: for each retained posterior draw, the new batch's
+#' own shift/scale/weight and item allocations are drawn from their
+#' conditional posterior GIVEN that draw's (fixed) cluster parameters and
+#' \code{X_new}'s own likelihood, by literally reusing the training
+#' sampler's own Metropolis/Gibbs updates restricted to the one new batch
+#' (\code{sampler::predict_mode}, src/sampler.h) - see the file-level
+#' comment in \code{R/predictNewBatch.R} for the full statistical
+#' justification (composition sampling for a posterior predictive
+#' distribution, Rubin 1987; BDA3 sec. 1.10), including why
+#' \code{"gp"}/\code{"partial_pooling"} weights have a real cross-batch
+#' predictive distribution but batch scale currently does not (a known
+#' asymmetry in the underlying model, not something this function can fix).
 #' @param processed_chain Output of \code{\link{processMCMCChain}} (a
 #' single chain, burn-in applied and relabelled).
 #' @param X The original training data passed to the function that
 #' produced \code{processed_chain} (same convention as
-#' \code{\link{continueChain}}'s \code{X} argument) - needed only to
-#' recompute the batch-shift prior's empirical-Bayes scale.
+#' \code{\link{continueChain}}'s \code{X} argument).
+#' @param batch_vec The ORIGINAL per-item batch labels for \code{X} (same
+#' convention as \code{\link{continueChain}}'s \code{batch_vec} argument -
+#' the fit object does not store this itself). Required, and only used,
+#' when \code{X_new} is supplied.
 #' @param new_batch_coordinate The new batch's 1-D coordinate (e.g. its
 #' collection time), required when \code{processed_chain$batch_weight_prior == "gp"}
 #' and ignored otherwise.
-#' @param X_new Not yet implemented; must be \code{NULL}.
-#' @return A named list:
+#' @param X_new The new batch's own data (items in rows, same \code{P}
+#' columns as \code{X}), or \code{NULL} (the default) for the no-data
+#' prior/GP-predictive case.
+#' @param fixed_new Binary vector, one entry per row of \code{X_new}: 1 for
+#' any item whose label is already known (semi-supervised), 0 otherwise.
+#' Defaults to all-unknown. Ignored if \code{X_new} is \code{NULL}.
+#' @param labels_new_init Known/initial labels for \code{X_new}'s items
+#' (1-indexed, matching this package's usual convention); only entries
+#' where \code{fixed_new == 1} matter. Defaults to all-1 (arbitrary,
+#' since every unfixed item's label is redrawn from scratch regardless of
+#' its starting value). Ignored if \code{X_new} is \code{NULL}.
+#' @param n_draws Number of retained posterior iterations from
+#' \code{processed_chain} to use for composition sampling; \code{NULL}
+#' (the default) uses every retained iteration. Lower this to trade
+#' predictive-sample size for speed on a large chain. Ignored if
+#' \code{X_new} is \code{NULL}.
+#' @param n_pred_iter Number of Metropolis/Gibbs sweeps run per posterior
+#' draw. Ignored if \code{X_new} is \code{NULL}.
+#' @param pred_burn Sweeps discarded (per draw) before recording starts;
+#' defaults to \code{floor(n_pred_iter / 2)}. Ignored if \code{X_new} is
+#' \code{NULL}.
+#' @param pred_thin Thinning factor applied to the recorded sweeps.
+#' Ignored if \code{X_new} is \code{NULL}.
+#' @return A named list. Always present:
 #' \itemize{
 #'   \item \code{weight_draws}: \code{n_saved x K} matrix, one predictive
-#'   class-weight draw per retained posterior iteration.
+#'   class-weight draw per retained posterior iteration (no-data
+#'   prior/GP-predictive draw; also used to seed the composition-sampling
+#'   draw when \code{X_new} is supplied).
 #'   \item \code{shift_draws}, \code{scale_draws}: \code{P x n_saved}
 #'   matrices, the new batch's predictive location shift/scale.
 #'   \item \code{weight_est}, \code{shift_est}, \code{scale_est}: median
-#'   point estimates (vectors of length \code{K}/\code{P}/\code{P}).
-#'   \item \code{mean_sum_est}: \code{P x K} matrix, \code{mean_est + shift_est}
-#'   - the new batch's predicted, batch-shifted cluster locations.
+#'   point estimates.
+#'   \item \code{mean_sum_est}: \code{P x K} matrix, \code{mean_est + shift_est}.
 #' }
+#' Additionally, when \code{X_new} is supplied: \code{label_new} (a matrix,
+#' one row per composition-sampling draw, one column per row of
+#' \code{X_new}), \code{allocation_probability} (\code{N_new x K} point
+#' estimate, as \code{\link{calcAllocProb}}), \code{prob}/\code{pred} (the
+#' usual per-item probability/class point estimates), and
+#' \code{shift_new_draws}/\code{scale_new_draws}/\code{weight_new_draws}
+#' (the composition-sampling-refined versions of \code{shift_draws}/
+#' \code{scale_draws}/\code{weight_draws}, now conditioned on \code{X_new}
+#' as well as the fitted model).
 #' @export
-predictNewBatch <- function(processed_chain, X, new_batch_coordinate = NULL, X_new = NULL) {
-  if (!is.null(X_new)) {
-    stop(
-      "Predicting a new batch's own data (X_new) is not yet implemented; ",
-      "only the no-data (prior/GP-predictive) case is currently supported."
-    )
-  }
+predictNewBatch <- function(processed_chain, X, batch_vec = NULL, new_batch_coordinate = NULL, X_new = NULL,
+                             fixed_new = NULL, labels_new_init = NULL,
+                             n_draws = NULL, n_pred_iter = 200, pred_burn = NULL, pred_thin = 1) {
   if (is.null(processed_chain$mean_est)) {
     stop("processed_chain must be the output of processMCMCChain() (burn-in applied, point estimates computed).")
   }
+  if (!is.null(X_new)) {
+    if (isTRUE(processed_chain$include_interaction)) {
+      stop(
+        "predictNewBatch() with X_new does not support include_interaction = TRUE fits: ",
+        "the fitted batch x cluster interaction term would be silently dropped for every ",
+        "batch (not just the new one), not merely omitted for the new batch alone."
+      )
+    }
+    if (is.null(batch_vec)) {
+      stop("batch_vec (the original per-item batch labels) is required when X_new is supplied.")
+    }
+  }
 
-  weight_draws <- .predictiveWeightDraws(processed_chain, new_batch_coordinate)
+  weights_info <- .predictiveWeightDraws(processed_chain, new_batch_coordinate)
+  weight_draws <- weights_info$weight_draws
   shift_scale <- .predictiveShiftScaleDraws(processed_chain, X)
 
   weight_est <- apply(weight_draws, 2, stats::median)
   shift_est <- apply(shift_scale$shift, 1, stats::median)
   scale_est <- apply(shift_scale$scale, 1, stats::median)
 
-  list(
+  out <- list(
     weight_draws = weight_draws,
     shift_draws = shift_scale$shift,
     scale_draws = shift_scale$scale,
@@ -307,4 +389,109 @@ predictNewBatch <- function(processed_chain, X, new_batch_coordinate = NULL, X_n
     scale_est = scale_est,
     mean_sum_est = processed_chain$mean_est + shift_est
   )
+
+  if (is.null(X_new)) {
+    return(out)
+  }
+
+  N_new <- nrow(X_new)
+  fixed_new <- fixed_new %||% rep(0L, N_new)
+  labels_new_init <- labels_new_init %||% rep(1L, N_new)
+
+  n_saved_total <- dim(processed_chain$means)[3]
+  draw_idx <- if (is.null(n_draws)) {
+    seq_len(n_saved_total)
+  } else {
+    round(seq(1, n_saved_total, length.out = min(n_draws, n_saved_total)))
+  }
+  if (is.null(pred_burn)) pred_burn <- floor(n_pred_iter / 2)
+
+  type <- processed_chain$type
+  K <- processed_chain$K_max
+  B <- processed_chain$B
+  weight_prior <- processed_chain$batch_weight_prior %||% "global"
+  weight_prior_type <- switch(weight_prior, global = 0L, partial_pooling = 1L, gp = 2L)
+  n_free <- max(K - 1, 0)
+
+  batch_coordinates_new <- if (weight_prior == "gp") {
+    c(processed_chain$batch_coordinates, new_batch_coordinate)
+  } else {
+    numeric(B + 1)
+  }
+
+  eta_alr_init_draws <- array(0, dim = c(B + 1, n_free, length(draw_idx)))
+  if (weight_prior != "global" && n_free > 0) {
+    for (i in seq_along(draw_idx)) {
+      t <- draw_idx[i]
+      # matrix(..., ncol = n_free), not a bare [, , t] slice: with n_free == 1
+      # (K == 2) that slice silently drops to a plain B-length vector,
+      # breaking rbind()'s column alignment below.
+      eta_known_t <- matrix(weights_info$eta_known[, , t], ncol = n_free)
+      eta_star_t <- matrix(weights_info$eta_star[t, ], nrow = 1, ncol = n_free)
+      eta_alr_init_draws[, , i] <- rbind(eta_known_t, eta_star_t)
+    }
+  }
+
+  batch_vec_0idx <- as.integer(as.factor(batch_vec)) - 1L
+  if (max(batch_vec_0idx) + 1L != B) {
+    stop("batch_vec does not have exactly B = ", B, " distinct values matching processed_chain.")
+  }
+
+  args <- list(
+    X = X, X_new = X_new, K = K, B = B,
+    batch_vec = batch_vec_0idx,
+    fixed_new = as.integer(fixed_new),
+    labels_new_init = as.integer(labels_new_init) - 1L,
+    label_draws = t(processed_chain$samples[draw_idx, , drop = FALSE]),
+    means_draws = processed_chain$means[, , draw_idx, drop = FALSE],
+    cov_draws = processed_chain$covariance[, , draw_idx, drop = FALSE],
+    batch_shift_draws = processed_chain$batch_shift[, , draw_idx, drop = FALSE],
+    batch_scale_draws = processed_chain$batch_scale[, , draw_idx, drop = FALSE],
+    shift_new_init = shift_scale$shift[, draw_idx, drop = FALSE],
+    scale_new_init = shift_scale$scale[, draw_idx, drop = FALSE],
+    m_scale = processed_chain$m_scale %||% 0.01,
+    lambda_2_draws = if (isTRUE(processed_chain$sample_m_scale)) processed_chain$lambda_2[draw_idx] else rep(0, length(draw_idx)),
+    sample_m_scale = isTRUE(processed_chain$sample_m_scale),
+    rho = processed_chain$rho,
+    theta = processed_chain$theta,
+    weight_prior_type = weight_prior_type,
+    weights_draws = if (weight_prior == "global") weight_draws[draw_idx, , drop = FALSE] else matrix(0, length(draw_idx), K),
+    eta_alr_init_draws = eta_alr_init_draws,
+    gp_beta_draws = if (weight_prior == "gp") weights_info$beta_hat[, draw_idx, drop = FALSE] else matrix(0, n_free, length(draw_idx)),
+    pp_mu_draws = if (weight_prior == "partial_pooling") weights_info$mu_hat[, draw_idx, drop = FALSE] else matrix(0, n_free, length(draw_idx)),
+    pp_tau2_draws = if (weight_prior == "partial_pooling") weights_info$tau2_hat[, draw_idx, drop = FALSE] else matrix(0, n_free, length(draw_idx)),
+    gp_tau2_draws = if (weight_prior == "gp") processed_chain$gp_tau2[draw_idx] else rep(1, length(draw_idx)),
+    gp_length_scale_draws = if (weight_prior == "gp") processed_chain$gp_length_scale[draw_idx] else rep(1, length(draw_idx)),
+    batch_coordinates_new = batch_coordinates_new,
+    eta_proposal_window = processed_chain$final_eta_proposal_window %||% processed_chain$eta_proposal_window %||% 0.1,
+    m_proposal_window = processed_chain$final_m_proposal_window %||% processed_chain$m_proposal_window %||% 0.5**2,
+    S_proposal_window = if (!is.null(processed_chain$final_S_proposal_window)) {
+      1.0 / processed_chain$final_S_proposal_window
+    } else {
+      processed_chain$S_proposal_window %||% 0.01
+    },
+    n_pred_iter = n_pred_iter, pred_burn = pred_burn, pred_thin = pred_thin
+  )
+
+  raw <- do.call(get(.predictNewBatchDriverName(type)), args)
+
+  # raw$label_new/alloc_new are 0-indexed (the C++ layer's convention);
+  # +1 to match this package's usual 1-indexed class labels everywhere else
+  # (e.g. calcAllocProb()/predictClass()'s output).
+  label_new <- raw$label_new + 1L
+  alloc_prob <- apply(raw$alloc_new, c(1, 2), median)
+
+  out$label_new <- label_new
+  out$allocation_probability <- alloc_prob
+  out$prob <- apply(alloc_prob, 1, max)
+  out$pred <- apply(alloc_prob, 1, which.max)
+  out$shift_new_draws <- raw$shift_new
+  out$scale_new_draws <- raw$scale_new
+  out$weight_new_draws <- t(raw$weight_new)
+  out$shift_est <- apply(raw$shift_new, 1, stats::median)
+  out$scale_est <- apply(raw$scale_new, 1, stats::median)
+  out$weight_est <- apply(raw$weight_new, 1, stats::median)
+  out$mean_sum_est <- processed_chain$mean_est + out$shift_est
+
+  out
 }
