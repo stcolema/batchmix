@@ -146,10 +146,21 @@
 #'   between batches. The population variance is learnt: it pulls batches
 #'   with little data towards the common composition and lets well-observed
 #'   batches differ. Under this prior the Dirichlet concentration
-#'   \code{alpha}/\code{concentration} is \strong{not used}, so an
-#'   over-specified \code{K_max} is no longer regularised towards empty
-#'   components by a sparse Dirichlet prior; prefer a \code{K_max} near the
-#'   number of clusters you expect.
+#'   \code{alpha}/\code{concentration} is \strong{not used}. Surplus
+#'   components (\code{K_max} above the number of clusters) are nevertheless
+#'   still largely emptied, because the default \code{pp_mu_prior_sd = 10}
+#'   gives the log-ratios about the spread of a Dirichlet(1/\code{K_max}) at
+#'   \code{K_max} around 8 (in a simulation with 3 true clusters and
+#'   \code{K_max = 8}, about 4.2 components stayed occupied, against 4.1
+#'   under the earlier global Dirichlet(1/\code{K_max}) default). Sharpening
+#'   \code{pp_mu_prior_sd} removes this (about 6.5 occupied at 2.5, 7.9 at 1),
+#'   so do so only with a \code{K_max} near the number of clusters expected.
+#'   This is an empirical finding, not the Rousseau-Mengersen guarantee (which
+#'   is for a Dirichlet prior), and it depends on \code{K_max}. Note also
+#'   that the last cluster is the reference category of the log-ratio
+#'   coordinates, so the prior is not exchangeable over clusters: with
+#'   \code{K_max = 8} it makes the last cluster the largest one with prior
+#'   probability about 0.008, against 0.14 for each of the others.
 #'   \item \code{"global"}: a single mixture weight vector shared by every
 #'   batch, with the symmetric Dirichlet(\code{alpha}) prior - the behaviour
 #'   before partial pooling became the default. Appropriate when batches are

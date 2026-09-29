@@ -77,10 +77,14 @@ lists the same items. In brief:
   `batch_weight_priors` vignette compares the weight priors in detail.
 - **`alpha`/`concentration` no longer regularise the weights** under partial
   pooling; they only matter for `"global"` (and for the starting labels from
-  `generateInitialLabels()`). With the global Dirichlet(`1 / K_max`) prior an
-  over-large `K_max` was pushed towards empty components; that pressure is
-  now absent, so choose a `K_max` near the number of clusters you expect
-  rather than a generous upper bound.
+  `generateInitialLabels()`). Surplus components are still largely emptied,
+  because the default `pp_mu_prior_sd = 10` on the log-ratios is diffuse
+  enough to act like a sparse Dirichlet (a simulation with 3 true clusters
+  and `K_max = 8` kept about 4.2 components occupied, against 4.1 under the
+  old global default). That is an empirical property, not a guarantee, it
+  depends on `K_max`, and sharpening `pp_mu_prior_sd` removes it, so keep the
+  default unless you also choose `K_max` close to the number of clusters you
+  expect.
 - **`batch_corrected_data` / `inferred_dataset`** are now the posterior mean
   of each item's batch-free signal, the exact inverse of the fitted batch
   model, and therefore shrunk towards the item's cluster mean (Step 8).

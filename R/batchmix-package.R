@@ -14,8 +14,10 @@
 #' batch) and the concentration of the batch-scale prior is estimated
 #' (\code{sample_s_scale = TRUE}). For the earlier fixed-hyperparameter model
 #' use \code{batch_weight_prior = "global", sample_s_scale = FALSE}. Under
-#' partial pooling \code{alpha}/\code{concentration} are unused, so choose
-#' \code{K_max} near the number of clusters expected. The batch-corrected
+#' partial pooling \code{alpha}/\code{concentration} are unused; surplus
+#' components are still largely emptied by the diffuse default
+#' \code{pp_mu_prior_sd}, which sharpening would remove (see
+#' \code{?runBatchMix}). The batch-corrected
 #' data are now the posterior mean of each item's batch-free signal, several
 #' sampler corrections change fixed-seed output, models should be compared
 #' with \code{\link{calcBICM}}, and \code{salso} is no longer needed (see

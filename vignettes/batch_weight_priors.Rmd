@@ -25,8 +25,19 @@ where there is nothing to pool across, the default is `"global"`), and
 `"global"` - the default in earlier versions - now has to be requested.
 Two consequences are worth knowing before reading the comparison below.
 Under partial pooling the Dirichlet concentration `alpha`/`concentration`
-is not used, so the sparse-Dirichlet pressure that used to empty surplus
-components when `K_max` was set generously is gone. And the default also
+is not used. Surplus components (`K_max` above the number of clusters) are
+still largely emptied, but by a different mechanism: the default
+`pp_mu_prior_sd = 10` on the log-ratios has about the spread of a
+Dirichlet(1/`K_max`) at `K_max` around 8, so it behaves like a sparse prior
+(with 3 true clusters and `K_max = 8`, about 4.2 components stayed occupied,
+against 4.1 under the old global default; `inst/experiments/
+overfitted_weight_priors.R`). Sharpening `pp_mu_prior_sd` removes that (about
+6.5 occupied at 2.5, 7.9 at 1), and it is an empirical finding, not the
+Rousseau-Mengersen guarantee, which is for Dirichlet priors. The log-ratio
+coordinates also use the last cluster as their reference, so the prior is not
+exchangeable over clusters: the last cluster is a priori much less likely to
+be the dominant one (0.008 against 0.14 for each other cluster at
+`K_max = 8`). And the default also
 partially pools the batch *scales* (`sample_s_scale = TRUE`; Section 8),
 so every fit in this vignette does so, and the three fits differ only in
 their weight prior. The getting-started and covariance-model vignettes cover the
