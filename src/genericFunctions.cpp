@@ -655,6 +655,63 @@ double robbinsMonroUpdateReciprocal(
   return 1.0 / robbinsMonroUpdate(1.0 / window, acceptance_rate, target_rate, n, step_scale, kappa);
 };
 
+//' @title Posterior-mean batch-corrected data
+//' @description For every item, the posterior mean of its latent
+//' batch-free signal given its observed value and one draw of the
+//' parameters. The fitted model has, for an item in cluster k and batch b,
+//' \eqn{x = \mu_k + m_b + c + e}, with \eqn{c \sim N(0, \Sigma_k)} the
+//' batch-free within-cluster signal and \eqn{e \sim N(0, diag((S_b - 1)
+//' \Sigma_{k,pp}))} the batch's extra per-feature noise, independent of
+//' \eqn{c}, so that \eqn{Cov(x) = \Sigma_k + diag((S_b - 1) \Sigma_{k,pp})
+//' = \Sigma_{kb}} (the model's \code{cov_comb}; this requires \eqn{S_b \ge
+//' 1}, which the \code{S_loc = 1} support of the batch-scale prior
+//' guarantees). By the Gaussian conditioning identity
+//' \eqn{E[c \mid x] = \Sigma_k \Sigma_{kb}^{-1} (x - \mu_k - m_b)}, and the
+//' returned value is \eqn{\mu_k + E[c \mid x]}. For the Student-t model the
+//' same expression is the exact posterior mean given the latent scale
+//' variable, whose factor cancels, and hence marginally. Unlike rescaling
+//' the residual by \eqn{S_b^{-1/2}}, this is the exact inverse of the
+//' fitted (diagonal-inflation) batch model for a non-diagonal
+//' \eqn{\Sigma_k}. It is a denoising estimate, not a change of variables:
+//' within-cluster deviations are shrunk towards \eqn{\mu_k} by
+//' \eqn{\Sigma_k \Sigma_{kb}^{-1}}.
+//' @param X_t P x N (complete, imputed) data.
+//' @param labels N-vector of 0-indexed cluster labels.
+//' @param batch_vec N-vector of 0-indexed batch labels.
+//' @param B The number of batches.
+//' @param mu P x K cluster means.
+//' @param mean_sum P x (K * B) matrix whose column \code{k * B + b} is
+//' \eqn{\mu_k + m_b} (plus the interaction term when used).
+//' @param cov P x P x K cluster covariances \eqn{\Sigma_k}.
+//' @param cov_comb_inv P x P x (K * B) inverses of \eqn{\Sigma_{kb}}.
+//' @return An N x P matrix.
+//' @keywords internal
+//' @export
+// [[Rcpp::export]]
+arma::mat batchCorrectedPosteriorMean(
+  arma::mat X_t,
+  arma::uvec labels,
+  arma::uvec batch_vec,
+  arma::uword B,
+  arma::mat mu,
+  arma::mat mean_sum,
+  arma::cube cov,
+  arma::cube cov_comb_inv
+) {
+  uword N = X_t.n_cols, P = X_t.n_rows, k = 0, kb = 0;
+  mat Y(N, P);
+  vec residual(P);
+
+  for(uword n = 0; n < N; n++) {
+    k = labels(n);
+    kb = k * B + batch_vec(n);
+    residual = X_t.col(n) - mean_sum.col(kb);
+    Y.row(n) = (mu.col(k) + cov.slice(k) * (cov_comb_inv.slice(kb) * residual)).t();
+  }
+
+  return Y;
+};
+
 double meanAcceptanceOccupied(
   const arma::uvec& accepted_this_sweep,
   const arma::uvec& N_k,

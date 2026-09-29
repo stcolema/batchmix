@@ -851,27 +851,12 @@ void mvnSampler::interactionMetropolis() {
 
 void mvnSampler::updateBatchCorrectedData() {
 
-  arma::mat mu_mat = mu.cols(labels);
-  arma::mat location_correction = m.cols(batch_vec);
-
-  // The interaction term gamma_{k,b} is, by construction (see sampler.h),
-  // exactly the part of an item's mean that batch b contributes on top of
-  // an additive mu_k + m_b for its specific cluster k - i.e. it is just as
-  // much "batch effect" as m_b is, it just happens to depend on cluster
-  // identity too. Leaving it in would mean "batch-corrected" data for
-  // items in a cluster/batch cell with a real interaction still carries a
-  // batch-specific offset. Unlike decomposing gamma against mu/m
-  // individually (not identified - see sampler.h), this subtraction is
-  // well-defined: gamma_{k,b} for the SPECIFIC (k, b) each item actually
-  // belongs to is a single identified quantity once sampled, regardless of
-  // how the sum mu_k + m_b + gamma_{k,b} happens to have been split.
-  if(include_interaction) {
-    for(arma::uword n = 0; n < N; n++) {
-      location_correction.col(n) += gamma.slice(batch_vec(n)).col(labels(n));
-    }
-  }
-
-  Y = ((X_t - mu_mat - location_correction) / sqrt(S.cols(batch_vec)) + mu_mat).t();
+  // Posterior mean of each item's latent batch-free signal under the
+  // fitted model; see batchCorrectedPosteriorMean() in genericFunctions.cpp
+  // for the derivation. mean_sum(., k * B + b) = mu_k + m_b (+ gamma_{k,b}
+  // when the interaction term is in use), so the interaction, being part of
+  // the batch's contribution to the mean, is removed here just as m_b is.
+  Y = batchCorrectedPosteriorMean(X_t, labels, batch_vec, B, mu, mean_sum, cov, cov_comb_inv);
 }
 
 void mvnSampler::metropolisStep() {

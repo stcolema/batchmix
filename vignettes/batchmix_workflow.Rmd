@@ -516,6 +516,15 @@ data, the correction worked; the classification accuracy on the unlabelled
 items gives a single-number summary of the same thing for the class
 structure specifically.
 
+Two caveats when comparing against the simulator's `corrected_data`.
+`inferred_dataset` is the posterior mean of each item's batch-free signal,
+so it is shrunk towards its cluster mean relative to the ground truth
+(which keeps every item's own within-cluster noise); compare cluster
+structure and batch mixing, not item-by-item values. And the simulator
+scales the whole deviation by $\sqrt{S_b}$, whereas the fitted model
+inflates only each feature's own variance, so the two agree closely only
+when the within-cluster correlations are weak.
+
 ## Summary
 
 - Simulate with a known ground truth first, so every later step - priors,

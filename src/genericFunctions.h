@@ -503,6 +503,19 @@ double robbinsMonroUpdateReciprocal(
   double kappa = 0.6
 );
 
+// Posterior mean of each item's latent batch-free signal; see
+// genericFunctions.cpp.
+arma::mat batchCorrectedPosteriorMean(
+  arma::mat X_t,
+  arma::uvec labels,
+  arma::uvec batch_vec,
+  arma::uword B,
+  arma::mat mu,
+  arma::mat mean_sum,
+  arma::cube cov,
+  arma::cube cov_comb_inv
+);
+
 // Mean of the per-cluster acceptance indicators over OCCUPIED clusters only;
 // empty clusters take forced prior draws, not Metropolis proposals, so they
 // carry no information about the proposal's acceptance rate. Returns
