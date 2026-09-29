@@ -211,9 +211,36 @@
   against), and now warns if asked for a `style = "density"` check on an
   apparently-binary column (`style = "statistic"` with `statistic = mean`,
   the proportion of 1s, is the appropriate check there).
+* **`predictNewBatch()`**: posterior-predictive quantities for a batch not
+  seen during fitting, for every model `type` and every `batch_weight_prior`.
+  With no new data, draws the new batch's own class weight and location
+  shift/scale straight from their fitted priors - under `batch_weight_prior
+  = "gp"` this is a genuine Gaussian process prediction at a new
+  `new_batch_coordinate` (e.g. a future collection time), and under
+  `"partial_pooling"` a draw from the estimated population distribution of
+  batch weights (the standard "predict a new group" logic for a
+  hierarchical model). With the new batch's own data supplied (`X_new`),
+  additionally classifies it by composition sampling: for each retained
+  posterior draw, the new batch's shift/scale/weight and item allocations
+  are drawn from their conditional posterior given that draw's (fixed)
+  cluster parameters and `X_new`'s own likelihood, reusing the training
+  sampler's own Metropolis/Gibbs updates restricted to the one new batch -
+  a proper posterior predictive by composition (Rubin, 1987), not a
+  plug-in point estimate. See `?predictNewBatch` for the full statistical
+  design, including a documented asymmetry in the underlying model (batch
+  scale, unlike shift and weights, has no cross-batch pooled prior to
+  predict a new batch's scale from with no data).
 
 ## Bug fixes
 
+* Fixed every `sampleSemisupervised*()` C++ driver building its return value
+  with a single `Rcpp::List::create(Named(...) = ..., ...)` call of 39-42
+  arguments - `List::create()`'s generated overloads only go up to 20
+  arguments in Rcpp versions before its May 2024 move to a genuine C++11
+  variadic template (first released as Rcpp 1.0.13), so this failed to
+  compile against any such Rcpp - including the package's own declared
+  minimum, `Rcpp (>= 1.0.5)`. Replaced with incremental `out["key"] <-
+  value` assignment, which has no such limit on any Rcpp version.
 * Fixed `fitBatchMix()` rejecting every argument forwarded through its own
   documented `...` (e.g. `include_interaction = TRUE`,
   `r_proposal_window = 0.05`) with an "unused argument" error - the
