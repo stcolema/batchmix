@@ -57,8 +57,15 @@ latent Gaussian vector (Dunson, 2000, *JRSS-B*; Dunson & Herring, 2005,
 
 $$
 z_i \mid c_i = k,\ b_i = b \ \sim\ \mathcal{N}\!\left(\mu_k + m_b,\ \Sigma_k^{(b)}\right),
-\qquad \Sigma_k^{(b)} = \Delta_b \left(\Delta_k R_k \Delta_k\right) \Delta_b,
+\qquad \Sigma_k^{(b)} = S_b \bullet \left(\Delta_k R_k \Delta_k\right),
 $$
+
+where $\bullet$ inflates only the *diagonal* of the cluster covariance by
+the batch's per-feature scale $S_{b,p} \ge 1$ and leaves the off-diagonal
+covariances unchanged (see the "covariance models" vignette); this is
+$\Sigma_k + \mathrm{diag}\big((S_b - 1)\,\mathrm{diag}(\Sigma_k)\big)$, the
+cluster covariance plus independent per-feature batch noise, not the
+congruence transform $\Delta_b \Sigma_k \Delta_b$.
 
 and each column $p$ has its own observation model applied to $z_{i,p}$:
 

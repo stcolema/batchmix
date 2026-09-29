@@ -299,6 +299,21 @@
   the reported `*_acceptance_rate` values and the adaptation signal. Also
   fixed the `MVN_LKJ`/`MVN_MIXED` empty-cluster draw order: `mu` is now drawn
   after `R`/`sigma` so that `(mu, Sigma)` follows the joint prior.
+* **Changed what `batch_corrected_data`/`inferred_dataset` are.** They were
+  `(x - mu_k - m_b) / sqrt(S_b) + mu_k`, which is not the inverse of the
+  fitted batch model: the model inflates only the diagonal of the cluster
+  covariance (`Sigma_kb = Sigma_k + diag((S_b - 1) * diag(Sigma_k))`), so
+  dividing the residual by `sqrt(S_b)` on both sides restored the marginal
+  variances but shrank between-feature correlations by `1 / sqrt(S_p S_q)`.
+  They are now the posterior mean of each item's batch-free signal,
+  `mu_k + Sigma_k Sigma_kb^-1 (x - mu_k - m_b)` (with the interaction term
+  subtracted along with `m_b` when in use; exact for MVN, and for MVT
+  because the latent scale cancels), computed by the new internal
+  `batchCorrectedPosteriorMean()`. This is a denoising estimate: within-
+  cluster deviations are shrunk towards `mu_k`, so the corrected data are
+  less variable than the true batch-free data. Also corrected the
+  `probit_missing_censored` vignette, which stated the congruence form
+  `Delta_b Sigma Delta_b` rather than the diagonal inflation the code uses.
 * Numeric output changes for a fixed seed: every golden fixture whose run has
   an empty cluster or uses `MVN_LKJ`/`MVN_MIXED` is regenerated (see
   `tests/testthat/test-mcmc-kernel-fixes.R` for the prior-recovery tests).

@@ -67,11 +67,24 @@ covariances between features untouched (this is deliberate: batch effects
 are modelled as per-feature measurement noise, not a change in how features
 correlate). This is *not* the same as the full congruence transform
 $S_b^{1/2} \Sigma_k S_b^{1/2}$ except in the special case where $\Sigma_k$ is
-itself diagonal (no correlation between features): whenever $\Sigma_k$ has
-off-diagonal entries, only the diagonal is rescaled, so the batch-corrected
-*correlation* between two features still shifts with $S_b$ (their raw
-covariance is unchanged while their variances grow), even though the raw
-covariance entry itself does not move. For `"MVN"`/`"MVT"`, $\mu_k, \Sigma_k$
+itself diagonal (no correlation between features). Equivalently,
+$S_b \bullet \Sigma_k = \Sigma_k + \mathrm{diag}\big((S_b - 1)\,
+\mathrm{diag}(\Sigma_k)\big)$ (this needs $S_{b,p} \ge 1$, which the
+`S_loc = 1` support of the batch-scale prior guarantees): an item is its
+batch-free signal $c \sim \mathcal{N}(0, \Sigma_k)$ plus independent
+per-feature batch noise, on top of the shift $m_b$.
+
+The batch-corrected data returned in `batch_corrected_data` (and averaged
+in `inferred_dataset`) follow directly from that decomposition: they are the
+posterior mean of the batch-free signal,
+$\mu_k + \Sigma_k (S_b \bullet \Sigma_k)^{-1}(x - \mu_k - m_b)$
+(plus the interaction term when it is in use), which is the exact
+inverse of the fitted batch model for any $\Sigma_k$. It is a denoising
+estimate, not a change of variables: within-cluster deviations are shrunk
+towards $\mu_k$ by $\Sigma_k (S_b \bullet \Sigma_k)^{-1}$, so the corrected
+data are less variable than the batch-free signal itself.
+
+For `"MVN"`/`"MVT"`, $\mu_k, \Sigma_k$
 are the cluster mean and covariance with $\Sigma_k \sim \mathrm{IW}(\nu,
 \Psi)$. `"MVN_LKJ"` decomposes the
 covariance as $\Delta_k = \mathrm{diag}(\sigma_{k,1}, \dots, \sigma_{k,P})$

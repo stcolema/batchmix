@@ -160,6 +160,24 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// batchCorrectedPosteriorMean
+arma::mat batchCorrectedPosteriorMean(arma::mat X_t, arma::uvec labels, arma::uvec batch_vec, arma::uword B, arma::mat mu, arma::mat mean_sum, arma::cube cov, arma::cube cov_comb_inv);
+RcppExport SEXP _batchmix_batchCorrectedPosteriorMean(SEXP X_tSEXP, SEXP labelsSEXP, SEXP batch_vecSEXP, SEXP BSEXP, SEXP muSEXP, SEXP mean_sumSEXP, SEXP covSEXP, SEXP cov_comb_invSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat >::type X_t(X_tSEXP);
+    Rcpp::traits::input_parameter< arma::uvec >::type labels(labelsSEXP);
+    Rcpp::traits::input_parameter< arma::uvec >::type batch_vec(batch_vecSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type B(BSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type mu(muSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type mean_sum(mean_sumSEXP);
+    Rcpp::traits::input_parameter< arma::cube >::type cov(covSEXP);
+    Rcpp::traits::input_parameter< arma::cube >::type cov_comb_inv(cov_comb_invSEXP);
+    rcpp_result_gen = Rcpp::wrap(batchCorrectedPosteriorMean(X_t, labels, batch_vec, B, mu, mean_sum, cov, cov_comb_inv));
+    return rcpp_result_gen;
+END_RCPP
+}
 // diagRSigmaOnlyChain2
 Rcpp::List diagRSigmaOnlyChain2(arma::mat X, double rho_true, arma::uword n_iter, double r_pw, double sigma_pw);
 RcppExport SEXP _batchmix_diagRSigmaOnlyChain2(SEXP XSEXP, SEXP rho_trueSEXP, SEXP n_iterSEXP, SEXP r_pwSEXP, SEXP sigma_pwSEXP) {
@@ -692,6 +710,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_batchmix_logJacobianZToR", (DL_FUNC) &_batchmix_logJacobianZToR, 2},
     {"_batchmix_robbinsMonroUpdate", (DL_FUNC) &_batchmix_robbinsMonroUpdate, 6},
     {"_batchmix_robbinsMonroUpdateReciprocal", (DL_FUNC) &_batchmix_robbinsMonroUpdateReciprocal, 6},
+    {"_batchmix_batchCorrectedPosteriorMean", (DL_FUNC) &_batchmix_batchCorrectedPosteriorMean, 8},
     {"_batchmix_diagRSigmaOnlyChain2", (DL_FUNC) &_batchmix_diagRSigmaOnlyChain2, 5},
     {"_batchmix_gammaLogLikelihood", (DL_FUNC) &_batchmix_gammaLogLikelihood, 3},
     {"_batchmix_invGammaLogLikelihood", (DL_FUNC) &_batchmix_invGammaLogLikelihood, 3},

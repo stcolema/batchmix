@@ -1291,18 +1291,9 @@ void mvnSamplerSeparationStrategy::interactionMetropolis() {
 
 void mvnSamplerSeparationStrategy::updateBatchCorrectedData() {
 
-  arma::mat mu_mat = mu.cols(labels);
-  arma::mat location_correction = m.cols(batch_vec);
-
-  // See mvnSampler::updateBatchCorrectedData() for why gamma must be
-  // subtracted here too whenever it's in use.
-  if(include_interaction) {
-    for(arma::uword n = 0; n < N; n++) {
-      location_correction.col(n) += gamma.slice(batch_vec(n)).col(labels(n));
-    }
-  }
-
-  Y = ((X_t - mu_mat - location_correction) / sqrt(S.cols(batch_vec)) + mu_mat).t();
+  // See mvnSampler::updateBatchCorrectedData() and
+  // batchCorrectedPosteriorMean() (genericFunctions.cpp).
+  Y = batchCorrectedPosteriorMean(X_t, labels, batch_vec, B, mu, mean_sum, cov, cov_comb_inv);
 }
 
 void mvnSamplerSeparationStrategy::metropolisStep() {
