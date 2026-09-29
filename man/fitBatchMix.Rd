@@ -129,9 +129,14 @@ used if ``n_chains >= 2``.}
 distribution. This defines the scale of the batch effect upon the mean and
 should be in (0, 1]. If `NULL`, this quantity is sampled rather then fixed.}
 
-\item{rho}{The shape of the prior distribution for the batch scale.}
-
-\item{theta}{The scale of the prior distribution for the batch scale.}
+\item{rho, theta}{Shape and scale of the InvGamma prior on each batch's
+excess scale, \eqn{S_{b,p} - 1 \sim \mathrm{InvGamma}(\rho, \theta)}
+(\eqn{S_{b,p} \ge 1} is the factor by which batch \eqn{b} inflates
+feature \eqn{p}'s variance). When \code{sample_s_scale = TRUE} (the
+default) \code{rho} is only the \emph{starting value} and, together with
+\code{theta}, fixes the prior \emph{mean} of the excess scale,
+\eqn{\theta / (\rho - 1)}, which is then held fixed while \eqn{\rho}
+itself is estimated; when \code{FALSE} both are fixed as given.}
 
 \item{initial_class_means}{A $P x K$ matrix of initial values for the class
 means. Defaults to draws from the prior distribution.}

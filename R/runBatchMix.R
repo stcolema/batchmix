@@ -89,8 +89,26 @@
 #' @param m_scale The scale hyperparameter for the batch shift prior
 #' distribution. This defines the scale of the batch effect upon the mean and
 #' should be in (0, 1]. If `NULL`, this quantity is sampled rather then fixed.
-#' @param rho The shape of the prior distribution for the batch scale.
-#' @param theta The scale of the prior distribution for the batch scale.
+#' @param rho,theta Shape and scale of the InvGamma prior on each batch's
+#' excess scale, \eqn{S_{b,p} - 1 \sim \mathrm{InvGamma}(\rho, \theta)}
+#' (\eqn{S_{b,p} \ge 1} is the factor by which batch \eqn{b} inflates
+#' feature \eqn{p}'s variance). When \code{sample_s_scale = TRUE} (the
+#' default) \code{rho} is only the \emph{starting value} and, together with
+#' \code{theta}, fixes the prior \emph{mean} of the excess scale,
+#' \eqn{\theta / (\rho - 1)}, which is then held fixed while \eqn{\rho}
+#' itself is estimated; when \code{FALSE} both are fixed as given.
+#' @param sample_s_scale Logical, default \code{TRUE}: partially pool the batch
+#' scales by estimating the concentration \eqn{\rho} of their common prior
+#' (batches are exchangeable draws from an InvGamma whose tightness is learnt
+#' from the data, so batches with little data are shrunk towards the others)
+#' rather than fixing it. Only the concentration is identifiable, not the
+#' mean: rescaling every \eqn{S_b} is compensated by rescaling the cluster
+#' covariances, so the prior mean \eqn{\theta/(\rho - 1)} stays at its value
+#' from the initial \code{rho}/\code{theta}. Requires \code{rho > 2}. Set to
+#' \code{FALSE} for the previous behaviour (fixed \code{rho}, \code{theta}).
+#' @param s_scale_shape,s_scale_rate Shape and rate of the Gamma prior on
+#' \eqn{\rho - 2} when \code{sample_s_scale = TRUE} (default 2 and 1, a prior
+#' mean of \eqn{\rho = 4}); ignored otherwise.
 #' @param eta The LKJ concentration parameter for the cluster correlation
 #' prior; only used if \code{type} is 'MVN_LKJ' or 'MVN_MIXED'. eta = 1 is
 #' uniform over the space of correlation matrices, eta > 1 shrinks
@@ -115,19 +133,27 @@
 #' prior, shrinking towards the purely-additive model when the data don't
 #' support an interaction). Defaults to \code{FALSE} (the original,
 #' purely-additive mean).
-#' @param batch_weight_prior One of \code{"global"} (the default),
-#' \code{"partial_pooling"} or \code{"gp"}, controlling whether/how mixture
-#' weights vary by batch:
+#' @param batch_weight_prior One of \code{"partial_pooling"},
+#' \code{"global"} or \code{"gp"}, controlling whether/how mixture weights
+#' vary by batch. The default, \code{NULL}, means \code{"partial_pooling"}
+#' when there is more than one batch and \code{"global"} for a single batch
+#' (where a between-batch variance cannot be estimated):
 #' \itemize{
+#'   \item \code{"partial_pooling"} (the default): each batch gets its own
+#'   weight vector, with the K-1 additive-log-ratio (ALR) coordinates of each
+#'   batch's weights drawn exchangeably around a shared, estimated population
+#'   mean and variance - no assumed order, distance or covariance structure
+#'   between batches. The population variance is learnt: it pulls batches
+#'   with little data towards the common composition and lets well-observed
+#'   batches differ. Under this prior the Dirichlet concentration
+#'   \code{alpha}/\code{concentration} is \strong{not used}, so an
+#'   over-specified \code{K_max} is no longer regularised towards empty
+#'   components by a sparse Dirichlet prior; prefer a \code{K_max} near the
+#'   number of clusters you expect.
 #'   \item \code{"global"}: a single mixture weight vector shared by every
-#'   batch - the original behaviour.
-#'   \item \code{"partial_pooling"}: each batch gets its own weight vector,
-#'   with the K-1 additive-log-ratio (ALR) coordinates of each batch's
-#'   weights drawn exchangeably around a shared, estimated population mean
-#'   and variance - no assumed order, distance or covariance structure
-#'   between batches at all (the covariance is simply unknown/unstructured).
-#'   Use this when batches' proportions are expected to vary but there is no
-#'   known notion of which batches should be more similar to which.
+#'   batch, with the symmetric Dirichlet(\code{alpha}) prior - the behaviour
+#'   before partial pooling became the default. Appropriate when batches are
+#'   known to contain the same mixture proportions.
 #'   \item \code{"gp"}: each batch gets its own weight vector as above, but
 #'   the ALR coordinates are instead linked across batches by a Gaussian
 #'   process prior over \code{batch_coordinates} - for batches collected
@@ -268,6 +294,9 @@ runBatchMix <- function(X,
                         m_scale = NULL,
                         rho = 3.0,
                         theta = 1.0,
+                        sample_s_scale = TRUE,
+                        s_scale_shape = 2.0,
+                        s_scale_rate = 1.0,
                         eta = 1.0,
                         a_gamma = 2.0,
                         b_gamma = 1.0,
@@ -279,7 +308,7 @@ runBatchMix <- function(X,
                         initial_class_df = NULL,
                         # -- optional structural extensions --
                         include_interaction = FALSE,
-                        batch_weight_prior = c("global", "partial_pooling", "gp"),
+                        batch_weight_prior = NULL,
                         batch_coordinates = NULL,
                         gp_tau2 = 1.0,
                         gp_length_scale = 1.0,
@@ -360,6 +389,9 @@ runBatchMix <- function(X,
     m_scale = m_scale,
     rho = rho,
     theta = theta,
+    sample_s_scale = sample_s_scale,
+    s_scale_shape = s_scale_shape,
+    s_scale_rate = s_scale_rate,
     initial_class_means = initial_class_means,
     initial_class_covariance = initial_class_covariance,
     initial_batch_shift = initial_batch_shift,

@@ -5,7 +5,7 @@ output: rmarkdown::html_vignette
 description: |
   Comparing the three continuous-data covariance models batchmix offers -
   MVN, MVT and MVN_LKJ - against data with a known ground truth: comparing
-  candidate cluster counts via BIC, does MVT's robustness matter for
+  candidate cluster counts via BICM, does MVT's robustness matter for
   heavy-tailed data, and does the LKJ prior recover a known correlation
   structure.
 vignette: >
@@ -111,22 +111,45 @@ The remaining priors are shared by every type:
 
 $$
 \mu_k \mid \Sigma_k \sim \mathcal{N}\!\left(\xi, \Sigma_k / \kappa\right), \qquad
-m_b \sim \mathcal{N}(0, \delta^2 \lambda^2), \qquad
-S_{b,p} - 1 \sim \mathrm{InvGamma}(\rho, \theta), \qquad
-w \sim \mathrm{Dirichlet}(\alpha),
+m_b \sim \mathcal{N}(0, \delta^2 \lambda^2), \quad \lambda^2 \sim \mathrm{InvGamma}(3, 1), \qquad
+S_{b,p} - 1 \sim \mathrm{InvGamma}(\rho, \theta),
 $$
 
 with $\nu_k - \nu_{\min} \sim \mathrm{Gamma}(\psi, \chi)$ additionally for
-`"MVT"`. Model comparison across $K$ uses the Bayesian information
-criterion,
+`"MVT"`. Two of these are *partially pooled* by default. The batch scales
+$S_{b,p}$ are exchangeable draws from a common InvGamma whose concentration
+is estimated, $\rho - 2 \sim \mathrm{Gamma}(2, 1)$, with $\theta$ set so the
+prior mean $\theta / (\rho - 1)$ stays at the value implied by the initial
+`rho`/`theta` (only the concentration is identifiable, because rescaling
+every $S_b$ is compensated by rescaling the cluster covariances;
+`sample_s_scale = FALSE` fixes $\rho, \theta$ instead). And each batch has
+its own mixture weights: the additive-log-ratio coordinates
+$\mathrm{alr}(w_b)_j \sim \mathcal{N}(\mu^{w}_j, \tau^{2}_j)$ are
+exchangeable around a population mean $\mu^{w}_j \sim \mathcal{N}(0,
+10^2)$ and variance $\tau^2_j \sim \mathrm{InvGamma}(2, 1)$
+(`batch_weight_prior = "partial_pooling"`; one shared
+$w \sim \mathrm{Dirichlet}(\alpha)$ with `batch_weight_prior = "global"`,
+the earlier default, or a Gaussian process over batch coordinates with
+`"gp"` - see the `batch_weight_priors` vignette). Under partial pooling
+$\alpha$ is unused, so a large $K_{\max}$ is not pushed towards empty
+components by a sparse Dirichlet prior: choose $K_{\max}$ near the number of
+clusters you expect. Model comparison across $K$ uses the Bayesian
+information criterion,
 
 $$
-\mathrm{BIC} = 2 \log \hat{L} - \left(p_{\text{cluster}} K_{\text{occ}} + p_{\text{batch}} B\right) \log N,
+\mathrm{BIC}_t = 2 \log L_t - \left(p_{\text{cluster}} K_{\text{occ},t} + p_{\text{batch}} B + p_{\text{extra}}\right) \log N,
 $$
 
-with $p_{\text{cluster}} = 1 + P + P(P+1)/2$ (weight, mean, covariance) and
-$p_{\text{batch}} = 2P$ (shift, scale); higher is better in this package's
-convention.
+evaluated at retained draw $t$, with $p_{\text{cluster}} = 1 + P + P(P+1)/2$
+(weight, mean, covariance), $p_{\text{batch}} = 2P$ (shift, scale) and
+$p_{\text{extra}}$ the extra free parameters of the partial-pooling weight
+prior (and of the interaction term, if used). The per-iteration $\mathrm{BIC}_t$ uses the
+log-likelihood at a *single posterior draw*, which lies below the maximum
+by about half the number of free parameters in a regular model, so it
+over-penalises complexity and is noisy; it is kept as a trace. For
+comparing models use BICM, $\max_t \mathrm{BIC}_t$ over the retained
+draws (Raftery, Newton, Satagopan & Krivitsky, 2007), returned by
+`calcBICM()`; higher is better in this package's convention.
 
 ```{r libs, message=FALSE}
 library(batchmix)
@@ -169,43 +192,47 @@ ggplot(data.frame(X1 = X[, 1], X2 = X[, 2], group = factor(true_labels), batch =
 
 Fit at a range of candidate $K$ (two chains each, enough to sanity-check
 agreement across this scan; see Part B below for the fuller multi-chain
-diagnostic treatment at the chosen $K$) and compare mean post-burn-in BIC:
+diagnostic treatment at the chosen $K$) and compare BICM, the BIC at each
+chain's best post-burn-in draw, taking the better of the two chains for each
+$K$:
 
 ```{r bicA}
 n_iter <- 1200
 thin <- 10
 n_chains <- 2
 
-bic_by_k <- sapply(2:5, function(k) {
+bicm_by_k <- sapply(2:5, function(k) {
   out <- fitBatchMix(X, n_chains, n_iter, thin, batch_vec, "MVN", K_max = k, verbose = FALSE)
-  mean(sapply(out, function(o) {
-    n <- length(o$BIC)
-    mean(o$BIC[(n / 2):n])
-  }))
+  max(sapply(out, calcBICM))
 })
-names(bic_by_k) <- 2:5
-round(bic_by_k, 1)
+names(bicm_by_k) <- 2:5
+round(bicm_by_k, 1)
 ```
 
 ```{r bicA_result}
-cat("K chosen by BIC:", names(which.max(bic_by_k)), " | true K:", K_true, "\n")
+cat("K chosen by BICM:", names(which.max(bicm_by_k)), " | true K:", K_true, "\n")
 ```
 
-BIC's maximum here need not land exactly on the true $K=3$ - in a
+BICM's maximum here need not land exactly on the true $K=3$ - in a
 batch-corrected mixture, an extra cluster can partially absorb batch-driven
 variation the correction has not fully removed, giving it a real (not just
 noise) likelihood gain that BIC's complexity penalty does not always
-outweigh. Treat a raw BIC-vs-$K$ comparison like this as a rough guide, not
+outweigh. Treat a raw BICM-vs-$K$ comparison like this as a rough guide, not
 a decisive test: cross-check any candidate $K$ against posterior cluster
 occupancy (do all $K$ clusters retain non-trivial posterior
 weight, or has the sampler already emptied some of them out on its own?)
 and against domain knowledge about how many groups are expected,
-rather than trusting a bare maximum mechanically.
+rather than trusting a bare maximum mechanically. Note that `K_max` is a
+hard upper limit on the number of components here: with the default
+partial-pooling weight prior there is no sparse Dirichlet prior to empty
+surplus components, so a `K_max` above the true $K$ will usually keep the
+extra components occupied rather than shrinking them away.
 
-Before fitting, a quick prior predictive check at these defaults (see the
-getting-started vignette for the fuller treatment): does the empirical-Bayes
-prior at this $K$ produce data of a plausible scale, before the model has
-seen the clustering at all?
+Before fitting, a quick prior predictive check at the default model,
+including the partially pooled batch weights and scales (see the
+getting-started vignette for the fuller treatment): does the prior at this
+$K$ produce data of a plausible scale, before the model has seen the
+clustering at all?
 
 ```{r priorPCA}
 prior_sims_a <- simulatePriorPredictive(X, batch_vec, K = K_true, type = "MVN", n_datasets = 30)
@@ -703,10 +730,12 @@ posterior comparison shows.
 
 - `type = "MVN"` is the default, and given the true $K$ recovers a
   near-perfect partition when the data is (near-)Gaussian and the
-  cluster structure is genuinely present (Part A). Comparing raw BIC
-  across candidate $K$ values is a useful rough guide but not a decisive
-  test on its own - cross-check against posterior cluster occupancy and
-  domain knowledge.
+  cluster structure is genuinely present (Part A). Comparing BICM
+  (`calcBICM()`) across candidate $K$ values is a useful rough guide but not
+  a decisive test on its own - cross-check against posterior cluster
+  occupancy and domain knowledge, and remember that under the default
+  partial-pooling weights `K_max` is a hard cap, not a sparsity-regularised
+  upper bound.
 - `type = "MVT"` matters specifically when the data has heavier tails than
   a Gaussian can represent - under such contamination MVN's clustering can
   fail outright, while MVT's degrees-of-freedom parameter absorbs the

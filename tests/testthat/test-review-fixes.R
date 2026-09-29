@@ -26,8 +26,9 @@ test_that("fixed (semi-supervised) items' observed_likelihood matches complete_l
   labels <- c(rep(0, N / 2), rep(1, N / 2))
   batch_vec <- sample(0:(B - 1), N, replace = TRUE)
 
+  # Global weights: one vector shared by every batch.
   out <- runBatchMix(X, 200, 10, batch_vec, "MVN",
-    initial_labels = labels, fixed = rep(1, N)
+    initial_labels = labels, fixed = rep(1, N), batch_weight_prior = "global"
   )
 
   n_saved <- length(out$observed_likelihood)
@@ -41,6 +42,19 @@ test_that("fixed (semi-supervised) items' observed_likelihood matches complete_l
   actual_gap <- out$observed_likelihood[, 1] - out$complete_likelihood[, 1]
 
   expect_equal(actual_gap, expected_log_w_sum, tolerance = 1e-6)
+
+  # Partial pooling (the default): each item is weighted by ITS batch's
+  # weight vector, so the identity uses w_batch, not the N-weighted average
+  # saved as `weights`.
+  out_pp <- runBatchMix(X, 200, 10, batch_vec, "MVN",
+    initial_labels = labels, fixed = rep(1, N)
+  )
+  expect_identical(out_pp$batch_weight_prior, "partial_pooling")
+  expected_pp <- vapply(seq_len(length(out_pp$observed_likelihood)), function(t) {
+    sum(log(out_pp$w_batch[cbind(batch_vec + 1, labels + 1, t)]))
+  }, numeric(1))
+  gap_pp <- out_pp$observed_likelihood[, 1] - out_pp$complete_likelihood[, 1]
+  expect_equal(gap_pp, expected_pp, tolerance = 1e-6)
 })
 
 test_that("minVI() does not crash when max.k is passed explicitly (regression for the undefined k_inds bug)", {
