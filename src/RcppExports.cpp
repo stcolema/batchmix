@@ -144,6 +144,22 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// robbinsMonroUpdateReciprocal
+double robbinsMonroUpdateReciprocal(double window, double acceptance_rate, double target_rate, double n, double step_scale, double kappa);
+RcppExport SEXP _batchmix_robbinsMonroUpdateReciprocal(SEXP windowSEXP, SEXP acceptance_rateSEXP, SEXP target_rateSEXP, SEXP nSEXP, SEXP step_scaleSEXP, SEXP kappaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< double >::type window(windowSEXP);
+    Rcpp::traits::input_parameter< double >::type acceptance_rate(acceptance_rateSEXP);
+    Rcpp::traits::input_parameter< double >::type target_rate(target_rateSEXP);
+    Rcpp::traits::input_parameter< double >::type n(nSEXP);
+    Rcpp::traits::input_parameter< double >::type step_scale(step_scaleSEXP);
+    Rcpp::traits::input_parameter< double >::type kappa(kappaSEXP);
+    rcpp_result_gen = Rcpp::wrap(robbinsMonroUpdateReciprocal(window, acceptance_rate, target_rate, n, step_scale, kappa));
+    return rcpp_result_gen;
+END_RCPP
+}
 // diagRSigmaOnlyChain2
 Rcpp::List diagRSigmaOnlyChain2(arma::mat X, double rho_true, arma::uword n_iter, double r_pw, double sigma_pw);
 RcppExport SEXP _batchmix_diagRSigmaOnlyChain2(SEXP XSEXP, SEXP rho_trueSEXP, SEXP n_iterSEXP, SEXP r_pwSEXP, SEXP sigma_pwSEXP) {
@@ -418,6 +434,28 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// priorOnlyLKJChain
+Rcpp::List priorOnlyLKJChain(arma::mat X, arma::uword K, arma::uword B, arma::uvec labels, arma::uvec batch_vec, arma::uword n_iter, double eta, double r_pw, double sigma_pw, double mu_pw, double m_pw, double S_pw);
+RcppExport SEXP _batchmix_priorOnlyLKJChain(SEXP XSEXP, SEXP KSEXP, SEXP BSEXP, SEXP labelsSEXP, SEXP batch_vecSEXP, SEXP n_iterSEXP, SEXP etaSEXP, SEXP r_pwSEXP, SEXP sigma_pwSEXP, SEXP mu_pwSEXP, SEXP m_pwSEXP, SEXP S_pwSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat >::type X(XSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type K(KSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type B(BSEXP);
+    Rcpp::traits::input_parameter< arma::uvec >::type labels(labelsSEXP);
+    Rcpp::traits::input_parameter< arma::uvec >::type batch_vec(batch_vecSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type n_iter(n_iterSEXP);
+    Rcpp::traits::input_parameter< double >::type eta(etaSEXP);
+    Rcpp::traits::input_parameter< double >::type r_pw(r_pwSEXP);
+    Rcpp::traits::input_parameter< double >::type sigma_pw(sigma_pwSEXP);
+    Rcpp::traits::input_parameter< double >::type mu_pw(mu_pwSEXP);
+    Rcpp::traits::input_parameter< double >::type m_pw(m_pwSEXP);
+    Rcpp::traits::input_parameter< double >::type S_pw(S_pwSEXP);
+    rcpp_result_gen = Rcpp::wrap(priorOnlyLKJChain(X, K, B, labels, batch_vec, n_iter, eta, r_pw, sigma_pw, mu_pw, m_pw, S_pw));
+    return rcpp_result_gen;
+END_RCPP
+}
 // sampleSemisupervisedMVN
 Rcpp::List sampleSemisupervisedMVN(arma::mat X, arma::uword K, arma::uword B, arma::uvec labels, arma::uvec batch_vec, arma::uvec fixed, double mu_proposal_window, double cov_proposal_window, double m_proposal_window, double S_proposal_window, arma::uword n_iter, arma::uword thin, arma::vec concentration, double m_scale, double rho, double theta, arma::mat initial_mu, arma::cube initial_cov, arma::mat initial_m, arma::mat initial_S, bool mu_initialised, bool cov_initialised, bool m_initialised, bool S_initialised, bool sample_m_scale, bool auto_tune, arma::uword n_burn, bool include_interaction, double gamma_proposal_window, double a_gamma, double b_gamma, arma::uword weight_prior_type, arma::vec batch_coordinates, double gp_tau2, double gp_length_scale, double eta_proposal_window, bool sample_gp_hyperparameters, double gp_hyperparameter_proposal_window, double pp_tau2_shape, double pp_tau2_rate, double pp_mu_prior_sd, bool sample_s_scale, double a_s, double b_s, double s_scale_proposal_window);
 RcppExport SEXP _batchmix_sampleSemisupervisedMVN(SEXP XSEXP, SEXP KSEXP, SEXP BSEXP, SEXP labelsSEXP, SEXP batch_vecSEXP, SEXP fixedSEXP, SEXP mu_proposal_windowSEXP, SEXP cov_proposal_windowSEXP, SEXP m_proposal_windowSEXP, SEXP S_proposal_windowSEXP, SEXP n_iterSEXP, SEXP thinSEXP, SEXP concentrationSEXP, SEXP m_scaleSEXP, SEXP rhoSEXP, SEXP thetaSEXP, SEXP initial_muSEXP, SEXP initial_covSEXP, SEXP initial_mSEXP, SEXP initial_SSEXP, SEXP mu_initialisedSEXP, SEXP cov_initialisedSEXP, SEXP m_initialisedSEXP, SEXP S_initialisedSEXP, SEXP sample_m_scaleSEXP, SEXP auto_tuneSEXP, SEXP n_burnSEXP, SEXP include_interactionSEXP, SEXP gamma_proposal_windowSEXP, SEXP a_gammaSEXP, SEXP b_gammaSEXP, SEXP weight_prior_typeSEXP, SEXP batch_coordinatesSEXP, SEXP gp_tau2SEXP, SEXP gp_length_scaleSEXP, SEXP eta_proposal_windowSEXP, SEXP sample_gp_hyperparametersSEXP, SEXP gp_hyperparameter_proposal_windowSEXP, SEXP pp_tau2_shapeSEXP, SEXP pp_tau2_rateSEXP, SEXP pp_mu_prior_sdSEXP, SEXP sample_s_scaleSEXP, SEXP a_sSEXP, SEXP b_sSEXP, SEXP s_scale_proposal_windowSEXP) {
@@ -653,6 +691,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_batchmix_choleskyToPartialCorrelations", (DL_FUNC) &_batchmix_choleskyToPartialCorrelations, 2},
     {"_batchmix_logJacobianZToR", (DL_FUNC) &_batchmix_logJacobianZToR, 2},
     {"_batchmix_robbinsMonroUpdate", (DL_FUNC) &_batchmix_robbinsMonroUpdate, 6},
+    {"_batchmix_robbinsMonroUpdateReciprocal", (DL_FUNC) &_batchmix_robbinsMonroUpdateReciprocal, 6},
     {"_batchmix_diagRSigmaOnlyChain2", (DL_FUNC) &_batchmix_diagRSigmaOnlyChain2, 5},
     {"_batchmix_gammaLogLikelihood", (DL_FUNC) &_batchmix_gammaLogLikelihood, 3},
     {"_batchmix_invGammaLogLikelihood", (DL_FUNC) &_batchmix_invGammaLogLikelihood, 3},
@@ -663,6 +702,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_batchmix_predictNewBatchMVNMixed", (DL_FUNC) &_batchmix_predictNewBatchMVNMixed, 40},
     {"_batchmix_predictNewBatchMVNSeparationStrategy", (DL_FUNC) &_batchmix_predictNewBatchMVNSeparationStrategy, 37},
     {"_batchmix_predictNewBatchMVT", (DL_FUNC) &_batchmix_predictNewBatchMVT, 39},
+    {"_batchmix_priorOnlyLKJChain", (DL_FUNC) &_batchmix_priorOnlyLKJChain, 12},
     {"_batchmix_sampleSemisupervisedMVN", (DL_FUNC) &_batchmix_sampleSemisupervisedMVN, 45},
     {"_batchmix_sampleSemisupervisedMVNMixed", (DL_FUNC) &_batchmix_sampleSemisupervisedMVNMixed, 41},
     {"_batchmix_sampleSemisupervisedMVNSeparationStrategy", (DL_FUNC) &_batchmix_sampleSemisupervisedMVNSeparationStrategy, 47},

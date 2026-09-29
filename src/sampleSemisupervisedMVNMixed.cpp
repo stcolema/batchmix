@@ -153,11 +153,15 @@ Rcpp::List sampleSemisupervisedMVNMixed(
 
     if(auto_tune && r < n_burn) {
       double n_adapt = (double) (r + 1);
-      my_sampler.mu_proposal_window = robbinsMonroUpdate(my_sampler.mu_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.mu_count - prev_mu_count)), 0.234, n_adapt);
-      my_sampler.r_proposal_window = robbinsMonroUpdate(my_sampler.r_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.r_count - prev_r_count)), 0.234, n_adapt);
-      my_sampler.sigma_proposal_window = robbinsMonroUpdate(my_sampler.sigma_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.sigma_count - prev_sigma_count)), 0.234, n_adapt);
+      // Rates are averaged over occupied clusters only (empty clusters take
+      // forced prior draws, not proposals). sigma and S windows are Gamma
+      // shape multipliers (LARGER = SMALLER step), so they use the
+      // reciprocal update.
+      my_sampler.mu_proposal_window = robbinsMonroUpdate(my_sampler.mu_proposal_window, meanAcceptanceOccupied(my_sampler.mu_count - prev_mu_count, my_sampler.N_k, 0.234), 0.234, n_adapt);
+      my_sampler.r_proposal_window = robbinsMonroUpdate(my_sampler.r_proposal_window, meanAcceptanceOccupied(my_sampler.r_count - prev_r_count, my_sampler.N_k, 0.234), 0.234, n_adapt);
+      my_sampler.sigma_proposal_window = robbinsMonroUpdateReciprocal(my_sampler.sigma_proposal_window, meanAcceptanceOccupied(my_sampler.sigma_count - prev_sigma_count, my_sampler.N_k, 0.234), 0.234, n_adapt);
       my_sampler.m_proposal_window = robbinsMonroUpdate(my_sampler.m_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.m_count - prev_m_count)), 0.234, n_adapt);
-      my_sampler.S_proposal_window = robbinsMonroUpdate(my_sampler.S_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.S_count - prev_S_count)), 0.234, n_adapt);
+      my_sampler.S_proposal_window = robbinsMonroUpdateReciprocal(my_sampler.S_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.S_count - prev_S_count)), 0.234, n_adapt);
       if(include_interaction) {
         my_sampler.gamma_proposal_window = robbinsMonroUpdate(my_sampler.gamma_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(arma::vectorise(my_sampler.gamma_count - prev_gamma_count))), 0.234, n_adapt);
       }

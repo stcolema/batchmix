@@ -711,7 +711,12 @@ void mvnSampler::clusterCovarianceMetropolis() {
     }
     if( (u < acceptance_prob) || (N_k(k) == 0) ){
       cov.slice(k) = cov_proposed;
-      cov_count(k)++;
+      // A forced prior draw for an empty cluster is not a Metropolis
+      // acceptance; counting it would inflate the acceptance rate that
+      // drives adaptation and is reported to the user.
+      if(N_k(k) > 0) {
+        cov_count(k)++;
+      }
       
       cov_inv.slice(k) = proposed_cov_inv;
       cov_log_det(k) = proposed_cov_log_det;
@@ -765,7 +770,10 @@ void mvnSampler::clusterMeanMetropolis() {
     
     if((u < acceptance_prob) || (N_k(k) == 0)) {
       mu.col(k) = mu_proposed;
-      mu_count(k)++;
+      // Forced prior draws (empty cluster) are not acceptances.
+      if(N_k(k) > 0) {
+        mu_count(k)++;
+      }
       
       for(arma::uword b = 0; b < B; b++) {
         mean_sum.col(k * B + b) = proposed_mean_sum.col(b);

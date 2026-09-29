@@ -630,3 +630,43 @@ double robbinsMonroUpdate(
 
   return std::exp(log_window);
 };
+
+//' @title Robbins-Monro update for a reciprocal-parameterised window
+//' @description As \code{robbinsMonroUpdate()}, for proposal windows where a
+//' LARGER value gives a SMALLER step: the Gamma random walk
+//' \code{Gamma(x * w, rate = w)} (variance \code{x / w}) used for the batch
+//' scale, the cluster standard deviations and the t degrees of freedom, and
+//' the Wishart random walk \code{Wishart(Sigma / w, df = w)} (variance
+//' \code{O(1 / w)}) used for cluster covariances. High acceptance must then
+//' DEcrease the window (widen the proposal), so the update is applied to
+//' \code{1 / window} and inverted; that is the same Robbins-Monro recursion
+//' on the step-size scale \code{1 / w}.
+//' @inheritParams robbinsMonroUpdate
+//' @return The updated (still strictly positive) proposal window.
+// [[Rcpp::export]]
+double robbinsMonroUpdateReciprocal(
+  double window,
+  double acceptance_rate,
+  double target_rate,
+  double n,
+  double step_scale,
+  double kappa
+) {
+  return 1.0 / robbinsMonroUpdate(1.0 / window, acceptance_rate, target_rate, n, step_scale, kappa);
+};
+
+double meanAcceptanceOccupied(
+  const arma::uvec& accepted_this_sweep,
+  const arma::uvec& N_k,
+  double fallback
+) {
+  double total = 0.0;
+  uword n_occupied = 0;
+  for(uword k = 0; k < N_k.n_elem; k++) {
+    if(N_k(k) > 0) {
+      total += (double) accepted_this_sweep(k);
+      n_occupied++;
+    }
+  }
+  return (n_occupied > 0) ? total / (double) n_occupied : fallback;
+};

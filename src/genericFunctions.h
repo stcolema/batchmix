@@ -491,4 +491,26 @@ double robbinsMonroUpdate(
   double kappa = 0.6
 );
 
+// Robbins-Monro update for a window whose LARGER values give SMALLER
+// proposal steps (Gamma-RW shape multiplier, Wishart df, ...); see
+// genericFunctions.cpp.
+double robbinsMonroUpdateReciprocal(
+  double window,
+  double acceptance_rate,
+  double target_rate,
+  double n,
+  double step_scale = 1.0,
+  double kappa = 0.6
+);
+
+// Mean of the per-cluster acceptance indicators over OCCUPIED clusters only;
+// empty clusters take forced prior draws, not Metropolis proposals, so they
+// carry no information about the proposal's acceptance rate. Returns
+// `fallback` when every cluster is empty.
+double meanAcceptanceOccupied(
+  const arma::uvec& accepted_this_sweep,
+  const arma::uvec& N_k,
+  double fallback
+);
+
 #endif /* GENFUN_H */

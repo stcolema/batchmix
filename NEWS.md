@@ -277,6 +277,31 @@
   Gamma(5, 2) target: the bug recovered a posterior mean of ~1.4 instead of
   the true 2.5). `mvtSampler::clusterDFMetropolis()` already had the
   correct orientation and was used as the reference to fix the rest.
+* Fixed auto-tuning moving the cluster-covariance (Wishart df), batch-scale,
+  marginal-scale (`sigma`) and t degrees-of-freedom proposal windows in the
+  wrong direction. The R layer hands C++ the reciprocal of these windows
+  (larger = tighter proposal), but the Robbins-Monro update treated them as
+  step sizes, so high acceptance widened the acceptance-driving window
+  instead of loosening the proposal. They now use
+  `robbinsMonroUpdateReciprocal()`; the covariance df is also floored at
+  `P`, below which the Wishart proposal is invalid. Acceptance rates feeding
+  adaptation are now averaged over occupied clusters only.
+* Fixed `MVN_LKJ`/`MVN_MIXED` marginal-scale (`sigma`) prior: the Gamma
+  random walk on `sigma` was scored against the log-normal density without
+  its `1 / sigma` Jacobian, so the chain targeted `LogNormal(beta + xi^2,
+  xi)` (median ~2.3 at the defaults) instead of `LogNormal(beta, xi)`
+  (median ~0.85).
+* Fixed `r_log_det` being left at zero until the first accepted correlation
+  proposal, so the first `rMHStep()` decisions scored the LKJ prior term
+  `(eta - 1) * log det(R)` incorrectly for every `eta != 1`.
+* Fixed empty-cluster forced prior draws being counted as Metropolis
+  acceptances (`cov`/`mu`/`r`/`sigma`/`t_df` counters), which inflated both
+  the reported `*_acceptance_rate` values and the adaptation signal. Also
+  fixed the `MVN_LKJ`/`MVN_MIXED` empty-cluster draw order: `mu` is now drawn
+  after `R`/`sigma` so that `(mu, Sigma)` follows the joint prior.
+* Numeric output changes for a fixed seed: every golden fixture whose run has
+  an empty cluster or uses `MVN_LKJ`/`MVN_MIXED` is regenerated (see
+  `tests/testthat/test-mcmc-kernel-fixes.R` for the prior-recovery tests).
 * Fixed numerically catastrophic conditioning of the GP covariance matrix
   underlying `correlated_weights` for realistic length-scale choices (a
   fixed jitter of 1e-6 gave a condition number of ~1.7e7 in one verified

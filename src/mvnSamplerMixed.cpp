@@ -476,7 +476,10 @@ void mvnSamplerMixed::sigmaMHStep() {
     }
 
     if( (u < acceptance_prob) || (N_k(k) == 0) ){
-      sigma_count(k)++;
+      // Forced prior draws (empty cluster) are not acceptances.
+      if(N_k(k) > 0) {
+        sigma_count(k)++;
+      }
       sigma.col(k) = sigma_proposed;
       Sigma_mat.slice(k).diag() = sigma_proposed;
 
