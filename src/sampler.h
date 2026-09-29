@@ -262,6 +262,11 @@ public:
   arma::vec batch_coordinates, pp_mu, pp_tau2, gp_beta;
   arma::mat gp_cov, gp_chol, w_batch, eta_alr;
   arma::uvec eta_count;
+  // Number of Metropolis moves that each increment of eta_count(j) is spread
+  // over per sweep: B when the partial-pooling update proposes each batch's
+  // entry separately (so eta_count(j) can rise by up to B a sweep), else 1.
+  // Divide raw eta_count differences by this to get an acceptance rate.
+  double eta_moves_per_sweep = 1.0;
   arma::uword gp_hyperparameter_count = 0;
 
   // Parametrised class

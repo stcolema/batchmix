@@ -111,3 +111,56 @@ Rcpp::List priorOnlyLKJChain(
     Rcpp::Named("sigma_count") = conv_to<vec>::from(s.sigma_count)
   );
 }
+
+//' @title Partial-pooling batch-weight chain with fixed hyperparameters (internal)
+//' @description Runs \code{updatePartialPoolingWeights()} repeatedly,
+//' resetting the population mean and variance to fixed values before every
+//' sweep so that the ALR entries of each batch are updated by the Metropolis
+//' kernel alone, targeting their exact conditional
+//' \eqn{p(\eta_b \mid counts_b) \propto \exp(c_b \eta_b - N_b \log(1 + e^{\eta_b}))
+//' N(\eta_b; \mu, \tau^2)} (for K = 2). A batch with no items follows its
+//' prior N(mu, tau2).
+//' @param labels,batch_vec 0-indexed cluster and batch labels of the items.
+//' @param K,B Number of clusters and batches.
+//' @param n_iter Number of sweeps.
+//' @param mu,tau2 The fixed hyperparameters (for every free coordinate).
+//' @param eta_pw The proposal window (sd) of each scalar random walk.
+//' @return A list with the \code{eta} trace (B x (K - 1) x n_iter), the raw
+//' \code{eta_count}, and \code{eta_moves_per_sweep}.
+//' @keywords internal
+//' @export
+// [[Rcpp::export]]
+Rcpp::List partialPoolingWeightChain(
+  arma::uvec labels,
+  arma::uvec batch_vec,
+  arma::uword K,
+  arma::uword B,
+  arma::uword n_iter,
+  double mu,
+  double tau2,
+  double eta_pw
+) {
+  uword N = labels.n_elem;
+  arma::mat X = arma::randn<arma::mat>(N, 2);
+  uvec fixed(N, fill::zeros);
+  vec concentration = ones<vec>(K);
+
+  priorOnlyLKJSampler s(K, B, 0.3, 1.0, 5.0, 0.3, 5.0, labels, batch_vec,
+    concentration, X, fixed, 0.01, 3.0, 1.0, false, 1.0);
+  s.initialiseBatchWeightPrior(1, arma::regspace<arma::vec>(0, B - 1), 1.0, 1.0,
+    eta_pw, false, 0.1, 2.0, 1.0, 10.0);
+
+  cube eta_trace(B, K - 1, n_iter);
+  for(uword it = 0; it < n_iter; it++) {
+    s.pp_mu.fill(mu);
+    s.pp_tau2.fill(tau2);
+    s.updateWeights();
+    eta_trace.slice(it) = s.eta_alr;
+  }
+
+  return Rcpp::List::create(
+    Rcpp::Named("eta") = eta_trace,
+    Rcpp::Named("eta_count") = conv_to<vec>::from(s.eta_count),
+    Rcpp::Named("eta_moves_per_sweep") = s.eta_moves_per_sweep
+  );
+}

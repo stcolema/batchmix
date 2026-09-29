@@ -22,7 +22,7 @@ lkj_prior_chain <- function(K = 2, B = 2, n_iter = 20000, eta = 1.0, seed = 1) {
     labels = rep(0L, 5), # cluster 0 occupied, every other cluster empty
     batch_vec = c(0L, 1L, 0L, 1L, 0L)[seq_len(5)] %% B,
     n_iter = n_iter, eta = eta,
-    r_pw = 1.0, sigma_pw = 5, mu_pw = 8, m_pw = 0.3, S_pw = 5
+    r_pw = 1.0, sigma_pw = 5, mu_pw = 2.5, m_pw = 0.3, S_pw = 5
   )
 }
 
@@ -156,4 +156,97 @@ test_that("auto-tuning loosens a far-too-tight t degrees-of-freedom window (MVT)
 test_that("the covariance window never adapts below the Wishart's minimum df (= P)", {
   fit <- tuned_fit("MVN", list(cov_proposal_window = 1 / 3)) # df 3, P = 2
   expect_gte(fit$final_cov_proposal_window, 2)
+})
+
+# ---- efficiency changes: each must leave the target distribution unchanged ----
+
+test_that("covariance-shaped mean random walk targets the prior (occupied cluster)", {
+  out <- lkj_prior_chain(K = 2, n_iter = 30000, seed = 21)
+  P <- 2
+  keep <- 3001:30000
+  stat <- vapply(keep, function(i) {
+    d <- out$mu[, 1, i] - out$mu_0
+    out$kappa * drop(t(d) %*% solve(out$cov[, 1:P, i], d))
+  }, numeric(1))
+  # chi^2_2: mean 2, median 2 log 2. Autocorrelated draws: loose bounds that a
+  # mis-specified proposal correction (shifting the law) would break.
+  expect_lt(abs(mean(stat) - P), 0.3)
+  expect_lt(abs(median(stat) - qchisq(0.5, P)), 0.25)
+})
+
+test_that("interactionLogLikDelta() equals the full before/after log-likelihood difference", {
+  set.seed(3)
+  P <- 3; N <- 40; C <- 4
+  X_t <- matrix(rnorm(P * N), P, N)
+  cell <- sample(0:(C - 1), N, replace = TRUE)
+  mean_sum <- matrix(rnorm(P * C), P, C)
+  Lam <- array(0, c(P, P, C))
+  for (c in seq_len(C)) Lam[, , c] <- solve(crossprod(matrix(rnorm(P * P), P)) + diag(P))
+  p <- 1L
+  delta <- rnorm(C, sd = 0.4)
+  nu <- runif(N, 3, 20)
+
+  loglik <- function(ms, t_df = NULL) {
+    sum(vapply(seq_len(N), function(n) {
+      c <- cell[n] + 1
+      r <- X_t[, n] - ms[, c]
+      u <- drop(t(r) %*% Lam[, , c] %*% r)
+      if (is.null(t_df)) -0.5 * u else -0.5 * (t_df[n] + P) * log1p(u / t_df[n])
+    }, numeric(1)))
+  }
+  shifted <- mean_sum
+  shifted[p + 1, ] <- shifted[p + 1, ] + delta
+
+  expect_equal(
+    interactionLogLikDelta(X_t, cell, mean_sum, Lam, p, delta, numeric(0)),
+    loglik(shifted) - loglik(mean_sum), tolerance = 1e-10
+  )
+  expect_equal(
+    interactionLogLikDelta(X_t, cell, mean_sum, Lam, p, delta, nu),
+    loglik(shifted, nu) - loglik(mean_sum, nu), tolerance = 1e-10
+  )
+})
+
+test_that("per-batch partial-pooling update targets each batch's exact conditional", {
+  # K = 2 so there is one free ALR coordinate. Batch 0: 30 items, 20 in
+  # cluster 0; batch 1: 6 items, 1 in cluster 0; batch 2: empty (prior only).
+  labels <- c(rep(0L, 20), rep(1L, 10), 0L, rep(1L, 5))
+  batch_vec <- c(rep(0L, 30), rep(1L, 6))
+  mu <- 0.5; tau2 <- 1.5
+
+  set.seed(41)
+  out <- partialPoolingWeightChain(labels, batch_vec, K = 2L, B = 3L, n_iter = 40000L,
+    mu = mu, tau2 = tau2, eta_pw = 1.0)
+  expect_equal(out$eta_moves_per_sweep, 3)
+
+  quantiles_of_target <- function(c_b, n_b, probs) {
+    grid <- seq(-8, 8, length.out = 20001)
+    dens <- exp(c_b * grid - n_b * log1p(exp(grid)) + dnorm(grid, mu, sqrt(tau2), log = TRUE))
+    cdf <- cumsum(dens) / sum(dens)
+    vapply(probs, function(q) grid[which(cdf >= q)[1]], numeric(1))
+  }
+  probs <- c(0.1, 0.5, 0.9)
+  chain <- out$eta[, 1, 5001:40000]
+  for (spec in list(list(b = 1, c = 20, n = 30), list(b = 2, c = 1, n = 6), list(b = 3, c = 0, n = 0))) {
+    expect_lt(
+      max(abs(unname(quantile(chain[spec$b, ], probs)) - quantiles_of_target(spec$c, spec$n, probs))),
+      0.12
+    )
+  }
+
+  # Acceptance is a per-move rate in (0, 1), not a per-sweep count up to B.
+  rate <- out$eta_count[1] / (40000 * out$eta_moves_per_sweep)
+  expect_gt(rate, 0.05)
+  expect_lt(rate, 0.95)
+})
+
+test_that("sample_s_scale = TRUE rejects rho <= 2 instead of silently freezing rho", {
+  d <- make_characterization_data(N = 30, K = 2)
+  expect_error(
+    batchSemiSupervisedMixtureModel(
+      d$X, n_iter = 10, thin = 5, d$labels, d$fixed_none, d$batch_vec,
+      type = "MVN", K_max = 2, verbose = FALSE, rho = 1.5, sample_s_scale = TRUE
+    ),
+    "rho > 2"
+  )
 })

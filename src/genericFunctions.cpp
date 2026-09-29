@@ -655,6 +655,79 @@ double robbinsMonroUpdateReciprocal(
   return 1.0 / robbinsMonroUpdate(1.0 / window, acceptance_rate, target_rate, n, step_scale, kappa);
 };
 
+//' @title Incremental data log-likelihood change for a feature-wise mean shift
+//' @description Change in the log-likelihood of every item when feature
+//' \code{p} of its cell mean moves by \code{delta_cell[cell]} (the
+//' cell-specific shift; the covariance is fixed). With residual
+//' \eqn{r = x - \mu_c} and precision \eqn{\Lambda_c}, the Mahalanobis form
+//' changes from \eqn{u = r' \Lambda r} to \eqn{u' = u - 2 \delta (\Lambda r)_p +
+//' \delta^2 \Lambda_{pp}}, so a Gaussian item needs only one row of
+//' \eqn{\Lambda_c} (O(P) work) rather than two full quadratic forms (O(P^2));
+//' a Student-t item also needs \eqn{u} itself (O(P^2)). Terms constant in
+//' the mean (log-determinants, normalising constants) cancel.
+//' @param X_t P x N data.
+//' @param cell_of_item N-vector (0-indexed) of each item's cell, the column of
+//' \code{mean_sum} and slice of \code{cov_comb_inv} that applies to it.
+//' @param mean_sum P x C matrix of cell means.
+//' @param cov_comb_inv P x P x C cell precision matrices.
+//' @param p The (0-indexed) feature being shifted.
+//' @param delta_cell C-vector of shifts of feature p in each cell.
+//' @param t_df_item Empty for a Gaussian likelihood; otherwise N-vector of
+//' Student-t degrees of freedom.
+//' @return The change in log-likelihood.
+//' @keywords internal
+//' @export
+// [[Rcpp::export]]
+double interactionLogLikDelta(
+  arma::mat X_t,
+  arma::uvec cell_of_item,
+  arma::mat mean_sum,
+  arma::cube cov_comb_inv,
+  arma::uword p,
+  arma::vec delta_cell,
+  arma::vec t_df_item
+) {
+  return interactionLogLikDeltaImpl(X_t, cell_of_item, mean_sum, cov_comb_inv, p, delta_cell, t_df_item);
+};
+
+double interactionLogLikDeltaImpl(
+  const arma::mat& X_t,
+  const arma::uvec& cell_of_item,
+  const arma::mat& mean_sum,
+  const arma::cube& cov_comb_inv,
+  arma::uword p,
+  const arma::vec& delta_cell,
+  const arma::vec& t_df_item
+) {
+  const uword N = X_t.n_cols, P = X_t.n_rows;
+  const bool gaussian = (t_df_item.n_elem == 0);
+  double total = 0.0;
+  vec r(P);
+
+  for(uword n = 0; n < N; n++) {
+    const uword c = cell_of_item(n);
+    const double delta = delta_cell(c);
+    if(delta == 0.0) {
+      continue;
+    }
+    const mat& Lambda = cov_comb_inv.slice(c);
+    r = X_t.col(n) - mean_sum.col(c);
+
+    // (Lambda r)_p
+    const double lambda_r_p = arma::dot(Lambda.row(p), r);
+    const double du = -2.0 * delta * lambda_r_p + delta * delta * Lambda(p, p);
+
+    if(gaussian) {
+      total += -0.5 * du;
+    } else {
+      const double nu = t_df_item(n);
+      const double u = arma::dot(r, Lambda * r);
+      total += -0.5 * (nu + (double) P) * (std::log1p((u + du) / nu) - std::log1p(u / nu));
+    }
+  }
+  return total;
+};
+
 //' @title Posterior-mean batch-corrected data
 //' @description For every item, the posterior mean of its latent
 //' batch-free signal given its observed value and one draw of the

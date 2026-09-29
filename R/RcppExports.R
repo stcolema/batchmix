@@ -273,6 +273,32 @@ robbinsMonroUpdateReciprocal <- function(window, acceptance_rate, target_rate, n
     .Call('_batchmix_robbinsMonroUpdateReciprocal', PACKAGE = 'batchmix', window, acceptance_rate, target_rate, n, step_scale, kappa)
 }
 
+#' @title Incremental data log-likelihood change for a feature-wise mean shift
+#' @description Change in the log-likelihood of every item when feature
+#' \code{p} of its cell mean moves by \code{delta_cell[cell]} (the
+#' cell-specific shift; the covariance is fixed). With residual
+#' \eqn{r = x - \mu_c} and precision \eqn{\Lambda_c}, the Mahalanobis form
+#' changes from \eqn{u = r' \Lambda r} to \eqn{u' = u - 2 \delta (\Lambda r)_p +
+#' \delta^2 \Lambda_{pp}}, so a Gaussian item needs only one row of
+#' \eqn{\Lambda_c} (O(P) work) rather than two full quadratic forms (O(P^2));
+#' a Student-t item also needs \eqn{u} itself (O(P^2)). Terms constant in
+#' the mean (log-determinants, normalising constants) cancel.
+#' @param X_t P x N data.
+#' @param cell_of_item N-vector (0-indexed) of each item's cell, the column of
+#' \code{mean_sum} and slice of \code{cov_comb_inv} that applies to it.
+#' @param mean_sum P x C matrix of cell means.
+#' @param cov_comb_inv P x P x C cell precision matrices.
+#' @param p The (0-indexed) feature being shifted.
+#' @param delta_cell C-vector of shifts of feature p in each cell.
+#' @param t_df_item Empty for a Gaussian likelihood; otherwise N-vector of
+#' Student-t degrees of freedom.
+#' @return The change in log-likelihood.
+#' @keywords internal
+#' @export
+interactionLogLikDelta <- function(X_t, cell_of_item, mean_sum, cov_comb_inv, p, delta_cell, t_df_item) {
+    .Call('_batchmix_interactionLogLikDelta', PACKAGE = 'batchmix', X_t, cell_of_item, mean_sum, cov_comb_inv, p, delta_cell, t_df_item)
+}
+
 #' @title Posterior-mean batch-corrected data
 #' @description For every item, the posterior mean of its latent
 #' batch-free signal given its observed value and one draw of the
@@ -307,6 +333,28 @@ robbinsMonroUpdateReciprocal <- function(window, acceptance_rate, target_rate, n
 #' @export
 batchCorrectedPosteriorMean <- function(X_t, labels, batch_vec, B, mu, mean_sum, cov, cov_comb_inv) {
     .Call('_batchmix_batchCorrectedPosteriorMean', PACKAGE = 'batchmix', X_t, labels, batch_vec, B, mu, mean_sum, cov, cov_comb_inv)
+}
+
+#' @title Greedy refinement of a clustering under the VI lower bound
+#' @description Starting from \code{init}, repeatedly moves single items to
+#' the cluster (or to a new singleton) that most reduces
+#' \deqn{f(c) = \frac{1}{n} \sum_i \left[ \log_2 n_{c_i} + \log_2 \sum_j
+#' \psi_{ij} - 2 \log_2 \sum_{j : c_j = c_i} \psi_{ij} \right],}
+#' the lower bound on the posterior expected Variation of Information
+#' obtained from Jensen's inequality, until no move improves it (or
+#' \code{max_passes} sweeps have run). Each candidate move costs time linear
+#' in the sizes of the two clusters involved, so a sweep is \eqn{O(n^2 G)}
+#' for \eqn{G} clusters. Memory is \eqn{O(nG)} beyond the posterior
+#' similarity matrix itself.
+#' @param psm N x N posterior similarity matrix.
+#' @param init N-vector of initial cluster labels (any integer labelling).
+#' @param max_passes Maximum number of full sweeps over the items.
+#' @return A list with \code{labels} (1-indexed, consecutive) and
+#' \code{value}, the lower-bound loss of the returned clustering.
+#' @keywords internal
+#' @export
+minVIGreedyRefine <- function(psm, init, max_passes = 50L) {
+    .Call('_batchmix_minVIGreedyRefine', PACKAGE = 'batchmix', psm, init, max_passes)
 }
 
 #' @title Diagnostic R/sigma-only chain (internal)
@@ -569,6 +617,27 @@ predictNewBatchMVT <- function(X, X_new, K, B, batch_vec, fixed_new, labels_new_
 #' @export
 priorOnlyLKJChain <- function(X, K, B, labels, batch_vec, n_iter, eta, r_pw, sigma_pw, mu_pw, m_pw, S_pw) {
     .Call('_batchmix_priorOnlyLKJChain', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, n_iter, eta, r_pw, sigma_pw, mu_pw, m_pw, S_pw)
+}
+
+#' @title Partial-pooling batch-weight chain with fixed hyperparameters (internal)
+#' @description Runs \code{updatePartialPoolingWeights()} repeatedly,
+#' resetting the population mean and variance to fixed values before every
+#' sweep so that the ALR entries of each batch are updated by the Metropolis
+#' kernel alone, targeting their exact conditional
+#' \eqn{p(\eta_b \mid counts_b) \propto \exp(c_b \eta_b - N_b \log(1 + e^{\eta_b}))
+#' N(\eta_b; \mu, \tau^2)} (for K = 2). A batch with no items follows its
+#' prior N(mu, tau2).
+#' @param labels,batch_vec 0-indexed cluster and batch labels of the items.
+#' @param K,B Number of clusters and batches.
+#' @param n_iter Number of sweeps.
+#' @param mu,tau2 The fixed hyperparameters (for every free coordinate).
+#' @param eta_pw The proposal window (sd) of each scalar random walk.
+#' @return A list with the \code{eta} trace (B x (K - 1) x n_iter), the raw
+#' \code{eta_count}, and \code{eta_moves_per_sweep}.
+#' @keywords internal
+#' @export
+partialPoolingWeightChain <- function(labels, batch_vec, K, B, n_iter, mu, tau2, eta_pw) {
+    .Call('_batchmix_partialPoolingWeightChain', PACKAGE = 'batchmix', labels, batch_vec, K, B, n_iter, mu, tau2, eta_pw)
 }
 
 #' @title Sample semi-supervised MVN Mixture model

@@ -23,7 +23,9 @@ convergence on: \code{"complete_likelihood"} (default),
 \value{
 A list with \code{rhat}, \code{ess_bulk}, \code{ess_tail} (from
 \code{\link{rankNormalizedRhat}} on \code{statistic}), \code{chain_bic}
-(a vector of each chain's post-burn-in mean BIC), \code{best_chain} (the
+(a vector of each chain's post-burn-in mean BIC), \code{chain_bicm}
+(each chain's BICM, see \code{\link{calcBICM}}; use this, not the mean
+BIC, to compare models), \code{best_chain} (the
 index of the chain with the highest mean BIC) and \code{statistic} (which
 trace was used).
 }

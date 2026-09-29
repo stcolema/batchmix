@@ -153,6 +153,59 @@ rankNormalizedRhat <- function(chains) {
   min(ess, m_i * n_i)
 }
 
+#' @title BICM: the Bayesian information criterion at the best posterior draw
+#' @description The per-iteration \code{BIC} stored in a chain plugs the
+#' log-likelihood at a \emph{single posterior draw} into the BIC formula.
+#' A posterior draw sits below the maximum-likelihood fit by roughly half the
+#' number of free parameters (in regular models; mixtures are not regular, so
+#' this is only a guide), so the per-draw BIC penalises complexity about twice
+#' over and is noisy from draw to draw; it is a useful \emph{trace} but not a
+#' good model-selection value. \code{calcBICM()} instead returns the BICM of
+#' Raftery, Newton, Satagopan & Krivitsky (2007, "Estimating the integrated
+#' likelihood via posterior simulation using the harmonic mean identity", in
+#' \emph{Bayesian Statistics 8}, OUP), which uses the largest log-likelihood
+#' found among the posterior draws as the estimate of the maximised
+#' likelihood. Here that is the maximum over the retained draws of
+#' \eqn{2 \log L_t - \nu_t \log N}, where \eqn{\nu_t} is the number of free
+#' parameters at draw \eqn{t} (which varies with the number of occupied
+#' components), i.e. the maximum of the stored per-draw \code{BIC}. Higher is
+#' better, as elsewhere in this package.
+#'
+#' \strong{Caveats.} (i) The maximum over draws is an upward-biased,
+#' increasingly extreme statistic for very long chains, so compare BICM
+#' across models fitted with chains of comparable length. (ii) The
+#' likelihood is that of the sampler's working data: for an item with
+#' missing entries (and for the probit/censored columns of
+#' \code{type = "MVN_MIXED"}) it includes the imputed or latent values
+#' rather than integrating them out, so BICM is not the criterion for the
+#' observed data when there are missing, censored or binary entries and
+#' should not be used to compare against a model without them. (iii) It
+#' inherits BIC's asymptotic justification, which is weak for mixtures; for
+#' fully Bayesian comparison prefer predictive criteria.
+#' @param chain A single chain, as returned by
+#' \code{\link{batchSemiSupervisedMixtureModel}} (or one element of the
+#' output of \code{\link{fitBatchMix}}).
+#' @param burn Number of iterations to discard as burn-in. Defaults to half
+#' the chain length, as in \code{\link{assessConvergence}}.
+#' @return A single number: the BICM of the chain.
+#' @export
+calcBICM <- function(chain, burn = NULL) {
+  bic <- as.vector(chain$BIC)
+  if (length(bic) == 0L) {
+    stop("chain has no BIC trace.")
+  }
+  n_iter <- chain$n_iter
+  thin <- chain$thin
+  if (is.null(burn)) {
+    burn <- if (is.null(n_iter)) 0 else floor(n_iter / 2)
+  }
+  # A chain already trimmed by processMCMCChain() holds fewer draws than the
+  # sampler saved; its burn-in has been applied, so do not drop more.
+  already_burned <- !is.null(n_iter) && !is.null(thin) && length(bic) < floor(n_iter / thin)
+  first_retained <- if (is.null(thin) || already_burned) 1L else max(1L, ceiling((burn + thin) / thin))
+  max(bic[min(first_retained, length(bic)):length(bic)])
+}
+
 #' @title Assess MCMC convergence across chains and identify the best chain
 #' @description The single entry point for the convergence-checking part of
 #' the Bayesian workflow this package supports: computes the
@@ -184,7 +237,9 @@ rankNormalizedRhat <- function(chains) {
 #' \code{"observed_likelihood"} or \code{"BIC"}.
 #' @return A list with \code{rhat}, \code{ess_bulk}, \code{ess_tail} (from
 #' \code{\link{rankNormalizedRhat}} on \code{statistic}), \code{chain_bic}
-#' (a vector of each chain's post-burn-in mean BIC), \code{best_chain} (the
+#' (a vector of each chain's post-burn-in mean BIC), \code{chain_bicm}
+#' (each chain's BICM, see \code{\link{calcBICM}}; use this, not the mean
+#' BIC, to compare models), \code{best_chain} (the
 #' index of the chain with the highest mean BIC) and \code{statistic} (which
 #' trace was used).
 #' @export
@@ -216,6 +271,8 @@ assessConvergence <- function(mcmc_chains,
     mean(ch$BIC[min(first_retained, n_saved):n_saved])
   }, numeric(1))
 
+  chain_bicm <- vapply(mcmc_chains, calcBICM, numeric(1), burn = burn)
+
   structure(
     list(
       rhat = diag$rhat,
@@ -224,6 +281,7 @@ assessConvergence <- function(mcmc_chains,
       ess_bulk = diag$ess_bulk,
       ess_tail = diag$ess_tail,
       chain_bic = chain_bic,
+      chain_bicm = chain_bicm,
       best_chain = which.max(chain_bic),
       statistic = statistic
     ),

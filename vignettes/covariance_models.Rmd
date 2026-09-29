@@ -130,7 +130,6 @@ convention.
 
 ```{r libs, message=FALSE}
 library(batchmix)
-library(salso)
 library(ggplot2)
 ```
 
@@ -322,24 +321,26 @@ permutation-invariant target instead, which is why it is the default; and
 more chains before treating any single point estimate as final, exactly as
 the getting-started vignette recommends.
 
-Point-estimate the clustering (via `salso`, which handles the
+Point-estimate the clustering (via `minVI()` on the posterior similarity
+matrix, which handles the
 label-switching that any unsupervised mixture sampler exhibits - do
 **not** compare raw per-iteration labels across chains or iterations
 directly):
 
-```{r salsoA}
+```{r minVIPointEstimate}
 best <- getBestChain(fit_k3)
 n_saved <- nrow(best$samples)
 post_labels <- best$samples[(n_saved / 2 + 1):n_saved, ]
 
-point_est <- salso(post_labels, loss = "binder", maxNClusters = K_true)
+post_psm <- createSimilarityMat(post_labels)
+point_est <- minVI(post_psm, post_labels, method = "greedy", max.k = K_true)
 partition_table <- table(point_est, true_labels)
 partition_table
 partition_accuracy <- sum(apply(partition_table, 2, max)) / sum(partition_table)
 ```
 
 The recovered partition matches the true one in `r round(100 * partition_accuracy, 1)`%
-of items (up to the arbitrary labelling `salso` itself assigns) - the
+of items (up to the arbitrary labelling `minVI()` itself assigns) - the
 *best chain's* point estimate is trustworthy here even though the
 cross-chain R&#770; above is not yet at 1, because `getBestChain()`
 picks out the single chain with the best post-burn-in fit rather than
