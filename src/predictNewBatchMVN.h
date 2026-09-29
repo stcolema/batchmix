@@ -64,6 +64,17 @@
 //' fit had \code{sample_m_scale = TRUE}; ignored - \code{m_scale} used
 //' instead - otherwise).
 //' @param sample_m_scale Whether the original fit sampled \code{lambda_2}.
+//' @param rho_draws n_draws vector: the scale-prior concentration at each
+//' draw (used, held fixed throughout prediction, when the original fit had
+//' \code{sample_s_scale = TRUE}; ignored - \code{rho} used instead -
+//' otherwise).
+//' @param s_scale_prior_mean The scale prior's mean, pinned at training time
+//' (\code{theta / (rho - 1)} at the original constructor's rho); used to
+//' recompute \code{theta} from each draw's \code{rho_draws} so that
+//' E[S_b] stays fixed as rho varies (see \code{mvnSampler}'s
+//' \code{sScaleConcentrationMetropolis()}). Ignored if
+//' \code{sample_s_scale} was \code{FALSE} at training time.
+//' @param sample_s_scale Whether the original fit sampled \code{rho}.
 //' @param weight_prior_type 0 = "global", 1 = "partial_pooling", 2 = "gp" -
 //' as in \code{sampleSemisupervisedMVN()}.
 //' @param weights_draws n_draws x K matrix of the shared weight vector
@@ -117,6 +128,9 @@ Rcpp::List predictNewBatchMVN(
     bool sample_m_scale,
     double rho,
     double theta,
+    arma::vec rho_draws,
+    double s_scale_prior_mean,
+    bool sample_s_scale,
     arma::uword weight_prior_type,
     arma::mat weights_draws,
     arma::cube eta_alr_init_draws,

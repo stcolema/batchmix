@@ -33,21 +33,18 @@
 #      accounts for both the new batch's own likelihood AND the fitted
 #      model's remaining posterior uncertainty.
 #
-# Batch shift (m_b) and scale (S_b) are NOT pooled across batches the way
-# weights are: m_b ~ N(0, delta_2 * lambda_2) with lambda_2 (= m_scale)
-# ESTIMATED from all batches jointly when sample_m_scale = TRUE (a
-# genuine partial-pooling/shrinkage prior, Gelman et al., 2013, BDA3,
-# ch. 5), but S_b ~ S_loc + InvGamma(rho, theta) with rho/theta fixed,
-# user-supplied hyperparameters that are never re-estimated from the
-# batches actually fitted. This asymmetry means a new batch's shift
-# predictive correctly reflects what the fitted batches' own shifts
-# looked like, but its scale predictive currently falls back to a
-# generic, non-adaptive prior regardless of the fitted batches' own
-# scales - a real limitation, not addressed here (it would require adding
-# a new hierarchical hyperparameter to the core training model, well
-# beyond the scope of a predictive function built on top of the existing
-# fit) but worth knowing about when interpreting a new batch's predicted
-# scale.
+# Batch shift (m_b) and scale (S_b) each have a genuine partial-pooling/
+# shrinkage prior (Gelman et al., 2013, BDA3, ch. 5) that can be estimated
+# from the batches actually fitted, though - due to an identifiability
+# constraint neither can escape - only ONE hyperparameter of each is ever
+# free: m_b ~ N(0, delta_2 * lambda_2), with lambda_2 (= m_scale) ESTIMATED
+# when sample_m_scale = TRUE; S_b ~ S_loc + InvGamma(rho, theta), with rho
+# (the concentration; theta is pinned so the prior MEAN stays fixed at
+# s_scale_prior_mean - see mvnSampler::sScaleConcentrationMetropolis()'s
+# documentation for why the mean itself can never be freed) ESTIMATED when
+# sample_s_scale = TRUE. When either flag was FALSE at training time, the
+# corresponding predictive draw below falls back to the fixed, user-
+# supplied hyperparameter exactly as before.
 
 # Local null-coalescing helper (see R/continueChain.R for the identical,
 # independently-defined copy - this file does not depend on that one).
@@ -258,9 +255,23 @@
     nrow = P, ncol = n_saved
   )
 
+  # rho is always a per-iteration trace (constant unless sample_s_scale -
+  # see batchSemiSupervisedMixtureModel.R); theta is kept in sync with it
+  # (theta = s_scale_prior_mean * (rho - 1), fixing the prior MEAN of
+  # S_b - S_loc - see sScaleConcentrationMetropolis()'s documentation for
+  # why only the concentration, not the mean, is ever free), so it must be
+  # recomputed per draw here rather than read as processed_chain$theta
+  # (the ORIGINAL fixed value, only still correct when rho never moved).
+  rho_draws <- processed_chain$rho
+  theta_draws <- if (isTRUE(processed_chain$sample_s_scale)) {
+    processed_chain$s_scale_prior_mean * (rho_draws - 1.0)
+  } else {
+    rep(processed_chain$theta, n_saved)
+  }
+
   S_loc <- 1.0
   scale_draws <- S_loc + matrix(1 / stats::rgamma(P * n_saved,
-    shape = processed_chain$rho, rate = processed_chain$theta
+    shape = rep(rho_draws, each = P), rate = rep(theta_draws, each = P)
   ), nrow = P, ncol = n_saved)
 
   list(shift = shift_draws, scale = scale_draws)
@@ -292,10 +303,10 @@
 #' (\code{sampler::predict_mode}, src/sampler.h) - see the file-level
 #' comment in \code{R/predictNewBatch.R} for the full statistical
 #' justification (composition sampling for a posterior predictive
-#' distribution, Rubin 1987; BDA3 sec. 1.10), including why
-#' \code{"gp"}/\code{"partial_pooling"} weights have a real cross-batch
-#' predictive distribution but batch scale currently does not (a known
-#' asymmetry in the underlying model, not something this function can fix).
+#' distribution, Rubin 1987; BDA3 sec. 1.10). Batch shift/scale each draw
+#' from a genuine cross-batch partial-pooling prior when the original fit
+#' set \code{sample_m_scale}/\code{sample_s_scale = TRUE} respectively (a
+#' fixed, non-adaptive prior otherwise - see that same comment).
 #' @param processed_chain Output of \code{\link{processMCMCChain}} (a
 #' single chain, burn-in applied and relabelled).
 #' @param X The original training data passed to the function that
@@ -463,8 +474,17 @@ predictNewBatch <- function(processed_chain, X, batch_vec = NULL, new_batch_coor
     m_scale = processed_chain$m_scale %||% 0.01,
     lambda_2_draws = if (isTRUE(processed_chain$sample_m_scale)) processed_chain$lambda_2[draw_idx] else rep(0, length(draw_idx)),
     sample_m_scale = isTRUE(processed_chain$sample_m_scale),
-    rho = processed_chain$rho,
+    # rho is always a per-iteration trace (see processMCMCChain.R's note);
+    # its first retained value is only ever used as the constructor's
+    # initial value here - every draw's own rho_draws(t) overwrites it
+    # before matrixCombinations() runs, whether or not sample_s_scale was
+    # actually TRUE at training time (see the 4 predictNewBatch*.cpp
+    # drivers' `if (sample_s_scale) { ... }` guard).
+    rho = processed_chain$rho[1],
     theta = processed_chain$theta,
+    rho_draws = processed_chain$rho[draw_idx],
+    s_scale_prior_mean = processed_chain$s_scale_prior_mean %||% 1.0,
+    sample_s_scale = isTRUE(processed_chain$sample_s_scale),
     weight_prior_type = weight_prior_type,
     weights_draws = if (weight_prior == "global") weight_draws[draw_idx, , drop = FALSE] else matrix(0, length(draw_idx), K),
     eta_alr_init_draws = eta_alr_init_draws,

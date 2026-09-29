@@ -35,6 +35,9 @@ Rcpp::List predictNewBatchMVNMixed(
     bool sample_m_scale,
     double rho,
     double theta,
+    arma::vec rho_draws,
+    double s_scale_prior_mean,
+    bool sample_s_scale,
     arma::uword weight_prior_type,
     arma::mat weights_draws,
     arma::cube eta_alr_init_draws,
@@ -124,6 +127,11 @@ Rcpp::List predictNewBatchMVNMixed(
 
     my_sampler.lambda_2 = sample_m_scale ? lambda_2_draws(t) : m_scale;
     my_sampler.batch_shift_prior_precision = 1.0 / (my_sampler.delta_2 * my_sampler.lambda_2);
+
+    if (sample_s_scale) {
+      my_sampler.rho = rho_draws(t);
+      my_sampler.theta = s_scale_prior_mean * (my_sampler.rho - 1.0);
+    }
 
     if (weight_prior_type == 0) {
       my_sampler.w = weights_draws.row(t).t();

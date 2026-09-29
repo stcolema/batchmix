@@ -25,6 +25,9 @@ predictNewBatchMVT(
   sample_m_scale,
   rho,
   theta,
+  rho_draws,
+  s_scale_prior_mean,
+  sample_s_scale,
   weight_prior_type,
   weights_draws,
   eta_alr_init_draws,
@@ -93,6 +96,9 @@ fit had \code{sample_m_scale = TRUE}; ignored - \code{m_scale} used
 instead - otherwise).}
 
 \item{sample_m_scale}{Whether the original fit sampled \code{lambda_2}.}
+
+\item{rho_draws, s_scale_prior_mean, sample_s_scale}{See
+\code{predictNewBatchMVN()}.}
 
 \item{weight_prior_type}{0 = "global", 1 = "partial_pooling", 2 = "gp" -
 as in \code{sampleSemisupervisedMVN()}.}

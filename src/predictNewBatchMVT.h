@@ -23,6 +23,8 @@
 //' \code{clusterDFMetropolis()} whenever \code{predict_mode} is set - see
 //' src/mvtSampler.cpp).
 //' @inheritParams predictNewBatchMVN
+//' @param rho_draws,s_scale_prior_mean,sample_s_scale See
+//' \code{predictNewBatchMVN()}.
 //' @param t_df_draws n_draws x K matrix of cluster degrees-of-freedom.
 //' @param t_df_proposal_window Inert (t_df is never proposed during
 //' prediction); accepted only for constructor-signature parity.
@@ -48,6 +50,9 @@ Rcpp::List predictNewBatchMVT(
     bool sample_m_scale,
     double rho,
     double theta,
+    arma::vec rho_draws,
+    double s_scale_prior_mean,
+    bool sample_s_scale,
     arma::uword weight_prior_type,
     arma::mat weights_draws,
     arma::cube eta_alr_init_draws,

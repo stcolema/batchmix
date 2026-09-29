@@ -286,6 +286,7 @@ Rcpp::List sampleSemisupervisedMVN (
   out["final_eta_proposal_window"] = my_sampler.eta_proposal_window;
   out["final_gp_hyperparameter_proposal_window"] = my_sampler.gp_hyperparameter_proposal_window;
   out["rho"] = rho_saved;
+  out["s_scale_prior_mean"] = my_sampler.s_scale_prior_mean;
   out["sample_s_scale"] = sample_s_scale;
   out["s_scale_acceptance_rate"] = (double) my_sampler.s_scale_count / n_iter;
   out["final_s_scale_proposal_window"] = my_sampler.s_scale_proposal_window;
