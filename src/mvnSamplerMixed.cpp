@@ -232,6 +232,12 @@ void mvnSamplerMixed::batchScaleMetropolis() {
 
   for(uword b = 0; b < B; b++) {
 
+    // Predicting a new batch (see sampler.h): every OTHER batch's scale is
+    // one of the fixed inputs the composition draw conditions on.
+    if(predict_mode && b != predict_batch) {
+      continue;
+    }
+
     next = false;
     acceptance_prob = 0.0, proposed_model_score = 0.0, current_model_score = 0.0;
     proposed_cov_comb.zeros();
