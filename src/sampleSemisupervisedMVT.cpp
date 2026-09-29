@@ -187,11 +187,16 @@ Rcpp::List sampleSemisupervisedMVT (
 
     if(auto_tune && r < n_burn) {
       double n_adapt = (double) (r + 1);
-      my_sampler.mu_proposal_window = robbinsMonroUpdate(my_sampler.mu_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.mu_count - prev_mu_count)), 0.234, n_adapt);
-      my_sampler.cov_proposal_window = robbinsMonroUpdate(my_sampler.cov_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.cov_count - prev_cov_count)), 0.234, n_adapt);
+      // Rates are averaged over occupied clusters only (empty clusters take
+      // forced prior draws, not proposals). cov, S and t_df windows are
+      // reciprocal-parameterised (LARGER = SMALLER step), so they use the
+      // reciprocal update; the Wishart df is floored at P, below which
+      // wishrnd() is not a valid proposal.
+      my_sampler.mu_proposal_window = robbinsMonroUpdate(my_sampler.mu_proposal_window, meanAcceptanceOccupied(my_sampler.mu_count - prev_mu_count, my_sampler.N_k, 0.234), 0.234, n_adapt);
+      my_sampler.cov_proposal_window = std::max((double) P, robbinsMonroUpdateReciprocal(my_sampler.cov_proposal_window, meanAcceptanceOccupied(my_sampler.cov_count - prev_cov_count, my_sampler.N_k, 0.234), 0.234, n_adapt));
       my_sampler.m_proposal_window = robbinsMonroUpdate(my_sampler.m_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.m_count - prev_m_count)), 0.234, n_adapt);
-      my_sampler.S_proposal_window = robbinsMonroUpdate(my_sampler.S_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.S_count - prev_S_count)), 0.234, n_adapt);
-      my_sampler.t_df_proposal_window = robbinsMonroUpdate(my_sampler.t_df_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.t_df_count - prev_t_df_count)), 0.44, n_adapt);
+      my_sampler.S_proposal_window = robbinsMonroUpdateReciprocal(my_sampler.S_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.S_count - prev_S_count)), 0.234, n_adapt);
+      my_sampler.t_df_proposal_window = robbinsMonroUpdateReciprocal(my_sampler.t_df_proposal_window, meanAcceptanceOccupied(my_sampler.t_df_count - prev_t_df_count, my_sampler.N_k, 0.44), 0.44, n_adapt);
       if(include_interaction) {
         my_sampler.gamma_proposal_window = robbinsMonroUpdate(my_sampler.gamma_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(arma::vectorise(my_sampler.gamma_count - prev_gamma_count))), 0.234, n_adapt);
       }

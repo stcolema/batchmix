@@ -174,10 +174,15 @@ Rcpp::List sampleSemisupervisedMVN (
 
     if(auto_tune && r < n_burn) {
       double n_adapt = (double) (r + 1);
-      my_sampler.mu_proposal_window = robbinsMonroUpdate(my_sampler.mu_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.mu_count - prev_mu_count)), 0.234, n_adapt);
-      my_sampler.cov_proposal_window = robbinsMonroUpdate(my_sampler.cov_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.cov_count - prev_cov_count)), 0.234, n_adapt);
+      // Rates are averaged over occupied clusters only (empty clusters take
+      // forced prior draws, not proposals). cov_proposal_window is the
+      // Wishart df and S_proposal_window a Gamma shape multiplier: LARGER
+      // means a SMALLER step, so both use the reciprocal update. The df is
+      // floored at P, below which wishrnd() is not a valid proposal.
+      my_sampler.mu_proposal_window = robbinsMonroUpdate(my_sampler.mu_proposal_window, meanAcceptanceOccupied(my_sampler.mu_count - prev_mu_count, my_sampler.N_k, 0.234), 0.234, n_adapt);
+      my_sampler.cov_proposal_window = std::max((double) P, robbinsMonroUpdateReciprocal(my_sampler.cov_proposal_window, meanAcceptanceOccupied(my_sampler.cov_count - prev_cov_count, my_sampler.N_k, 0.234), 0.234, n_adapt));
       my_sampler.m_proposal_window = robbinsMonroUpdate(my_sampler.m_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.m_count - prev_m_count)), 0.234, n_adapt);
-      my_sampler.S_proposal_window = robbinsMonroUpdate(my_sampler.S_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.S_count - prev_S_count)), 0.234, n_adapt);
+      my_sampler.S_proposal_window = robbinsMonroUpdateReciprocal(my_sampler.S_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.S_count - prev_S_count)), 0.234, n_adapt);
       if(include_interaction) {
         my_sampler.gamma_proposal_window = robbinsMonroUpdate(my_sampler.gamma_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(arma::vectorise(my_sampler.gamma_count - prev_gamma_count))), 0.234, n_adapt);
       }

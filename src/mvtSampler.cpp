@@ -391,7 +391,10 @@ void mvtSampler::clusterDFMetropolis() {
     
     if((u < acceptance_prob) || (N_k(k) == 0)) {
       t_df(k) = t_df_proposed;
-      t_df_count(k)++;
+      // Forced prior draws (empty cluster) are not acceptances.
+      if(N_k(k) > 0) {
+        t_df_count(k)++;
+      }
       pdf_coef(k) = proposed_pdf_coef;
     }
   }

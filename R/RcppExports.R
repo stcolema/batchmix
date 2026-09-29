@@ -257,6 +257,22 @@ robbinsMonroUpdate <- function(window, acceptance_rate, target_rate, n, step_sca
     .Call('_batchmix_robbinsMonroUpdate', PACKAGE = 'batchmix', window, acceptance_rate, target_rate, n, step_scale, kappa)
 }
 
+#' @title Robbins-Monro update for a reciprocal-parameterised window
+#' @description As \code{robbinsMonroUpdate()}, for proposal windows where a
+#' LARGER value gives a SMALLER step: the Gamma random walk
+#' \code{Gamma(x * w, rate = w)} (variance \code{x / w}) used for the batch
+#' scale, the cluster standard deviations and the t degrees of freedom, and
+#' the Wishart random walk \code{Wishart(Sigma / w, df = w)} (variance
+#' \code{O(1 / w)}) used for cluster covariances. High acceptance must then
+#' DEcrease the window (widen the proposal), so the update is applied to
+#' \code{1 / window} and inverted; that is the same Robbins-Monro recursion
+#' on the step-size scale \code{1 / w}.
+#' @inheritParams robbinsMonroUpdate
+#' @return The updated (still strictly positive) proposal window.
+robbinsMonroUpdateReciprocal <- function(window, acceptance_rate, target_rate, n, step_scale, kappa) {
+    .Call('_batchmix_robbinsMonroUpdateReciprocal', PACKAGE = 'batchmix', window, acceptance_rate, target_rate, n, step_scale, kappa)
+}
+
 #' @title Diagnostic R/sigma-only chain (internal)
 #' @description Runs the R (correlation) and sigma (marginal SD)
 #' Metropolis-Hastings steps of \code{mvnSamplerSeparationStrategy} in
@@ -495,6 +511,28 @@ predictNewBatchMVNSeparationStrategy <- function(X, X_new, K, B, batch_vec, fixe
 #' prediction); accepted only for constructor-signature parity.
 predictNewBatchMVT <- function(X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, t_df_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_alr_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, n_pred_iter, pred_burn, pred_thin) {
     .Call('_batchmix_predictNewBatchMVT', PACKAGE = 'batchmix', X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, t_df_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_alr_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, n_pred_iter, pred_burn, pred_thin)
+}
+
+#' @title Prior-only MVN_LKJ chain (internal)
+#' @description Runs the MVN_LKJ Metropolis steps with the data likelihood
+#' switched off, so the chain's stationary distribution is the prior. Items
+#' in \code{X} only serve to make clusters occupied (those in
+#' \code{labels}) or empty (every other cluster).
+#' @param X Data matrix (only its dimensions and empirical-Bayes prior
+#' centre matter).
+#' @param K,B Number of clusters and batches.
+#' @param labels Cluster label (0-indexed) of each row of \code{X}.
+#' @param batch_vec Batch label (0-indexed) of each row of \code{X}.
+#' @param n_iter Number of sweeps.
+#' @param eta LKJ concentration.
+#' @param r_pw,sigma_pw,mu_pw,m_pw,S_pw Proposal windows, on the scale the
+#' sampler uses internally.
+#' @return A list of traces, acceptance counts and initial-state
+#' diagnostics.
+#' @keywords internal
+#' @export
+priorOnlyLKJChain <- function(X, K, B, labels, batch_vec, n_iter, eta, r_pw, sigma_pw, mu_pw, m_pw, S_pw) {
+    .Call('_batchmix_priorOnlyLKJChain', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, n_iter, eta, r_pw, sigma_pw, mu_pw, m_pw, S_pw)
 }
 
 #' @title Sample semi-supervised MVN Mixture model

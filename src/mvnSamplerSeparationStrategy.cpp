@@ -300,8 +300,19 @@ void mvnSamplerSeparationStrategy::sScaleConcentrationMetropolis() {
 
 // Update the common matrix manipulations to avoid recalculating N times
 void mvnSamplerSeparationStrategy::matrixCombinations() {
-  
+
   for(uword k = 0; k < K; k++) {
+    // rMHStep() scores the CURRENT state with r_log_det(k), which is
+    // otherwise only ever refreshed when a proposal is accepted; until
+    // then it would sit at its zero initial value rather than
+    // log det(R_k), mis-scoring the LKJ term (eta - 1) * log det(R_k) for
+    // every eta != 1. R is left at zero (and r_log_det with it) when it was
+    // never set, e.g. in prediction mode where R is not updated.
+    double r_log_det_val = 0.0, r_sign = 0.0;
+    if(arma::log_det(r_log_det_val, r_sign, R.slice(k)) && r_sign > 0.0 && std::isfinite(r_log_det_val)) {
+      r_log_det(k) = r_log_det_val;
+    }
+
     cov_inv.slice(k) = inv_sympd(cov.slice(k));
     cov_log_det(k) = log_det(cov.slice(k)).real();
     for(uword b = 0; b < B; b++) {
@@ -535,8 +546,15 @@ double mvnSamplerSeparationStrategy::sigmaLogKernel(uword k,
   // (sigma_mat), NOT the class member sigma (which, critically, is the
   // *other* cluster's value unless k == 0, and in any case is not the
   // value being scored by this call - using it here was the bug).
+  //
+  // sigma is proposed on its own scale (Gamma random walk), so the target
+  // needs the log-normal density with respect to d(sigma), which carries a
+  // 1 / sigma factor: log f(sigma) = -log(sigma) - (log sigma - beta)^2 /
+  // (2 xi^2) + const. Omitting the -log(sigma) term targets
+  // LogNormal(beta + xi^2, xi) instead (sigma * LogNormal(beta, xi) is
+  // proportional to it).
   for(uword p = 0; p < P; p++) {
-    score += -std::pow(log(sigma_mat(p)) - beta, 2.0) / (2.0 * xi * xi);
+    score += -std::log(sigma_mat(p)) - std::pow(log(sigma_mat(p)) - beta, 2.0) / (2.0 * xi * xi);
   }
   
   score += -0.5 * log_det((1.0 / kappa) * cov).real()
@@ -917,8 +935,11 @@ void mvnSamplerSeparationStrategy::rMHStep() {
 
     }
     if( (u < acceptance_prob) || (N_k(k) == 0) ){
-      r_count(k)++;
-      
+      // Forced prior draws (empty cluster) are not acceptances.
+      if(N_k(k) > 0) {
+        r_count(k)++;
+      }
+
       R.slice(k) = R_proposed;
       r_log_det(k) = proposed_r_log_det;
       
@@ -1125,8 +1146,11 @@ void mvnSamplerSeparationStrategy::sigmaMHStep() {
     if( (u < acceptance_prob) || (N_k(k) == 0) ){
       
       // Rcpp::Rcout << "SIGMA MH: Update count.\n";
-      sigma_count(k)++;
-      
+      // Forced prior draws (empty cluster) are not acceptances.
+      if(N_k(k) > 0) {
+        sigma_count(k)++;
+      }
+
       // Rcpp::Rcout << "SIGMA MH: Update sigma.\n";
       sigma.col(k) = sigma_proposed;
       Sigma_mat.slice(k).diag() = sigma_proposed;
@@ -1193,7 +1217,10 @@ void mvnSamplerSeparationStrategy::clusterMeanMetropolis() {
     
     if((u < acceptance_prob) || (N_k(k) == 0)) {
       mu.col(k) = mu_proposed;
-      mu_count(k)++;
+      // Forced prior draws (empty cluster) are not acceptances.
+      if(N_k(k) > 0) {
+        mu_count(k)++;
+      }
       
       for(arma::uword b = 0; b < B; b++) {
         mean_sum.col(k * B + b) = proposed_mean_sum.col(b);
@@ -1287,14 +1314,21 @@ void mvnSamplerSeparationStrategy::metropolisStep() {
   // batchShiftMetorpolis() (already restricted to predict_batch
   // internally) stay unconditional.
   if(!predict_mode) {
-    clusterMeanMetropolis();
-
     // Metropolis step for cluster parameters
     // Rcpp::Rcout << "\nR MH.";
     rMHStep();
 
     // Rcpp::Rcout << "\nSigma MH.";
     sigmaMHStep();
+
+    // The mean goes AFTER R and sigma: for an empty cluster, mu | Sigma is
+    // a draw from N(mu_0, Sigma / kappa), so it must use the covariance
+    // just redrawn from its prior. Drawing mu first and then redrawing
+    // Sigma independently leaves (mu, Sigma) decoupled, unlike the joint
+    // prior (mvnSampler's cov -> mean order is the valid one). For an
+    // occupied cluster the order of these three conditional updates does
+    // not affect validity.
+    clusterMeanMetropolis();
 
     // Rcpp::Rcout << "\nNew MH moves complete.";
 
