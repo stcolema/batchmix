@@ -162,15 +162,15 @@
     dim(processed_chain$w_batch)[3]
   }
 
-  if (weight_prior == "global") {
-    return(list(weight_draws = processed_chain$weights))
-  }
-
   if (weight_prior == "gp" && is.null(new_batch_coordinate)) {
     stop("new_batch_coordinate is required when batch_weight_prior = 'gp'.")
   }
   if (weight_prior != "gp" && !is.null(new_batch_coordinate)) {
     warning("new_batch_coordinate is ignored unless batch_weight_prior = 'gp'.")
+  }
+
+  if (weight_prior == "global") {
+    return(list(weight_draws = processed_chain$weights))
   }
 
   n_free <- K - 1
