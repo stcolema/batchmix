@@ -46,7 +46,23 @@ class mvnSampler: public sampler {
 public:
   
   bool sample_m_scale = true;
-  
+
+  // Partial pooling for the batch SCALE's own population concentration
+  // (opt-in; default false - see sampler.h's predict_mode note and the
+  // design comment above sScaleConcentrationMetropolis() in mvnSampler.cpp
+  // for why this can only touch the *concentration*, not the *mean*, of
+  // the batch-scale prior: a uniform rescaling of every S_b is exactly
+  // compensated by an inverse rescaling of every cluster covariance
+  // (cov_comb = cov_k * diag(S_b)), the same non-identifiability the
+  // batch-shift/cluster-mean pair already has and already fixes by
+  // pinning the shift prior's mean at 0 - see batch_shift_prior_mean).
+  // s_scale_prior_mean = theta0 / (rho0 - 1) is fixed at construction from
+  // the user's ORIGINAL rho/theta (mirroring delta_2's role for the
+  // shift); theta is then kept in sync as s_scale_prior_mean * (rho - 1)
+  // every time rho moves, so the prior MEAN of S_b - S_loc never changes,
+  // only how tightly batches concentrate around it (larger rho = tighter).
+  bool sample_s_scale = false;
+
   arma::uword n_param_cluster = 0,
     n_param_batch = 0;
 
@@ -59,23 +75,38 @@ public:
     t = 0.0,
     m_scale = 0.01,
     lambda_2 = 0.01,
-    
+
     // Hyperparameters for the batch scale. These choices expects sampled
     // values in the range of 1.2 to 2.0 which seems a sensible prior belief.
+    // rho becomes a free, estimated parameter when sample_s_scale is true
+    // (see above) - theta is then a DEPENDENT quantity, not a second free
+    // parameter (see s_scale_prior_mean).
     rho = 3.0,
-    theta = 1.0, 
+    theta = 1.0,
     S_loc = 1.0, // this gives the batch scale a support of (1.0, \infty)
-    
+
     // Hyperparameters for sampling m_scale
     a = 3.0,
     b = 1.0,
-    
+
+    // Hyperparameters for sampling the scale concentration (rho), only
+    // used if sample_s_scale is true: (rho - 2) ~ Gamma(a_s, b_s) a priori
+    // (rho > 2 throughout, for a finite prior variance of S_b); s_scale_a/b
+    // default to a prior mean of rho - 2 = a_s / b_s = 2, i.e. rho = 4,
+    // close to this package's own pre-existing rho = 3 default.
+    s_scale_prior_mean = 0.0,
+    a_s = 2.0,
+    b_s = 1.0,
+    s_scale_proposal_window = 0.1,
+
     // Proposal windows (initialised but assigned values by user)
     mu_proposal_window = 0.0,
     cov_proposal_window = 0.0,
     m_proposal_window = 0.0,
     S_proposal_window = 0.0;
-  
+
+  arma::uword s_scale_count = 0;
+
   arma::uvec mu_count, cov_count, m_count, S_count, phi_count, rcond_count;
   arma::vec xi, cov_log_det, global_mean;
   arma::mat scale, mu, m, S, phi, cov_comb_log_det, mean_sum, global_cov, Y;
@@ -98,7 +129,8 @@ public:
     double _m_scale,
     double _rho,
     double _theta,
-    bool _sample_m_scale
+    bool _sample_m_scale,
+    bool _sample_s_scale = false
   );
   
   // Destructor
@@ -113,6 +145,11 @@ public:
   // M_scale hyperparameter
   void sampleMScalePrior();
   void sampleMScalePosterior();
+
+  // Batch-scale concentration hyperparameter (opt-in; see sample_s_scale
+  // above). No closed-form Gibbs update exists (unlike lambda_2's conjugate
+  // InvGamma-InvGamma pair), so this is a Metropolis-Hastings step.
+  virtual void sScaleConcentrationMetropolis();
   
   // Update the common matrix manipulations to avoid recalculating N times
   virtual void matrixCombinations();

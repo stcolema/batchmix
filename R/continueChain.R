@@ -87,7 +87,6 @@ continueChain <- function(mcmc_output,
 
   alpha <- mcmc_output$alpha
   m_scale <- mcmc_output$m_scale
-  rho <- mcmc_output$rho
   theta <- mcmc_output$theta
 
   # If the previous chain auto-tuned its proposal windows, continue from the
@@ -143,6 +142,8 @@ continueChain <- function(mcmc_output,
   if(sample_m_scale) {
     old_lambda2 <- c(mcmc_output$lambda_2)
   }
+  # rho is always a trace (see above), so always captured for combining.
+  old_rho <- c(mcmc_output$rho)
 
   labels <- mcmc_output$samples[last_sample, ]
 
@@ -174,6 +175,16 @@ continueChain <- function(mcmc_output,
   gp_tau2 <- if (!is.null(mcmc_output$gp_tau2)) mcmc_output$gp_tau2[last_sample] else 1.0
   gp_length_scale <- if (!is.null(mcmc_output$gp_length_scale)) mcmc_output$gp_length_scale[last_sample] else 1.0
 
+  # rho is always a per-iteration trace (constant unless sample_s_scale -
+  # see batchSemiSupervisedMixtureModel.R), so resume from its last value
+  # exactly like the GP hyperparameters above, not the whole vector.
+  sample_s_scale <- isTRUE(mcmc_output$sample_s_scale)
+  rho <- if (!is.null(mcmc_output$rho)) mcmc_output$rho[last_sample] else 3.0
+  s_scale_shape <- mcmc_output$s_scale_shape %||% 2.0
+  s_scale_rate <- mcmc_output$s_scale_rate %||% 1.0
+  s_scale_proposal_window <- mcmc_output$final_s_scale_proposal_window %||%
+    mcmc_output$s_scale_proposal_window %||% 0.1
+
   # Bundle the resumed proposal windows into `control` (see
   # ?batchmixControl) rather than forwarding them as individual, now-
   # deprecated arguments - this is an ordinary continuation, not a call
@@ -189,6 +200,7 @@ continueChain <- function(mcmc_output,
     gamma_proposal_window = gamma_proposal_window,
     eta_proposal_window = eta_proposal_window,
     gp_hyperparameter_proposal_window = gp_hyperparameter_proposal_window,
+    s_scale_proposal_window = s_scale_proposal_window,
     auto_tune = FALSE
   )
 
@@ -220,7 +232,10 @@ continueChain <- function(mcmc_output,
     sample_gp_hyperparameters = sample_gp_hyperparameters,
     pp_tau2_shape = pp_tau2_shape,
     pp_tau2_rate = pp_tau2_rate,
-    pp_mu_prior_sd = pp_mu_prior_sd
+    pp_mu_prior_sd = pp_mu_prior_sd,
+    sample_s_scale = sample_s_scale,
+    s_scale_shape = s_scale_shape,
+    s_scale_rate = s_scale_rate
   )
 
   if (keep_old_samples) {
@@ -309,7 +324,8 @@ continueChain <- function(mcmc_output,
     if(sample_m_scale) {
       comb_lambda2 <- c(old_lambda2, new_samples$lambda_2)
     }
-    
+    comb_rho <- c(old_rho, new_samples$rho)
+
 
     if (type == "MVT") {
       comb_t_df_acceptance_rate <- ((mcmc_output$t_df_acceptance_rate * n_iter_old +
@@ -456,7 +472,8 @@ continueChain <- function(mcmc_output,
     if(sample_m_scale) {
       new_samples$lambda_2 <- comb_lambda2
     }
-    
+    new_samples$rho <- comb_rho
+
     if (is_mvt) {
       new_samples$t_df <- comb_t_df
       new_samples$t_df_acceptance_rate <- comb_t_df_acceptance_rate

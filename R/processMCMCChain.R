@@ -158,6 +158,12 @@ processMCMCChain <- function(mcmc_output, burn, point_estimate_method = "median"
     new_output$lambda_2 <- mcmc_output$lambda_2[keep_indices]
   }
 
+  # rho (the batch-scale concentration) is always returned as a trace,
+  # constant across iterations unless sample_s_scale - see
+  # batchSemiSupervisedMixtureModel.R's note on why it is not conditionally
+  # trimmed the way lambda_2 is above.
+  new_output$rho <- mcmc_output$rho[keep_indices]
+
   # Batch x cluster interaction term and GP-correlated batch weights (if
   # requested when the chain was run) need the same burn-in applied as
   # every other sampled quantity above.

@@ -46,7 +46,15 @@ class mvnSamplerSeparationStrategy: public sampler {
 public:
   
   bool sample_m_scale = true;
-  
+
+  // Partial pooling for the batch SCALE's own population concentration
+  // (opt-in; default false) - see mvnSampler.h's identical field for the
+  // full identifiability derivation (a uniform rescaling of every S_b is
+  // exactly compensated by an inverse rescaling of every cluster
+  // covariance, so only the concentration around a fixed mean is
+  // identifiable, not the mean itself).
+  bool sample_s_scale = false;
+
   // 1 (weight) + P (mean) + P*(P+1)/2 (covariance, via the R/sigma
   // decomposition: P*(P-1)/2 free off-diagonal entries of R plus P
   // entries of sigma = P*(P+1)/2, the same count as a general covariance
@@ -85,14 +93,23 @@ public:
     // Hyperparameters for sampling m_scale
     a = 3.0,
     b = 1.0,
-    
+
+    // Hyperparameters for sampling the scale concentration (rho) - see
+    // mvnSampler.h's identical fields.
+    s_scale_prior_mean = 0.0,
+    a_s = 2.0,
+    b_s = 1.0,
+    s_scale_proposal_window = 0.1,
+
     // Proposal windows (initialised but assigned values by user)
     mu_proposal_window = 0.0,
     r_proposal_window = 0.0,
     sigma_proposal_window = 0.0,
     m_proposal_window = 0.0,
     S_proposal_window = 0.0;
-  
+
+  arma::uword s_scale_count = 0;
+
   arma::uvec mu_count, r_count, sigma_count, m_count, S_count, phi_count, rcond_count;
   arma::vec mu_0, r_log_det, cov_log_det, global_mean, z_k;
   arma::mat scale, mu, m, S, phi, cov_comb_log_det, mean_sum, global_cov, sigma, Y;
@@ -117,7 +134,8 @@ public:
     double _rho,
     double _theta,
     bool _sample_m_scale,
-    double _eta = 1.0
+    double _eta = 1.0,
+    bool _sample_s_scale = false
   );
   
   // Destructor
@@ -134,6 +152,11 @@ public:
   // M_scale hyperparameter
   void sampleMScalePrior();
   void sampleMScalePosterior();
+
+  // Batch-scale concentration hyperparameter (opt-in; see sample_s_scale
+  // above) - see mvnSampler::sScaleConcentrationMetropolis() for the full
+  // derivation; identical here bar the class name.
+  virtual void sScaleConcentrationMetropolis();
   
   // Update the common matrix manipulations to avoid recalculating N times
   virtual void matrixCombinations();

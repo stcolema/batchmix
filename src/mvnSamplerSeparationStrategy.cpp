@@ -31,7 +31,8 @@ mvnSamplerSeparationStrategy::mvnSamplerSeparationStrategy(
   double _rho,
   double _theta,
   bool _sample_m_scale,
-  double _eta
+  double _eta,
+  bool _sample_s_scale
 ) : sampler(_K,
 _B,
 _labels,
@@ -83,9 +84,13 @@ _fixed) {
   
   t = 1.0 / ((accu(global_cov.diag()) / P ) * m_scale);
   
-  // Hyperparameters for the batch scale
+  // Hyperparameters for the batch scale - see mvnSampler's identical
+  // constructor logic for why s_scale_prior_mean is fixed here, once, from
+  // the user's ORIGINAL (rho, theta).
   rho = _rho;
   theta = _theta;
+  sample_s_scale = _sample_s_scale;
+  s_scale_prior_mean = theta / (rho - 1.0);
 
   // Set the size of the objects to hold the component specific parameters
   mu.set_size(P, K);
@@ -260,6 +265,37 @@ void mvnSamplerSeparationStrategy::sampleMScalePosterior() {
   b_pos = accu(pow(m, 2.0)) / (2.0 * delta_2) + b;
   lambda_2 = rInvGamma(a_pos, b_pos);
   batch_shift_prior_precision = 1.0 / (delta_2 * lambda_2);
+}
+
+// See mvnSampler::sScaleConcentrationMetropolis() for the full derivation;
+// identical here bar the class name.
+void mvnSamplerSeparationStrategy::sScaleConcentrationMetropolis() {
+
+  double log_conc_current = std::log(rho - 2.0);
+  double log_conc_proposed = log_conc_current + randn() * s_scale_proposal_window;
+  double rho_proposed = 2.0 + std::exp(log_conc_proposed);
+  double theta_proposed = s_scale_prior_mean * (rho_proposed - 1.0);
+
+  double current_score = 0.0, proposed_score = 0.0;
+  for (uword b = 0; b < B; b++) {
+    for (uword p = 0; p < P; p++) {
+      double s_b_p = S(p, b) - S_loc;
+      current_score += invGammaLogLikelihood(s_b_p, rho, theta);
+      proposed_score += invGammaLogLikelihood(s_b_p, rho_proposed, theta_proposed);
+    }
+  }
+
+  current_score += gammaLogLikelihood(rho - 2.0, a_s, b_s) + std::log(rho - 2.0);
+  proposed_score += gammaLogLikelihood(rho_proposed - 2.0, a_s, b_s) + std::log(rho_proposed - 2.0);
+
+  double u = randu();
+  double acceptance_prob = std::min(1.0, std::exp(proposed_score - current_score));
+
+  if (u < acceptance_prob) {
+    rho = rho_proposed;
+    theta = theta_proposed;
+    s_scale_count++;
+  }
 }
 
 // Update the common matrix manipulations to avoid recalculating N times
@@ -1264,6 +1300,9 @@ void mvnSamplerSeparationStrategy::metropolisStep() {
 
     if(sample_m_scale) {
       sampleMScalePosterior();
+    }
+    if(sample_s_scale) {
+      sScaleConcentrationMetropolis();
     }
   }
 

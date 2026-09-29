@@ -29,7 +29,8 @@ mvnSampler::mvnSampler(
   double _m_scale,
   double _rho,
   double _theta,
-  bool _sample_m_scale
+  bool _sample_m_scale,
+  bool _sample_s_scale
 ) : sampler(_K,
 _B,
 _labels,
@@ -85,9 +86,14 @@ _fixed) {
   
   t = 1.0 / ((accu(global_cov.diag()) / P ) * m_scale);
   
-  // Hyperparameters for the batch scale
+  // Hyperparameters for the batch scale. s_scale_prior_mean is fixed here,
+  // once, from the user's ORIGINAL (rho, theta) - see sample_s_scale's
+  // documentation in mvnSampler.h for why only the concentration (rho),
+  // never this mean, can be re-estimated.
   rho = _rho;
   theta = _theta;
+  sample_s_scale = _sample_s_scale;
+  s_scale_prior_mean = theta / (rho - 1.0);
 
   // Set the size of the objects to hold the component specific parameters
   mu.set_size(P, K);
@@ -220,6 +226,59 @@ void mvnSampler::sampleMScalePosterior() {
   b_pos = accu(pow(m, 2.0)) / (2.0 * delta_2) + b;
   lambda_2 = rInvGamma(a_pos, b_pos);
   batch_shift_prior_precision = 1.0 / (delta_2 * lambda_2);
+}
+
+// Metropolis-Hastings update for rho, the batch-scale InvGamma family's
+// concentration parameter (S(p,b) - S_loc ~ InvGamma(rho, theta) iid over
+// every (p,b) cell) - the partial-pooling analogue of sampleMScalePosterior()
+// above for the SCALE side, but a Metropolis rather than Gibbs step, since
+// (rho, theta) enter the InvGamma density non-conjugately once theta is
+// pinned to rho via s_scale_prior_mean (see mvnSampler.h's documentation
+// on sample_s_scale for why theta cannot be freed independently: a uniform
+// rescaling of every S_b is exactly compensated by an inverse rescaling of
+// every cluster covariance, so only the CONCENTRATION around a fixed mean
+// is identifiable, not the mean itself).
+//
+// Proposes on log(rho - 2) (rho > 2 throughout, for a finite prior
+// variance of S_b - S_loc) via a symmetric random walk, recomputing theta
+// to keep the prior mean fixed at s_scale_prior_mean for the proposed rho
+// too, then compares the FULL InvGamma log-density (not just the terms
+// that vary with S_b, unlike sLogKernel()'s per-batch kernel) summed over
+// every (p, b) cell, since the normalising constant itself depends on
+// (rho, theta) here and does not cancel - the same reason
+// gpHyperparameterMetropolis() must use the full multinomial-logit
+// likelihood rather than a kernel. The +log(rho - 2)/+log(rho_proposed - 2)
+// terms are the log-Jacobian of that log-transform (an ordinary change-of-
+// variables correction for a symmetric-in-log proposal, exactly as
+// gpHyperparameterMetropolis()'s own +log_tau2_proposed/+log_length_scale_proposed
+// terms are for its own log-scale proposals).
+void mvnSampler::sScaleConcentrationMetropolis() {
+
+  double log_conc_current = std::log(rho - 2.0);
+  double log_conc_proposed = log_conc_current + randn() * s_scale_proposal_window;
+  double rho_proposed = 2.0 + std::exp(log_conc_proposed);
+  double theta_proposed = s_scale_prior_mean * (rho_proposed - 1.0);
+
+  double current_score = 0.0, proposed_score = 0.0;
+  for (uword b = 0; b < B; b++) {
+    for (uword p = 0; p < P; p++) {
+      double s_b_p = S(p, b) - S_loc;
+      current_score += invGammaLogLikelihood(s_b_p, rho, theta);
+      proposed_score += invGammaLogLikelihood(s_b_p, rho_proposed, theta_proposed);
+    }
+  }
+
+  current_score += gammaLogLikelihood(rho - 2.0, a_s, b_s) + std::log(rho - 2.0);
+  proposed_score += gammaLogLikelihood(rho_proposed - 2.0, a_s, b_s) + std::log(rho_proposed - 2.0);
+
+  double u = randu();
+  double acceptance_prob = std::min(1.0, std::exp(proposed_score - current_score));
+
+  if (u < acceptance_prob) {
+    rho = rho_proposed;
+    theta = theta_proposed;
+    s_scale_count++;
+  }
 }
 
 // Update the common matrix manipulations to avoid recalculating N times
@@ -822,6 +881,9 @@ void mvnSampler::metropolisStep() {
 
     if(sample_m_scale) {
       sampleMScalePosterior();
+    }
+    if(sample_s_scale) {
+      sScaleConcentrationMetropolis();
     }
   }
 

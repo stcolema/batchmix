@@ -96,7 +96,8 @@ public:
     bool _sample_m_scale,
     double _eta,
     arma::uvec _column_type,
-    arma::umat _censor_code
+    arma::umat _censor_code,
+    bool _sample_s_scale = false
   );
 
   // Destructor
@@ -116,6 +117,13 @@ public:
   void sampleSPrior();
   void sigmaMHStep();
   void batchScaleMetropolis();
+
+  // As mvnSamplerSeparationStrategy::sScaleConcentrationMetropolis(), but
+  // excludes binary/probit columns (column_type == 1) from the InvGamma
+  // log-likelihood sum: their S(p, b) is fixed at 1 for identification
+  // (see batchScaleMetropolis() above) rather than an actual draw from the
+  // batch-scale family, so it must not inform the concentration estimate.
+  virtual void sScaleConcentrationMetropolis();
 
   // Overridden: binary/probit columns have sigma and S fixed at 1 rather
   // than estimated, so they contribute fewer free parameters per cluster/

@@ -50,6 +50,10 @@
 #' @param gp_hyperparameter_proposal_window Proposal window for the GP
 #' hyperparameter update; only used if \code{batch_weight_prior} is
 #' \code{"gp"} and \code{sample_gp_hyperparameters} is \code{TRUE}.
+#' @param s_scale_proposal_window Proposal window for the batch-scale
+#' concentration's Metropolis-Hastings update; only used if
+#' \code{sample_s_scale} is \code{TRUE} (see
+#' \code{\link{batchSemiSupervisedMixtureModel}}).
 #' @param auto_tune Logical; if \code{TRUE} (the default), every proposal
 #' window above is adapted during the first \code{n_burn} iterations via
 #' Robbins-Monro diminishing adaptation, instead of staying fixed at the
@@ -79,6 +83,7 @@ batchmixControl <- function(mu_proposal_window = 0.5**2,
                             gamma_proposal_window = 0.1,
                             eta_proposal_window = 0.1,
                             gp_hyperparameter_proposal_window = 0.1,
+                            s_scale_proposal_window = 0.1,
                             auto_tune = TRUE,
                             n_burn = NULL) {
   control <- list(
@@ -92,6 +97,7 @@ batchmixControl <- function(mu_proposal_window = 0.5**2,
     gamma_proposal_window = gamma_proposal_window,
     eta_proposal_window = eta_proposal_window,
     gp_hyperparameter_proposal_window = gp_hyperparameter_proposal_window,
+    s_scale_proposal_window = s_scale_proposal_window,
     auto_tune = auto_tune,
     n_burn = n_burn
   )
