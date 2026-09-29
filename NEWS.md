@@ -227,9 +227,29 @@
   sampler's own Metropolis/Gibbs updates restricted to the one new batch -
   a proper posterior predictive by composition (Rubin, 1987), not a
   plug-in point estimate. See `?predictNewBatch` for the full statistical
-  design, including a documented asymmetry in the underlying model (batch
-  scale, unlike shift and weights, has no cross-batch pooled prior to
-  predict a new batch's scale from with no data).
+  design.
+* **Partial pooling for the batch-scale prior's concentration**
+  (`sample_s_scale` argument to `batchSemiSupervisedMixtureModel()`/
+  `runBatchMix()`). The batch shift prior already had a genuine
+  partial-pooling hyperparameter (`lambda_2`, via `sample_m_scale`); the
+  batch scale prior `S_b ~ S_loc + InvGamma(rho, theta)` previously fixed
+  both `rho` and `theta` as user-supplied constants, never re-estimated
+  from the batches actually fitted. An additive/multiplicative shift-scale
+  decomposition is only identifiable up to one free hyperparameter per
+  batch effect (a uniform rescaling of every batch's `S_b` is exactly
+  compensated by the inverse rescaling of the cluster covariance), so only
+  the InvGamma's concentration `rho` - never its mean - can be freely
+  estimated; `theta` is kept in lock-step (`theta = s_scale_prior_mean *
+  (rho - 1)`) so the prior's mean stays fixed at its original,
+  user-supplied value while `rho` alone adapts to how similar or different
+  the fitted batches' own scales turn out to be. Off by default
+  (`sample_s_scale = FALSE` reproduces the previous fixed-prior behaviour
+  exactly); when `TRUE`, `rho` is updated by a symmetric log-random-walk
+  Metropolis step (`s_scale_shape`/`s_scale_rate` set its own Gamma prior,
+  `s_scale_proposal_window` its auto-tuned proposal window - see
+  `?batchmixControl`). `predictNewBatch()`'s composition sampling for a new
+  batch's scale now conditions on each posterior draw's own `rho` when the
+  original fit used `sample_s_scale = TRUE`.
 
 ## Bug fixes
 

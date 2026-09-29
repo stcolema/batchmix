@@ -24,6 +24,9 @@ predictNewBatchMVNSeparationStrategy(
   sample_m_scale,
   rho,
   theta,
+  rho_draws,
+  s_scale_prior_mean,
+  sample_s_scale,
   weight_prior_type,
   weights_draws,
   eta_alr_init_draws,
@@ -89,6 +92,20 @@ fit had \code{sample_m_scale = TRUE}; ignored - \code{m_scale} used
 instead - otherwise).}
 
 \item{sample_m_scale}{Whether the original fit sampled \code{lambda_2}.}
+
+\item{rho_draws}{n_draws vector: the scale-prior concentration at each
+draw (used, held fixed throughout prediction, when the original fit had
+\code{sample_s_scale = TRUE}; ignored - \code{rho} used instead -
+otherwise).}
+
+\item{s_scale_prior_mean}{The scale prior's mean, pinned at training time
+(\code{theta / (rho - 1)} at the original constructor's rho); used to
+recompute \code{theta} from each draw's \code{rho_draws} so that
+E[S_b] stays fixed as rho varies (see \code{mvnSampler}'s
+\code{sScaleConcentrationMetropolis()}). Ignored if
+\code{sample_s_scale} was \code{FALSE} at training time.}
+
+\item{sample_s_scale}{Whether the original fit sampled \code{rho}.}
 
 \item{weight_prior_type}{0 = "global", 1 = "partial_pooling", 2 = "gp" -
 as in \code{sampleSemisupervisedMVN()}.}

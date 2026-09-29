@@ -16,6 +16,7 @@ batchmixControl(
   gamma_proposal_window = 0.1,
   eta_proposal_window = 0.1,
   gp_hyperparameter_proposal_window = 0.1,
+  s_scale_proposal_window = 0.1,
   auto_tune = TRUE,
   n_burn = NULL
 )
@@ -64,6 +65,11 @@ Metropolis-Hastings update; only used if \code{batch_weight_prior} is
 \item{gp_hyperparameter_proposal_window}{Proposal window for the GP
 hyperparameter update; only used if \code{batch_weight_prior} is
 \code{"gp"} and \code{sample_gp_hyperparameters} is \code{TRUE}.}
+
+\item{s_scale_proposal_window}{Proposal window for the batch-scale
+concentration's Metropolis-Hastings update; only used if
+\code{sample_s_scale} is \code{TRUE} (see
+\code{\link{batchSemiSupervisedMixtureModel}}).}
 
 \item{auto_tune}{Logical; if \code{TRUE} (the default), every proposal
 window above is adapted during the first \code{n_burn} iterations via

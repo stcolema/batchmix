@@ -147,6 +147,78 @@ test_that("predictNewBatch(): composition sampling recovers an injected batch sh
   expect_equal(nrow(pred$allocation_probability), length(nb$labels_true))
 })
 
+test_that(".predictiveShiftScaleDraws(): recomputes theta from rho when sample_s_scale = TRUE, pinning E[S_b - S_loc]", {
+  # For S_b - S_loc ~ InvGamma(shape = rho, scale = theta) (mean = theta /
+  # (rho - 1) for rho > 1), theta = s_scale_prior_mean * (rho - 1) makes
+  # that mean EXACTLY s_scale_prior_mean for any rho - the reparametrisation
+  # sScaleConcentrationMetropolis() relies on to free only the concentration,
+  # never the prior mean (see its documentation in src/mvnSampler.cpp). This
+  # holds even when rho varies draw-to-draw, which a naive
+  # `rep(processed_chain$theta, n_saved)` (the pre-partial-pooling behaviour,
+  # still correct when sample_s_scale = FALSE) would not reproduce.
+  P <- 2
+  n_saved <- 4000
+  rho_fixed <- 5 # constant across draws here - isolates the mean/variance
+  # check from any confound with the Monte Carlo error of drawing rho itself
+  s_scale_prior_mean <- 2.0
+  processed_chain <- list(
+    P = P,
+    means = array(0, dim = c(P, 2, n_saved)),
+    m_scale = 0.01, sample_m_scale = FALSE,
+    rho = rep(rho_fixed, n_saved), theta = 999, # theta must be ignored below
+    sample_s_scale = TRUE, s_scale_prior_mean = s_scale_prior_mean
+  )
+  X <- matrix(stats::rnorm(20 * P), ncol = P)
+
+  set.seed(20240601)
+  out <- batchmix:::.predictiveShiftScaleDraws(processed_chain, X)
+  expect_equal(dim(out$scale), c(P, n_saved))
+
+  excess <- out$scale - 1.0 # S_loc = 1.0
+  # Monte Carlo SE of the mean, for InvGamma(rho, theta) with
+  # theta = s_scale_prior_mean * (rho - 1): Var = theta^2 / ((rho-1)^2 (rho-2))
+  # = s_scale_prior_mean^2 / (rho - 2).
+  theoretical_var <- s_scale_prior_mean^2 / (rho_fixed - 2)
+  mc_se <- sqrt(theoretical_var / (P * n_saved))
+  expect_equal(mean(excess), s_scale_prior_mean, tolerance = 6 * mc_se / s_scale_prior_mean)
+
+  # sample_s_scale = FALSE: theta_draws must fall back to the fixed,
+  # originally-fitted scalar theta (rho's own value is then irrelevant to
+  # theta, exactly the pre-partial-pooling behaviour).
+  processed_chain_off <- processed_chain
+  processed_chain_off$sample_s_scale <- FALSE
+  processed_chain_off$theta <- 3.0
+  set.seed(20240601)
+  out_off <- batchmix:::.predictiveShiftScaleDraws(processed_chain_off, X)
+  expect_equal(mean(out_off$scale - 1.0), 3.0 / (rho_fixed - 1), tolerance = 6 * sqrt((3.0^2 / ((rho_fixed - 1)^2 * (rho_fixed - 2))) / (P * n_saved)) / (3.0 / (rho_fixed - 1)))
+})
+
+test_that("predictNewBatch(): composition sampling conditions the new batch's scale on rho/theta when sample_s_scale = TRUE (MVN)", {
+  skip_on_cran()
+  d <- make_predict_fixture(seed = 5301, B = 3, n_per_batch = 50)
+  out <- batchSemiSupervisedMixtureModel(
+    d$X, n_iter = 1500, thin = 5, d$labels_true, d$fixed, d$batch_vec, "MVN",
+    initial_class_means = d$init_means, sample_s_scale = TRUE, verbose = FALSE
+  )
+  expect_true(is.numeric(out$rho))
+  expect_gt(length(out$rho), 1) # a per-iteration trace, not the scalar constructor argument
+  expect_true(out$sample_s_scale)
+
+  proc <- processMCMCChain(out, burn = 750)
+  expect_true(isTRUE(proc$sample_s_scale))
+  expect_true(is.numeric(proc$s_scale_prior_mean) && length(proc$s_scale_prior_mean) == 1)
+
+  shift_true <- c(-2, -2)
+  nb <- make_new_batch(5302, d$mu_true, shift_true)
+
+  pred <- predictNewBatch(proc, d$X, batch_vec = d$batch_vec, X_new = nb$X_new,
+                           n_draws = 15, n_pred_iter = 150, pred_thin = 2)
+
+  expect_true(all(is.finite(pred$scale_new_draws)))
+  expect_true(all(pred$scale_new_draws > 1)) # S_loc = 1 is the scale's lower bound
+  expect_gt(mean((pred$pred - 1) == nb$labels_true), 0.8)
+})
+
 test_that("predictNewBatch(): composition sampling works for MVT/MVN_LKJ/MVN_MIXED", {
   skip_on_cran()
 

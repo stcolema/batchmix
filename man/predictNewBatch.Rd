@@ -119,8 +119,8 @@ sampler's own Metropolis/Gibbs updates restricted to the one new batch
 (\code{sampler::predict_mode}, src/sampler.h) - see the file-level
 comment in \code{R/predictNewBatch.R} for the full statistical
 justification (composition sampling for a posterior predictive
-distribution, Rubin 1987; BDA3 sec. 1.10), including why
-\code{"gp"}/\code{"partial_pooling"} weights have a real cross-batch
-predictive distribution but batch scale currently does not (a known
-asymmetry in the underlying model, not something this function can fix).
+distribution, Rubin 1987; BDA3 sec. 1.10). Batch shift/scale each draw
+from a genuine cross-batch partial-pooling prior when the original fit
+set \code{sample_m_scale}/\code{sample_s_scale = TRUE} respectively (a
+fixed, non-adaptive prior otherwise - see that same comment).
 }
