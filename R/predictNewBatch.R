@@ -148,6 +148,42 @@
 # hyperparameter(s) to hold fixed throughout prediction: `beta_hat`
 # (K x n_saved, "gp") or `mu_hat`/`tau2_hat` (K x n_saved each,
 # "partial_pooling").
+# Integer kernel code used by the C++ layer.
+.gpKernelCode <- function(gp_kernel) {
+  switch(gp_kernel, matern32 = 0L, rw1 = 1L, rw2 = 2L, stop("Unknown gp_kernel."))
+}
+
+# The GP covariance over the original batches plus one new batch, on the
+# scale the fit used. The non-stationary kernels need the new coordinate
+# mapped through the fit's stored origin/scale and not before the origin.
+# The jitter is escalated until the matrix factorises, as in the sampler.
+.gpPredictiveKernel <- function(processed_chain, new_batch_coordinate, gp_tau2, gp_length_scale, mu_prior_sd) {
+  gp_kernel <- processed_chain$gp_kernel %||% "matern32"
+  type <- .gpKernelCode(gp_kernel)
+  coords <- c(processed_chain$batch_coordinates, new_batch_coordinate)
+  if (length(processed_chain$batch_coordinates) == 0) {
+    coords <- c(seq(0, processed_chain$B - 1), new_batch_coordinate)
+  }
+  if (type != 0L) {
+    origin <- processed_chain$gp_coordinate_origin %||% 0
+    scale <- processed_chain$gp_coordinate_scale %||% 1
+    if (new_batch_coordinate < origin) {
+      stop("new_batch_coordinate precedes the earliest fitted batch; the non-stationary ",
+           "gp_kernel starts at that batch, so it cannot predict earlier times.")
+    }
+    coords <- (coords - origin) / scale
+  }
+  jitter <- if (type == 0L) max(1e-6, gp_tau2 * 1e-4) else 1e-6
+  for (attempt in 1:12) {
+    full_cov <- gpKernelMatrix(coords, type, gp_tau2, gp_length_scale, jitter,
+                               mu_prior_sd^2, mu_prior_sd^2)
+    ok <- !inherits(try(chol(full_cov), silent = TRUE), "try-error")
+    if (ok) break
+    jitter <- jitter * 10
+  }
+  list(cov = full_cov, type = type)
+}
+
 .predictiveWeightDraws <- function(processed_chain, new_batch_coordinate = NULL) {
   K <- processed_chain$K_max
   B <- processed_chain$B
@@ -192,19 +228,23 @@
     if (weight_prior == "gp") {
       gp_tau2 <- processed_chain$gp_tau2[t]
       gp_length_scale <- processed_chain$gp_length_scale[t]
-      coords <- c(processed_chain$batch_coordinates, new_batch_coordinate)
-      full_cov <- maternKernel32(coords, gp_tau2, gp_length_scale, jitter = 1e-8)
-      Sigma_BB <- full_cov[seq_len(B), seq_len(B), drop = FALSE]
-      k_star <- full_cov[B + 1, seq_len(B)]
-      k_star_star <- full_cov[B + 1, B + 1]
+      gpk <- .gpPredictiveKernel(processed_chain, new_batch_coordinate, gp_tau2, gp_length_scale, mu_prior_sd)
+      Sigma_BB <- gpk$cov[seq_len(B), seq_len(B), drop = FALSE]
+      k_star <- gpk$cov[B + 1, seq_len(B)]
+      k_star_star <- gpk$cov[B + 1, B + 1]
       L <- t(chol(Sigma_BB))
 
-      for (j in seq_len(K)) {
-        e <- eta_known[, j]
-        beta_hat[j, t] <- .gpBetaPosteriorMean(e, L, mu_prior_sd)
+      # Only the stationary kernel has a separate per-class intercept (the
+      # non-stationary kernels carry a diffuse level inside the covariance,
+      # so beta stays 0, as in the sampler).
+      if (gpk$type == 0L) {
+        for (j in seq_len(K)) {
+          e <- eta_known[, j]
+          beta_hat[j, t] <- .gpBetaPosteriorMean(e, L, mu_prior_sd)
+        }
+        # The intercepts are sum-to-zero, as in the sampler.
+        beta_hat[, t] <- beta_hat[, t] - mean(beta_hat[, t])
       }
-      # The intercepts are sum-to-zero, as in the sampler.
-      beta_hat[, t] <- beta_hat[, t] - mean(beta_hat[, t])
 
       for (j in seq_len(K)) {
         e <- eta_known[, j]
@@ -446,8 +486,14 @@ predictNewBatch <- function(processed_chain, X, batch_vec = NULL, new_batch_coor
   weight_prior <- processed_chain$batch_weight_prior %||% "global"
   weight_prior_type <- switch(weight_prior, global = 0L, partial_pooling = 1L, gp = 2L)
 
+  gp_kernel_type <- .gpKernelCode(processed_chain$gp_kernel %||% "matern32")
   batch_coordinates_new <- if (weight_prior == "gp") {
-    c(processed_chain$batch_coordinates, new_batch_coordinate)
+    bc <- c(processed_chain$batch_coordinates, new_batch_coordinate)
+    if (length(processed_chain$batch_coordinates) == 0) bc <- c(seq(0, B - 1), new_batch_coordinate)
+    if (gp_kernel_type != 0L) {
+      bc <- (bc - (processed_chain$gp_coordinate_origin %||% 0)) / (processed_chain$gp_coordinate_scale %||% 1)
+    }
+    bc
   } else {
     numeric(B + 1)
   }
@@ -504,6 +550,8 @@ predictNewBatch <- function(processed_chain, X, batch_vec = NULL, new_batch_coor
     gp_tau2_draws = if (weight_prior == "gp") processed_chain$gp_tau2[draw_idx] else rep(1, length(draw_idx)),
     gp_length_scale_draws = if (weight_prior == "gp") processed_chain$gp_length_scale[draw_idx] else rep(1, length(draw_idx)),
     batch_coordinates_new = batch_coordinates_new,
+    gp_kernel_type = gp_kernel_type,
+    pp_mu_prior_sd = processed_chain$pp_mu_prior_sd %||% 10.0,
     eta_proposal_window = processed_chain$final_eta_proposal_window %||% processed_chain$eta_proposal_window %||% 0.1,
     m_proposal_window = processed_chain$final_m_proposal_window %||% processed_chain$m_proposal_window %||% 0.5**2,
     S_proposal_window = if (!is.null(processed_chain$final_S_proposal_window)) {

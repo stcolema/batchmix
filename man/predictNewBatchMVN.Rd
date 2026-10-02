@@ -35,6 +35,8 @@ predictNewBatchMVN(
   pp_tau2_draws,
   gp_tau2_draws,
   gp_length_scale_draws,
+  gp_kernel_type,
+  pp_mu_prior_sd,
   batch_coordinates_new,
   eta_proposal_window,
   m_proposal_window,
@@ -130,6 +132,12 @@ if \code{weight_prior_type == 1}.}
 \item{gp_tau2_draws, gp_length_scale_draws}{n_draws vectors of the GP
 kernel hyperparameters at each draw; only used if
 \code{weight_prior_type == 2}.}
+
+\item{gp_kernel_type, pp_mu_prior_sd}{The GP kernel code (0 = Matern-3/2, 1 =
+Wiener process, 2 = integrated Wiener process; see
+\code{sampleSemisupervisedMVN()}) and the prior standard deviation of the
+per-class logit level (also the level/slope scale of the non-stationary
+kernels), as used when fitting.}
 
 \item{batch_coordinates_new}{(B+1)-vector: the original batches'
 coordinates plus the new batch's own, in that order; only used if

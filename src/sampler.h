@@ -256,6 +256,12 @@ public:
   // updateWeights()/updateGPWeights()/updatePartialPoolingWeights() below.
   bool predict_mode = false;
   arma::uword predict_batch = 0;
+  // gp_kernel_type: 0 = stationary Matern-3/2 (with the estimated
+  // per-class intercept gp_beta); 1 = Wiener process, 2 = integrated Wiener
+  // process - both non-stationary, with the diffuse level (and slope) inside
+  // the kernel, so gp_beta is held at 0 and the length scale is unused.
+  arma::uword gp_kernel_type = 0;
+  double gp_level_var = 100.0, gp_slope_var = 100.0;
   double gp_tau2 = 1.0, gp_length_scale = 1.0, gp_jitter = 1e-6,
     eta_proposal_window = 0.1, gp_hyperparameter_proposal_window = 0.1,
     gp_tau2_prior_shape = 2.0, gp_tau2_prior_rate = 4.0,
@@ -309,7 +315,8 @@ public:
                                    double _gp_hyperparameter_proposal_window,
                                    double _pp_tau2_prior_shape,
                                    double _pp_tau2_prior_rate,
-                                   double _pp_mu_prior_sd);
+                                   double _pp_mu_prior_sd,
+                                   arma::uword _gp_kernel_type = 0);
   arma::mat computeBatchClassCounts();
   void updateSimplexFromLogits();
   void updateGPWeights();

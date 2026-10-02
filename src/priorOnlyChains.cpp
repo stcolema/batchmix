@@ -166,3 +166,60 @@ Rcpp::List partialPoolingWeightChain(
     Rcpp::Named("eta_moves_per_sweep") = s.eta_moves_per_sweep
   );
 }
+
+//' @title Test helper: GP batch-weight update with no data
+//' @description Runs \code{updateWeights()} for the GP batch-weight prior with
+//' no items, so the chain targets the prior: each class's logits follow
+//' \eqn{N(0, \Sigma)} with \eqn{\Sigma} from \code{gpKernelMatrix()}
+//' (the common per-batch shift is redrawn exactly). Used to check that the
+//' kernels, including the non-stationary ones, are sampled correctly.
+//' @param K,B Number of clusters and batches.
+//' @param n_iter Number of sweeps.
+//' @param coords B-vector of (already rescaled) batch coordinates.
+//' @param kernel_type 0, 1 or 2; see \code{gpKernelMatrix()}.
+//' @param tau2,length_scale Kernel parameters.
+//' @param level_sd The prior sd of the diffuse level (and slope).
+//' @param eta_pw Proposal window of the block random walk.
+//' @return A list with the \code{eta} trace (B x K x n_iter) and
+//' \code{eta_count}.
+//' @keywords internal
+//' @export
+// [[Rcpp::export]]
+Rcpp::List gpWeightChain(
+  arma::uword K,
+  arma::uword B,
+  arma::uword n_iter,
+  arma::vec coords,
+  arma::uword kernel_type,
+  double tau2,
+  double length_scale,
+  double level_sd,
+  double eta_pw
+) {
+  // The sampler's constructor needs at least one item; two dummy items are
+  // dropped again below so that no batch carries any data.
+  arma::uvec labels = arma::zeros<arma::uvec>(2), batch_vec = arma::zeros<arma::uvec>(2),
+    fixed = arma::zeros<arma::uvec>(2);
+  arma::mat X = arma::randn<arma::mat>(2, 2);
+  vec concentration = ones<vec>(K);
+
+  priorOnlyLKJSampler s(K, B, 0.3, 1.0, 5.0, 0.3, 5.0, labels, batch_vec,
+    concentration, X, fixed, 0.01, 3.0, 1.0, false, 1.0);
+  s.initialiseBatchWeightPrior(2, coords, tau2, length_scale,
+    eta_pw, false, 0.1, 2.0, 1.0, level_sd, kernel_type);
+  s.labels = arma::zeros<arma::uvec>(0);
+  s.batch_vec = arma::zeros<arma::uvec>(0);
+  s.N_b = arma::zeros<arma::uvec>(B);
+  s.members = arma::zeros<arma::umat>(0, K);
+
+  cube eta_trace(B, K, n_iter);
+  for(uword it = 0; it < n_iter; it++) {
+    s.updateWeights();
+    eta_trace.slice(it) = s.eta_logit;
+  }
+
+  return Rcpp::List::create(
+    Rcpp::Named("eta") = eta_trace,
+    Rcpp::Named("eta_count") = conv_to<vec>::from(s.eta_count)
+  );
+}

@@ -61,6 +61,8 @@ Rcpp::List predictNewBatchMVT(
     arma::mat pp_tau2_draws,
     arma::vec gp_tau2_draws,
     arma::vec gp_length_scale_draws,
+    arma::uword gp_kernel_type,
+    double pp_mu_prior_sd,
     arma::vec batch_coordinates_new,
     double eta_proposal_window,
     double m_proposal_window,

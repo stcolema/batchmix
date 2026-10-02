@@ -127,8 +127,9 @@ batchSemiSupervisedMixtureModel <- function(X,
                                             include_interaction = FALSE,
                                             batch_weight_prior = NULL,
                                             batch_coordinates = NULL,
-                                            gp_tau2 = 1.0,
+                                            gp_tau2 = NULL,
                                             gp_length_scale = 1.0,
+                                            gp_kernel = "rw1",
                                             sample_gp_hyperparameters = FALSE,
                                             pp_tau2_shape = 2.0,
                                             pp_tau2_rate = 1.0,
@@ -293,6 +294,27 @@ batchSemiSupervisedMixtureModel <- function(X,
     stop("batch_coordinates must have one entry per batch (length B).")
   }
 
+  # GP kernel over batch_coordinates. The non-stationary kernels ("rw1",
+  # "rw2") start at the earliest coordinate; coordinates are rescaled to
+  # [0, 1] so that gp_tau2 and the diffuse level/slope are comparable
+  # across datasets (the origin and scale are stored for prediction).
+  gp_kernel <- match.arg(gp_kernel, c("rw1", "rw2", "matern32"))
+  gp_kernel_type <- .gpKernelCode(gp_kernel)
+  if (is.null(gp_tau2)) {
+    # The mode of each kernel's default tau2 prior (see sampler.cpp).
+    gp_tau2 <- switch(gp_kernel, matern32 = 1.0, rw1 = 20 / 3, rw2 = 500)
+  }
+  gp_coordinate_origin <- 0
+  gp_coordinate_scale <- 1
+  batch_coordinates_original <- batch_coordinates
+  if (batch_weight_prior == "gp" && gp_kernel_type != 0L) {
+    bc <- if (length(batch_coordinates) == 0) seq(0, B - 1) else batch_coordinates
+    batch_coordinates_original <- bc
+    gp_coordinate_origin <- min(bc)
+    gp_coordinate_scale <- if (diff(range(bc)) > 0) diff(range(bc)) else 1
+    batch_coordinates <- (bc - gp_coordinate_origin) / gp_coordinate_scale
+  }
+
   # Only meaningful for type = 'MVN_MIXED'.
   if (is.null(column_type)) {
     column_type <- rep(0L, P)
@@ -349,6 +371,7 @@ batchSemiSupervisedMixtureModel <- function(X,
     batch_coordinates = batch_coordinates,
     gp_tau2 = gp_tau2,
     gp_length_scale = gp_length_scale,
+    gp_kernel_type = gp_kernel_type,
     eta_proposal_window = eta_proposal_window,
     sample_gp_hyperparameters = sample_gp_hyperparameters,
     gp_hyperparameter_proposal_window = gp_hyperparameter_proposal_window,
@@ -536,7 +559,10 @@ batchSemiSupervisedMixtureModel <- function(X,
   mcmc_output$a_gamma <- a_gamma
   mcmc_output$b_gamma <- b_gamma
   mcmc_output$batch_weight_prior <- batch_weight_prior
-  mcmc_output$batch_coordinates <- batch_coordinates
+  mcmc_output$batch_coordinates <- batch_coordinates_original
+  mcmc_output$gp_kernel <- gp_kernel
+  mcmc_output$gp_coordinate_origin <- gp_coordinate_origin
+  mcmc_output$gp_coordinate_scale <- gp_coordinate_scale
   mcmc_output$eta_proposal_window <- eta_proposal_window
   mcmc_output$sample_gp_hyperparameters <- sample_gp_hyperparameters
   mcmc_output$gp_hyperparameter_proposal_window <- gp_hyperparameter_proposal_window
