@@ -32,6 +32,36 @@
   intercepts). Outputs change shape and name accordingly: `eta_alr` is now
   `eta_logit` (`B x K x iterations`), and `pp_mu`, `pp_tau2` and `gp_beta` have
   `K` rows. Every fit's fixed-seed output changes.
+* **The GP batch-weight prior is no longer stationary.** `batch_weight_prior =
+  "gp"` now defaults to `gp_kernel = "rw1"`, a Wiener process (random walk) with a
+  diffuse level; `"rw2"` (integrated Wiener process, a second-order random
+  walk with a diffuse level and slope) and `"matern32"` (the previous
+  stationary Matern-3/2 kernel) are available. `"rw1"` is the default
+  because on a simulated seroprevalence-like series with two abrupt jumps
+  (`vignette("batch_weight_priors")`) it had the lowest or equal-lowest error
+  in three MCMC runs (mean absolute error in the batch proportion 0.12-0.14,
+  against 0.14-0.18 for `"rw2"`, 0.15-0.16 for `"matern32"` and 0.16-0.18
+  for partial pooling); one dataset, small differences, and a smooth truth
+  could reverse the order of `"rw1"` and `"rw2"`. A stationary prior pulls every batch towards a fixed long-run
+  mean with constant variance and reverts forecasts to it, which is wrong
+  for epidemic-type weights such as seroprevalence over several waves. The
+  non-stationary kernels have no length scale (`gp_length_scale` is ignored,
+  and with `sample_gp_hyperparameters = TRUE` only `gp_tau2` is estimated),
+  carry the level inside the covariance (so `gp_beta` stays 0), rescale
+  `batch_coordinates` to [0, 1] (the origin and scale are stored in the fit),
+  and `predictNewBatch()` rejects a new batch earlier than the earliest fitted
+  batch. The block update now proposes prior-shaped increments (`L z`, with
+  `L` the Cholesky factor of the kernel) instead of isotropic ones, which the
+  smooth kernels need: with isotropic steps the integrated Wiener prior was
+  accepted about 4% of the time and a prior-only chain was visibly
+  under-dispersed. The `gp_tau2` prior is inverse-gamma with shape 2 and a
+  kernel-specific scale (mean 4, 20 and 1500 for `"matern32"`, `"rw1"` and
+  `"rw2"`), and `gp_tau2 = NULL` is now the default (start at that prior's
+  mode). The scale matters: with the stationary prior's mean of 4 an
+  integrated Wiener process could barely bend, and on a simulated
+  seroprevalence-like series with two jumps it returned an almost flat curve. Fits from earlier versions continue as `"matern32"`.
+  New `gpKernelMatrix()` exposes the kernels. This is not a spatial model:
+  `batch_coordinates` is still one-dimensional.
 * `simulatePriorPredictive()` follows the default model: batch-specific
   weights under partial pooling (`w_batch` in `params`), `rho` drawn from its
   hyperprior when `sample_s_scale = TRUE`, and `m_scale = NULL` (the default)

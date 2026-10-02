@@ -89,6 +89,12 @@
 //' used if ``weight_prior_type`` is 2.
 //' @param gp_tau2,gp_length_scale GP marginal variance and length scale for
 //' the batch-weight kernel; only used if ``weight_prior_type`` is 2.
+//' ``gp_length_scale`` is unused by the non-stationary kernels.
+//' @param gp_kernel_type Integer; 0 = stationary Matern-3/2 (legacy), 1 =
+//' Wiener process (random walk) with diffuse level, 2 = integrated Wiener
+//' process (second-order random walk) with diffuse level and slope - both
+//' non-stationary; ``batch_coordinates`` must then be non-negative (the R
+//' layer rescales them to [0, 1]). Only used if ``weight_prior_type`` is 2.
 //' @param eta_proposal_window Proposal window for the logit
 //' Metropolis-Hastings update; used if ``weight_prior_type`` is 1 or 2.
 //' @param sample_gp_hyperparameters Bool; if true, ``gp_tau2`` and
@@ -145,6 +151,7 @@ Rcpp::List sampleSemisupervisedMVT (
     arma::vec batch_coordinates,
     double gp_tau2,
     double gp_length_scale,
+    arma::uword gp_kernel_type,
     double eta_proposal_window,
     bool sample_gp_hyperparameters,
     double gp_hyperparameter_proposal_window,

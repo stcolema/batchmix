@@ -249,6 +249,9 @@ arma::mat squaredExponentialKernel(arma::vec x, double tau2, double length_scale
 //' @return The covariance matrix, length(x) x length(x).
 arma::mat maternKernel32(arma::vec x, double tau2, double length_scale, double jitter);
 
+arma::mat gpKernelMatrix(arma::vec x, arma::uword type, double tau2, double length_scale,
+                         double jitter, double level_var, double slope_var);
+
 //' @title Multinomial-logit Gaussian process log-kernel
 //' @description The unnormalised log-posterior-kernel for one additive
 //' log-ratio (ALR) coordinate of a set of batch-dependent multinomial

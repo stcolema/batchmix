@@ -20,7 +20,9 @@ weight vector, `"partial_pooling"` lets each batch have its own weight with
 no assumed order or structure (only exchangeable shrinkage towards a common
 mean), and `"gp"` places a Gaussian process over a batch coordinate (e.g.
 collection time), so batches close together are expected to have similar
-proportions. **`"partial_pooling"` is the default** (for a single batch,
+proportions. The GP is **not stationary by default** (`gp_kernel = "rw1"`, a
+random walk; `"rw2"` is an integrated Wiener process, i.e. a second-order
+random walk, and `"matern32"` the stationary kernel): see Section 3. **`"partial_pooling"` is the default** (for a single batch,
 where there is nothing to pool across, the default is `"global"`), and
 `"global"` - the default in earlier versions - now has to be requested.
 Two consequences are worth knowing before reading the comparison below.
@@ -179,8 +181,8 @@ cat(
 
 A GP has no time-based warning that either jump is about to happen: right
 up until the batch that lands at or after each discontinuity, the
-smoothest reasonable extrapolation from every earlier batch is "more of
-the same".
+smoothest reasonable extrapolation from every earlier batch is to continue
+the local trend.
 
 ```{r simSetupContinued}
 K <- 2 # seronegative (0) / seropositive (1)
@@ -332,10 +334,27 @@ ggplot(prop_df, aes(time, true_p1)) +
 Identical in every respect (data, labels, `type = "MVN"`, and the default
 partial pooling of the batch scales) except `batch_weight_prior`. For `"gp"`, `batch_coordinates` is the actual
 collection time (not batch index), and `sample_gp_hyperparameters = TRUE`
-lets the length scale and marginal variance be estimated rather than fixed
-- important here since there is no reason to assume any particular
-smoothness in advance. Four chains per model, so agreement between chains
-can be checked before trusting any of it (Section 4).
+lets the innovation variance (how fast the logit trend can bend) be
+estimated rather than fixed, since there is no reason to assume any
+particular smoothness in advance. Four chains per model, so agreement
+between chains can be checked before trusting any of it (Section 4).
+
+The GP uses the default `gp_kernel = "rw1"`. A stationary kernel
+(`"matern32"`) assumes the logit weights fluctuate around a fixed long-run
+level with constant variance, so it shrinks towards that level wherever data
+are sparse and forecasts revert to it; for an epidemic there is no such
+level. `"rw1"` is a random walk with a diffuse level: its prior variance grows
+with time, the logit weight moves by independent increments (so abrupt
+changes cost no more than gradual ones of the same size), forecasts hold the
+last level and their uncertainty widens with the distance from the last
+batch. `"rw2"` is a second-order random walk (the continuous-time analogue is
+a cubic smoothing spline) with a diffuse level and slope: smoother, but it
+extrapolates the local trend and fits abrupt changes less well. Coordinates
+are rescaled to the unit interval, so `gp_tau2` is the innovation variance
+per full time span (its prior scale depends on the kernel; see
+`?runBatchMix`), and a new batch passed to `predictNewBatch()` may not
+precede the earliest batch. Neither non-stationary kernel has a length
+scale, so `gp_length_scale` is ignored for them.
 
 ```{r fitModels}
 n_chains <- 4

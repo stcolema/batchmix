@@ -174,6 +174,7 @@ continueChain <- function(mcmc_output,
   # of every other continued parameter.
   gp_tau2 <- if (!is.null(mcmc_output$gp_tau2)) mcmc_output$gp_tau2[last_sample] else 1.0
   gp_length_scale <- if (!is.null(mcmc_output$gp_length_scale)) mcmc_output$gp_length_scale[last_sample] else 1.0
+  gp_kernel <- mcmc_output$gp_kernel %||% "matern32" # fits from before the kernel option were stationary
 
   # rho is always a per-iteration trace (constant unless sample_s_scale -
   # see batchSemiSupervisedMixtureModel.R), so resume from its last value
@@ -229,6 +230,7 @@ continueChain <- function(mcmc_output,
     batch_coordinates = batch_coordinates,
     gp_tau2 = gp_tau2,
     gp_length_scale = gp_length_scale,
+    gp_kernel = gp_kernel,
     sample_gp_hyperparameters = sample_gp_hyperparameters,
     pp_tau2_shape = pp_tau2_shape,
     pp_tau2_rate = pp_tau2_rate,

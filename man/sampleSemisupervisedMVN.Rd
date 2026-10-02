@@ -40,6 +40,7 @@ sampleSemisupervisedMVN(
   batch_coordinates,
   gp_tau2,
   gp_length_scale,
+  gp_kernel_type,
   eta_proposal_window,
   sample_gp_hyperparameters,
   gp_hyperparameter_proposal_window,
@@ -160,7 +161,14 @@ known ordering in time or space.}
 used if ``weight_prior_type`` is 2.}
 
 \item{gp_tau2, gp_length_scale}{GP marginal variance and length scale for
-the batch-weight kernel; only used if ``weight_prior_type`` is 2.}
+the batch-weight kernel; only used if ``weight_prior_type`` is 2.
+``gp_length_scale`` is unused by the non-stationary kernels.}
+
+\item{gp_kernel_type}{Integer; 0 = stationary Matern-3/2 (legacy), 1 =
+Wiener process (random walk) with diffuse level, 2 = integrated Wiener
+process (second-order random walk) with diffuse level and slope - both
+non-stationary; ``batch_coordinates`` must then be non-negative (the R
+layer rescales them to [0, 1]). Only used if ``weight_prior_type`` is 2.}
 
 \item{eta_proposal_window}{Proposal window for the logit
 Metropolis-Hastings update; used if ``weight_prior_type`` is 1 or 2.}

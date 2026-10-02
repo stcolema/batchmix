@@ -42,6 +42,7 @@ sampleSemisupervisedMVNSeparationStrategy(
   batch_coordinates,
   gp_tau2,
   gp_length_scale,
+  gp_kernel_type,
   eta_proposal_window,
   sample_gp_hyperparameters,
   gp_hyperparameter_proposal_window,

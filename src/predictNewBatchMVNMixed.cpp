@@ -46,6 +46,8 @@ Rcpp::List predictNewBatchMVNMixed(
     arma::mat pp_tau2_draws,
     arma::vec gp_tau2_draws,
     arma::vec gp_length_scale_draws,
+    arma::uword gp_kernel_type,
+    double pp_mu_prior_sd,
     arma::vec batch_coordinates_new,
     double eta_proposal_window,
     double m_proposal_window,
@@ -89,7 +91,7 @@ Rcpp::List predictNewBatchMVNMixed(
     weight_prior_type, batch_coordinates_new,
     gp_tau2_draws.n_elem ? gp_tau2_draws(0) : 1.0,
     gp_length_scale_draws.n_elem ? gp_length_scale_draws(0) : 1.0,
-    eta_proposal_window, false, 0.1, 2.0, 1.0, 10.0
+    eta_proposal_window, false, 0.1, 2.0, 1.0, pp_mu_prior_sd, gp_kernel_type
   );
 
   my_sampler.sampleFromPriors();

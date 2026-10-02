@@ -182,9 +182,29 @@
 #' unique values of \code{batch_vec}. Defaults to \code{NULL}, i.e. batch
 #' order 0, 1, ..., B - 1. Only used if \code{batch_weight_prior} is
 #' \code{"gp"}.
-#' @param gp_tau2,gp_length_scale Marginal variance and length scale of the
-#' squared-exponential Gaussian process kernel over \code{batch_coordinates};
-#' only used if \code{batch_weight_prior} is \code{"gp"}.
+#' @param gp_tau2,gp_length_scale Parameters of the Gaussian process kernel
+#' over \code{batch_coordinates}; only used if \code{batch_weight_prior} is
+#' \code{"gp"}. \code{gp_tau2} is the marginal variance (\code{"matern32"})
+#' or the innovation variance per unit of the rescaled [0, 1] coordinate
+#' (\code{"rw1"}, \code{"rw2"}); \code{gp_length_scale} is used only by
+#' \code{"matern32"}. \code{gp_tau2 = NULL} (the default) starts it at the
+#' mode of the kernel's own default prior (1, 20/3 and 500 for
+#' \code{"matern32"}, \code{"rw1"} and \code{"rw2"}). The two random-walk
+#' priors are inverse-gamma with shape 2 and mean 20 and 1500: on the unit
+#' time span they allow a change of about two logits over a fifth of it.
+#' @param gp_kernel The Gaussian process kernel when \code{batch_weight_prior}
+#' is \code{"gp"}. \code{"rw1"} (the default) is a Wiener process (a random
+#' walk) with a diffuse level; \code{"rw2"} is an integrated Wiener process (a
+#' second-order random walk, i.e. a cubic smoothing spline) with a diffuse
+#' level and slope: smoother, but it extrapolates a linear trend and follows
+#' abrupt changes (epidemic waves, vaccination steps) less well;
+#' \code{"matern32"} is the stationary Matern-3/2 kernel.
+#' The first two are non-stationary: the prior variance grows with the
+#' coordinate, there is no mean the weights revert to, and forecasts widen
+#' with distance from the data, which is appropriate for epidemic-type
+#' weights (e.g. seroprevalence) that need not return to any long-run level.
+#' Coordinates are rescaled to [0, 1] internally; a new batch in
+#' \code{predictNewBatch()} may not precede the earliest batch.
 #' @param sample_gp_hyperparameters Logical; if \code{TRUE}, \code{gp_tau2}
 #' and \code{gp_length_scale} are themselves updated by Metropolis-Hastings
 #' rather than held fixed at the values passed in; only used if
@@ -328,8 +348,9 @@ runBatchMix <- function(X,
                         include_interaction = FALSE,
                         batch_weight_prior = NULL,
                         batch_coordinates = NULL,
-                        gp_tau2 = 1.0,
+                        gp_tau2 = NULL,
                         gp_length_scale = 1.0,
+                        gp_kernel = "rw1",
                         sample_gp_hyperparameters = FALSE,
                         pp_tau2_shape = 2.0,
                         pp_tau2_rate = 1.0,
@@ -426,6 +447,7 @@ runBatchMix <- function(X,
     batch_coordinates = batch_coordinates,
     gp_tau2 = gp_tau2,
     gp_length_scale = gp_length_scale,
+    gp_kernel = gp_kernel,
     sample_gp_hyperparameters = sample_gp_hyperparameters,
     pp_tau2_shape = pp_tau2_shape,
     pp_tau2_rate = pp_tau2_rate,

@@ -44,6 +44,7 @@ Rcpp::List sampleSemisupervisedMVNMixed(
     arma::vec batch_coordinates,
     double gp_tau2,
     double gp_length_scale,
+    arma::uword gp_kernel_type,
     double eta_proposal_window,
     bool sample_gp_hyperparameters,
     double gp_hyperparameter_proposal_window,
@@ -85,7 +86,7 @@ Rcpp::List sampleSemisupervisedMVNMixed(
     batch_coordinates = arma::regspace<arma::vec>(0, B - 1);
   }
   my_sampler.initialiseInteraction(include_interaction, gamma_proposal_window, a_gamma, b_gamma);
-  my_sampler.initialiseBatchWeightPrior(weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd);
+  my_sampler.initialiseBatchWeightPrior(weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd, gp_kernel_type);
 
   arma::uword P = X.n_cols, N = X.n_rows, n_saved = std::floor(n_iter / thin);
 

@@ -397,6 +397,58 @@ arma::mat maternKernel32(arma::vec x, double tau2, double length_scale, double j
   return K;
 };
 
+//' @title Gaussian-process covariance kernels for batch-weight priors
+//' @description Covariance matrix for the batch-weight GP, including two
+//' NON-stationary kernels. Type 0 is the stationary Matern-3/2 kernel
+//' (see \code{maternKernel32()}). Type 1 is a Wiener process (random walk)
+//' with a diffuse level: k(s, t) = level_var + tau2 * min(s, t). Type 2 is
+//' an integrated Wiener process (the continuous-time second-order random
+//' walk, i.e. the cubic-smoothing-spline prior; Wahba, 1978; Rue & Held,
+//' 2005, Section 3.4) with a diffuse level and slope: k(s, t) = level_var +
+//' slope_var * s * t + tau2 * m^2 (3M - m) / 6, with m = min(s, t) and M =
+//' max(s, t). Types 1 and 2 have variance growing in the coordinate and so
+//' do not assume that the weights' dynamics are stationary; they require
+//' non-negative coordinates (the origin is where the process starts).
+//' @param x Vector of 1-D locations (non-negative for types 1 and 2).
+//' @param type 0 = Matern-3/2, 1 = Wiener process, 2 = integrated Wiener
+//' process.
+//' @param tau2 Marginal variance (type 0) or innovation variance per unit
+//' coordinate (types 1, 2).
+//' @param length_scale Correlation length scale; used only by type 0.
+//' @param jitter Diagonal jitter for numerical stability.
+//' @param level_var,slope_var Prior variances of the diffuse level (types 1
+//' and 2) and slope (type 2).
+//' @return The covariance matrix, length(x) x length(x).
+// [[Rcpp::export]]
+arma::mat gpKernelMatrix(arma::vec x, arma::uword type, double tau2, double length_scale,
+                         double jitter, double level_var, double slope_var) {
+  if (type == 0) {
+    return maternKernel32(x, tau2, length_scale, jitter);
+  }
+  if (type > 2) {
+    Rcpp::stop("gp kernel type must be 0 (Matern-3/2), 1 (Wiener) or 2 (integrated Wiener).");
+  }
+  if (x.n_elem > 0 && x.min() < 0.0) {
+    Rcpp::stop("Non-stationary GP kernels need non-negative batch coordinates.");
+  }
+  uword n = x.n_elem;
+  mat K(n, n);
+  for (uword i = 0; i < n; i++) {
+    for (uword j = 0; j < n; j++) {
+      double m = std::min(x(i), x(j)), M = std::max(x(i), x(j));
+      double v = level_var;
+      if (type == 1) {
+        v += tau2 * m;
+      } else {
+        v += slope_var * x(i) * x(j) + tau2 * m * m * (3.0 * M - m) / 6.0;
+      }
+      K(i, j) = v;
+    }
+  }
+  K.diag() += jitter;
+  return K;
+};
+
 //' @title Multinomial-logit Gaussian process log-kernel
 //' @description The unnormalised log-posterior-kernel for one ALR
 //' coordinate of batch-dependent multinomial weights under a GP prior

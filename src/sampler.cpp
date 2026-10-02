@@ -356,9 +356,13 @@ double sampler::structuralExtraBICParams() const {
       // value SHARED across every class (unlike pp_mu/pp_tau2, which are
       // per-class), so they contribute only 2 extra parameters in total, and
       // only when actually estimated rather than fixed by the user.
-      extra += (double) (K_occ - 1);
+      // Non-stationary kernels carry no separate intercept (the diffuse level
+      // sits inside the kernel) and have a single estimable tau2.
+      if (gp_kernel_type == 0) {
+        extra += (double) (K_occ - 1);
+      }
       if (sample_gp_hyperparameters) {
-        extra += 2.0;
+        extra += (gp_kernel_type == 0) ? 2.0 : 1.0;
       }
     }
   }
@@ -379,7 +383,8 @@ void sampler::initialiseBatchWeightPrior(
   double _gp_hyperparameter_proposal_window,
   double _pp_tau2_prior_shape,
   double _pp_tau2_prior_rate,
-  double _pp_mu_prior_sd
+  double _pp_mu_prior_sd,
+  arma::uword _gp_kernel_type
 ) {
   weight_prior_type = _weight_prior_type;
   batch_coordinates = _batch_coordinates;
@@ -391,8 +396,37 @@ void sampler::initialiseBatchWeightPrior(
   pp_tau2_prior_shape = _pp_tau2_prior_shape;
   pp_tau2_prior_rate = _pp_tau2_prior_rate;
   pp_mu_prior_sd = _pp_mu_prior_sd;
+  gp_kernel_type = _gp_kernel_type;
+  // Diffuse level/slope of the non-stationary kernels: the same prior scale
+  // as the stationary model's per-class intercept.
+  gp_level_var = pp_mu_prior_sd * pp_mu_prior_sd;
+  gp_slope_var = pp_mu_prior_sd * pp_mu_prior_sd;
+  if (gp_kernel_type > 2) {
+    Rcpp::stop("gp_kernel_type must be 0, 1 or 2.");
+  }
+  // Scale of the tau2 prior (InvGamma(2, rate), mean = rate) for the
+  // non-stationary kernels, on coordinates rescaled to [0, 1]. The default
+  // prior for the stationary kernel (mean 4) is a logit VARIANCE; here tau2
+  // is an innovation variance, and the same number means far less movement:
+  // over a fifth of the span a Wiener process changes by sd sqrt(0.2 tau2)
+  // and an integrated Wiener process by sd sqrt(0.008 tau2 / 3). The rates
+  // below put the prior mean where each process can change by about 2
+  // logits (a four-fold change in odds) over a fifth of the span: tau2 =
+  // 20 and 1500. The tail of InvGamma(2, .) leaves room for much more or
+  // much less, and sample_gp_hyperparameters = TRUE estimates it.
+  if (weight_prior_type == 2 && gp_kernel_type == 1) {
+    gp_tau2_prior_shape = 2.0;
+    gp_tau2_prior_rate = 20.0;
+  } else if (weight_prior_type == 2 && gp_kernel_type == 2) {
+    gp_tau2_prior_shape = 2.0;
+    gp_tau2_prior_rate = 1500.0;
+  }
 
-  if (weight_prior_type == 2 && batch_coordinates.n_elem >= 2) {
+  if (weight_prior_type == 2 && gp_kernel_type != 0 && batch_coordinates.n_elem > 0 && batch_coordinates.min() < 0.0) {
+    Rcpp::stop("Non-stationary GP kernels need non-negative batch coordinates.");
+  }
+
+  if (weight_prior_type == 2 && gp_kernel_type == 0 && batch_coordinates.n_elem >= 2) {
     // Empirical-Bayes calibration of the length-scale prior to
     // batch_coordinates' own scale: an Inverse-Gamma "boundary-avoiding"
     // prior (Betancourt, 2020, "Robust Gaussian Process Modeling," Stan
@@ -586,7 +620,12 @@ void sampler::updateGPWeights() {
       // update: the other entries act as fixed conditioning values.
       eta_proposed(predict_batch) += randn() * eta_proposal_window;
     } else {
-      eta_proposed += randn<vec>(B) * eta_proposal_window;
+      // Prior-shaped (preconditioned) random walk: the increment has the GP's
+      // own correlation, L z. An isotropic step is hopeless for the smooth,
+      // strongly correlated kernels (an integrated Wiener process accepted
+      // ~4% of isotropic steps and under-dispersed the prior-only chain),
+      // and costs nothing for the rough ones.
+      eta_proposed += (L * randn<vec>(B)) * eta_proposal_window;
     }
 
     mat eta_proposed_mat = eta_logit;
@@ -637,6 +676,12 @@ void sampler::updateGPWeights() {
   // restricted to that hyperplane - is done by conditioning the independent
   // posterior draws on their sum, which for equal variances is subtracting
   // their mean.
+  if (gp_kernel_type != 0) {
+    // Non-stationary kernels hold the diffuse level inside the covariance;
+    // there is no separate intercept to update (gp_beta stays 0).
+    updateSimplexFromLogits();
+    return;
+  }
   double precision_beta = arma::dot(L_inv_ones, L_inv_ones) + 1.0 / (pp_mu_prior_sd * pp_mu_prior_sd);
   double post_var_beta = 1.0 / precision_beta;
   vec beta_star(K);
@@ -757,11 +802,14 @@ void sampler::buildWellConditionedGPChol(
   double tau2, double length_scale,
   arma::mat& cov, arma::mat& chol_factor, double& jitter_used
 ) {
-  double jitter = std::max(1e-6, tau2 * 1e-4);
+  // The tau2-proportional jitter suits a marginal variance (Matern); for the
+  // non-stationary kernels tau2 is an innovation variance and can be in the
+  // thousands, where a proportional jitter would add visible white noise.
+  double jitter = (gp_kernel_type == 0) ? std::max(1e-6, tau2 * 1e-4) : 1e-6;
   const uword max_attempts = 12; // 1e-4 * 10^12 saturates long before this
 
   for (uword attempt = 0; attempt < max_attempts; attempt++) {
-    cov = maternKernel32(batch_coordinates, tau2, length_scale, jitter);
+    cov = gpKernelMatrix(batch_coordinates, gp_kernel_type, tau2, length_scale, jitter, gp_level_var, gp_slope_var);
     if (arma::chol(chol_factor, cov, "lower")) {
       jitter_used = jitter;
       return;
@@ -777,7 +825,7 @@ void sampler::buildWellConditionedGPChol(
   // already so close to jitter * I that chol() succeeding is not actually
   // in doubt in practice.
   jitter_used = jitter / 10.0;
-  cov = maternKernel32(batch_coordinates, tau2, length_scale, jitter_used);
+  cov = gpKernelMatrix(batch_coordinates, gp_kernel_type, tau2, length_scale, jitter_used, gp_level_var, gp_slope_var);
   arma::chol(chol_factor, cov, "lower");
 };
 
@@ -822,7 +870,10 @@ void sampler::gpHyperparameterMetropolis() {
     log_length_scale_current = std::log(gp_length_scale);
 
   double log_tau2_proposed = log_tau2_current + randn() * gp_hyperparameter_proposal_window,
-    log_length_scale_proposed = log_length_scale_current + randn() * gp_hyperparameter_proposal_window;
+    log_length_scale_proposed = log_length_scale_current;
+  if (gp_kernel_type == 0) {
+    log_length_scale_proposed += randn() * gp_hyperparameter_proposal_window;
+  }
 
   double tau2_proposed = std::exp(log_tau2_proposed),
     length_scale_proposed = std::exp(log_length_scale_proposed);
