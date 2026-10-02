@@ -151,9 +151,10 @@ load_tcga <- function(k = 2, min_plate = 15) {
 load_ifcb <- function(K = 5, npc = 5) {
   # WHOI/MVCO IFCB training samples (2006-2008, one instrument): 512 deep features per image, manual class label.
   files <- list.files(file.path(data_dir, "ifcb", "train_sub"), full.names = TRUE)
-  L <- lapply(files, function(f) { z <- read.csv(gzfile(f)); z$sample <- sub("\\.csv\\.gz$", "", basename(f)); z })
+  L <- lapply(files, function(f) { z <- read.csv(gzfile(f), check.names = FALSE); z$sample <- sub("\\.csv\\.gz$", "", basename(f)); z })
   d <- do.call(rbind, L)
-  top <- as.integer(names(sort(table(d$class), decreasing = TRUE))[seq_len(K)])
+  d <- d[d$class != "bad", ]
+  top <- names(sort(table(d$class), decreasing = TRUE))[seq_len(K)]   # class labels are taxon / group names
   d <- d[d$class %in% top, ]
   F <- as.matrix(d[, as.character(0:511)])
   pc <- prcomp(F, center = TRUE, scale. = FALSE); X <- pc$x[, seq_len(npc)]
