@@ -337,7 +337,7 @@ double mvtSampler::covLogKernel(arma::uword k,
   return score;
 };
 
-double mvtSampler::dfLogKernel(arma::uword k, 
+double mvtSampler::dfLogLikelihood(arma::uword k, 
   double t_df,
   double pdf_coef
 ) {
@@ -351,7 +351,20 @@ double mvtSampler::dfLogKernel(arma::uword k,
     dist_from_mean = X_t.col(n) - mean_sum.col(k * B + b);
     score += pdf_coef - 0.5 * (t_df + P) * log(1 + (1/t_df) * arma::as_scalar(dist_from_mean.t() * cov_comb_inv.slice(k * B + b) * dist_from_mean));
   }
-  score += (psi - 1) * log(t_df - t_loc) - chi * (t_df - t_loc);
+  return score;
+};
+
+// The shifted Gamma(psi, chi) prior on the degrees of freedom, up to a constant
+double mvtSampler::dfLogPrior(double t_df) const {
+  return (psi - 1) * log(t_df - t_loc) - chi * (t_df - t_loc);
+};
+
+double mvtSampler::dfLogKernel(arma::uword k, 
+  double t_df,
+  double pdf_coef
+) {
+  double score = dfLogLikelihood(k, t_df, pdf_coef);
+  score += dfLogPrior(t_df);
   return score;
 };
 
