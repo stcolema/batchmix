@@ -320,7 +320,6 @@ robbinsMonroUpdateReciprocal <- function(window, acceptance_rate, target_rate, n
 #' Student-t degrees of freedom.
 #' @return The change in log-likelihood.
 #' @keywords internal
-#' @export
 interactionLogLikDelta <- function(X_t, cell_of_item, mean_sum, cov_comb_inv, p, delta_cell, t_df_item) {
     .Call('_batchmix_interactionLogLikDelta', PACKAGE = 'batchmix', X_t, cell_of_item, mean_sum, cov_comb_inv, p, delta_cell, t_df_item)
 }
@@ -356,7 +355,6 @@ interactionLogLikDelta <- function(X_t, cell_of_item, mean_sum, cov_comb_inv, p,
 #' @param cov_comb_inv P x P x (K * B) inverses of \eqn{\Sigma_{kb}}.
 #' @return An N x P matrix.
 #' @keywords internal
-#' @export
 batchCorrectedPosteriorMean <- function(X_t, labels, batch_vec, B, mu, mean_sum, cov, cov_comb_inv) {
     .Call('_batchmix_batchCorrectedPosteriorMean', PACKAGE = 'batchmix', X_t, labels, batch_vec, B, mu, mean_sum, cov, cov_comb_inv)
 }
@@ -378,7 +376,6 @@ batchCorrectedPosteriorMean <- function(X_t, labels, batch_vec, B, mu, mean_sum,
 #' @return A list with \code{labels} (1-indexed, consecutive) and
 #' \code{value}, the lower-bound loss of the returned clustering.
 #' @keywords internal
-#' @export
 minVIGreedyRefine <- function(psm, init, max_passes = 50L) {
     .Call('_batchmix_minVIGreedyRefine', PACKAGE = 'batchmix', psm, init, max_passes)
 }
@@ -398,7 +395,6 @@ minVIGreedyRefine <- function(psm, init, max_passes = 50L) {
 #' @return A named list with the sampled \code{r}/\code{sigma1} traces and
 #' their acceptance rates.
 #' @keywords internal
-#' @export
 diagRSigmaOnlyChain2 <- function(X, rho_true, n_iter, r_pw, sigma_pw) {
     .Call('_batchmix_diagRSigmaOnlyChain2', PACKAGE = 'batchmix', X, rho_true, n_iter, r_pw, sigma_pw)
 }
@@ -646,7 +642,6 @@ predictNewBatchMVT <- function(X, X_new, K, B, batch_vec, fixed_new, labels_new_
 #' @return A list of traces, acceptance counts and initial-state
 #' diagnostics.
 #' @keywords internal
-#' @export
 priorOnlyLKJChain <- function(X, K, B, labels, batch_vec, n_iter, eta, r_pw, sigma_pw, mu_pw, m_pw, S_pw) {
     .Call('_batchmix_priorOnlyLKJChain', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, n_iter, eta, r_pw, sigma_pw, mu_pw, m_pw, S_pw)
 }
@@ -669,7 +664,6 @@ priorOnlyLKJChain <- function(X, K, B, labels, batch_vec, n_iter, eta, r_pw, sig
 #' @return A list with the \code{eta} trace (B x K x n_iter), the raw
 #' \code{eta_count}, and \code{eta_moves_per_sweep}.
 #' @keywords internal
-#' @export
 partialPoolingWeightChain <- function(labels, batch_vec, K, B, n_iter, mu, tau2, eta_pw) {
     .Call('_batchmix_partialPoolingWeightChain', PACKAGE = 'batchmix', labels, batch_vec, K, B, n_iter, mu, tau2, eta_pw)
 }
@@ -690,7 +684,6 @@ partialPoolingWeightChain <- function(labels, batch_vec, K, B, n_iter, mu, tau2,
 #' @return A list with the \code{eta} trace (B x K x n_iter) and
 #' \code{eta_count}.
 #' @keywords internal
-#' @export
 gpWeightChain <- function(K, B, n_iter, coords, kernel_type, tau2, length_scale, level_sd, eta_pw) {
     .Call('_batchmix_gpWeightChain', PACKAGE = 'batchmix', K, B, n_iter, coords, kernel_type, tau2, length_scale, level_sd, eta_pw)
 }
