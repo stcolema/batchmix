@@ -42,7 +42,7 @@
 #' permute_variables <- TRUE
 #' scale_data <- FALSE
 #'
-#' checkDataGenerationInputs(
+#' batchmix:::checkDataGenerationInputs(
 #'   N,
 #'   P,
 #'   group_means,

@@ -216,6 +216,26 @@
 
 ## Internal
 
+* **The namespace lists its exports explicitly.** `exportPattern()` is gone: it
+  exported every function whose name starts with a letter, so the Rcpp
+  samplers, validators and density helpers were all public. The exported
+  functions are those that carry `@export`, plus `batchSemiSupervisedMixtureModel()`
+  and `gpKernelMatrix()`. No longer exported: `sampleSemisupervisedMVN()`,
+  `sampleSemisupervisedMVT()`, `sampleSemisupervisedMVNMixed()`,
+  `sampleSemisupervisedMVNSeparationStrategy()`, the `predictNewBatch*()`
+  engines (`predictNewBatch()` itself stays), `VI.lb()`,
+  `squaredExponentialKernel()`, `maternKernel32()`, `robbinsMonroUpdate()`,
+  `robbinsMonroUpdateReciprocal()`, `prepareInitialParameters()`,
+  `sampleLKJCorrelationMatrix()`, `lkjLogLikelihood()`, `gammaLogLikelihood()`,
+  `invGammaLogLikelihood()`, `wishartLogLikelihood()`, `invWishartLogLikelihood()`,
+  `logJacobianZToR()`, `buildCorrelationCholeskyFromZ()`,
+  `choleskyToPartialCorrelations()`, `multinomialLogitLogLik()`,
+  `multinomialLogitGPLogKernel()`, `generateGroupIDsInSimulator()`,
+  `checkDataGenerationInputs()`, `checkProposalWindows()`, and seven test hooks
+  that carried `@export` (`batchCorrectedPosteriorMean()`,
+  `interactionLogLikDelta()`, `minVIGreedyRefine()`, `gpWeightChain()`,
+  `partialPoolingWeightChain()`, `priorOnlyLKJChain()`,
+  `diagRSigmaOnlyChain2()`). Reach them with `batchmix:::` if needed.
 * Collapsed the diamond/virtual-multiple-inheritance C++ class hierarchy
   (`sampler`/`semisupervisedSampler` and the `*Predictive` wrapper classes)
   into a single inheritance chain per sampler family, verified

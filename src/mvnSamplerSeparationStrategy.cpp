@@ -1354,7 +1354,6 @@ void mvnSamplerSeparationStrategy::metropolisStep() {
 //' @return A named list with the sampled \code{r}/\code{sigma1} traces and
 //' their acceptance rates.
 //' @keywords internal
-//' @export
 // [[Rcpp::export]]
 Rcpp::List diagRSigmaOnlyChain2(arma::mat X, double rho_true, arma::uword n_iter, double r_pw, double sigma_pw) {
   uword K = 1, B = 1, P = 2;
