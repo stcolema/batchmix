@@ -146,6 +146,20 @@
 
 ## New features
 
+* **`posterior::as_draws()` and its relatives for fits** (`as_draws_array()`,
+  `_df()`, `_matrix()`, `_list()`, `_rvars()`), for the output of
+  `runBatchMix()`, `batchSemiSupervisedMixtureModel()`, `fitBatchMix()` and
+  `processMCMCChains()`. This makes `posterior::summarise_draws()`,
+  `subset_draws()`, `resample_draws()` and `bayesplot` available. Cluster-indexed
+  parameters are not label-switching invariant, so the variables are the
+  log-likelihoods and BIC, the number of occupied clusters, the batch shifts and
+  scales (batches are observed), the batch-effect and Gaussian-process
+  hyperparameters when they are sampled, and, on request, the sorted mixture
+  weights (`weights = TRUE`) and the allocations (`allocations = TRUE`). The burn
+  in follows `assessConvergence()`, so `posterior`'s Rhat and ESS agree with it.
+  `posterior` is a suggested package; `Depends: R (>= 3.6.0)` is added for the
+  delayed method registration.
+
 * **Fitted models now print and summarise like a model object, not a raw
   list** (`runBatchMix()`/`batchSemiSupervisedMixtureModel()`/
   `continueChain()`/`processMCMCChain()` return an object of class
