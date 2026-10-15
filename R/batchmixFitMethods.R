@@ -243,7 +243,7 @@ print.summary.batchmix_fit_list <- function(x, ...) {
 #' @export
 format.batchmix_convergence <- function(x, n_chains = NULL, ...) {
   chain_note <- if (!is.null(n_chains)) sprintf("%d chains run. ", n_chains) else ""
-  warn <- if (x$rhat > 1.01) {
+  warn <- if (isTRUE(x$rhat > 1.01)) {
     paste0(
       " Rhat > 1.01: these chains have likely NOT converged/mixed. A longer ",
       "chain sometimes helps, but persistent disagreement between chains ",
