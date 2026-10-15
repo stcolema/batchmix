@@ -270,6 +270,29 @@
 
 ## Internal
 
+* **Prior recovery for every update block, and an exact-posterior test.**
+  `tests/testthat/test-prior-recovery.R` runs the samplers with the data
+  likelihood switched off, so that each Metropolis or Gibbs kernel is left with
+  its prior terms, Jacobians and proposal corrections, and compares the chain
+  with the exact prior: the cluster mean and covariance (MVN and MVT), the batch
+  shift and its variance hyperprior, the batch scale with and without a sampled
+  concentration, the t degrees of freedom, the interaction term and its
+  variance, the Gaussian-process hyperparameters (all three kernels), and the
+  labels and weights against the Dirichlet-multinomial. Only the LKJ sampler had
+  such chains before. `tests/testthat/test-exact-posterior.R` enumerates the
+  label posterior of five items exactly for one feature, one batch and two
+  clusters (closed-form Student-t cluster marginals, a Dirichlet-multinomial for
+  the weights, Gauss quadrature over the batch shift and scale) and checks that
+  the full sampler reproduces it. Deliberately planting a bug in each of
+  fourteen places (wrong exponents and degrees of freedom, a dropped Jacobian,
+  swapped forward and reverse proposal densities, a dropped log-determinant,
+  a wrong weight prior) was caught by these tests every time; the exact test
+  alone missed a doubled batch-shift prior precision, because with one batch the
+  shift is nearly confounded with the diffuse cluster means and the label
+  posterior hardly depends on its variance, which the prior test does catch.
+  To make the MVT sampler testable its likelihood helpers are now virtual and
+  `dfLogKernel()` is split into `dfLogLikelihood()` and `dfLogPrior()`; results
+  are unchanged.
 * **The namespace lists its exports explicitly.** `exportPattern()` is gone: it
   exported every function whose name starts with a letter, so the Rcpp
   samplers, validators and density helpers were all public. The exported
