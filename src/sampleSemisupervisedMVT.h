@@ -110,6 +110,14 @@
 //' population logit mu_k before the sum-to-zero constraint (prior mu_k ~
 //' N(0, pp_mu_prior_sd^2));
 //' only used if ``weight_prior_type`` is 1.
+//' @param sample_s_scale Bool; if true, the batch-scale prior's
+//' concentration (rho) is estimated by Metropolis-Hastings rather than
+//' held fixed at ``rho``; the prior mean of the batch scale stays fixed. See
+//' ``sampleSemisupervisedMVN()``.
+//' @param a_s,b_s Shape/rate of the Gamma hyperprior on (rho - 2); only
+//' used if ``sample_s_scale`` is true.
+//' @param s_scale_proposal_window Proposal window for the concentration's
+//' Metropolis-Hastings update; only used if ``sample_s_scale`` is true.
 //' @return Named list of the different quantities drawn by the sampler.
 // [[Rcpp::export]]
 Rcpp::List sampleSemisupervisedMVT (

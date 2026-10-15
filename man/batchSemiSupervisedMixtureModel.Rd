@@ -144,6 +144,10 @@ argument is ignored (with a warning).}
 \item{verbose}{Logical indicating if warnings about proposal windows should
 be printed.}
 
+\item{s_scale_proposal_window}{\strong{Deprecated}: pass this inside
+\code{control = batchmixControl(s_scale_proposal_window = ...)} instead; see
+\code{?batchmixControl}. If both are supplied, \code{control} wins.}
+
 \item{m_scale}{The scale hyperparameter for the batch shift prior
 distribution. This defines the scale of the batch effect upon the mean and
 should be in (0, 1]. If `NULL`, this quantity is sampled rather then fixed.}
