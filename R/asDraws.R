@@ -174,7 +174,8 @@
 #' @return A draws object of the requested class: \code{as_draws()} and
 #' \code{as_draws_array()} give a \code{draws_array} (iterations x chains x
 #' variables), the others the corresponding format.
-#' @seealso \code{\link{assessConvergence}}, \code{\link{rankNormalizedRhat}}
+#' @seealso \code{\link{assessConvergence}}, \code{\link{rankNormalizedRhat}},
+#' \code{\link{pointwiseLogLik}} for the per-item log-likelihoods that \pkg{loo} needs
 #' @name as_draws.batchmix_fit
 #' @examples
 #' if (requireNamespace("posterior", quietly = TRUE)) {

@@ -21,7 +21,7 @@ Description: Semi-supervised and unsupervised Bayesian mixture models that
 Depends: R (>= 3.6.0)
 Imports: Rcpp (>= 1.0.5), tidyr, ggplot2, clue
 LinkingTo: Rcpp, RcppArmadillo, testthat
-Suggests: xml2, knitr, rmarkdown, invgamma, CholWishart, MASS, posterior, testthat (>= 3.0.0)
+Suggests: xml2, knitr, rmarkdown, invgamma, CholWishart, MASS, posterior, loo, testthat (>= 3.0.0)
 Config/testthat/edition: 3
 SystemRequirements: GNU make
 Encoding: UTF-8
