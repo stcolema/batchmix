@@ -44,7 +44,6 @@ public:
 //' @return A list of traces, acceptance counts and initial-state
 //' diagnostics.
 //' @keywords internal
-//' @export
 // [[Rcpp::export]]
 Rcpp::List priorOnlyLKJChain(
   arma::mat X,
@@ -130,7 +129,6 @@ Rcpp::List priorOnlyLKJChain(
 //' @return A list with the \code{eta} trace (B x K x n_iter), the raw
 //' \code{eta_count}, and \code{eta_moves_per_sweep}.
 //' @keywords internal
-//' @export
 // [[Rcpp::export]]
 Rcpp::List partialPoolingWeightChain(
   arma::uvec labels,
@@ -183,7 +181,6 @@ Rcpp::List partialPoolingWeightChain(
 //' @return A list with the \code{eta} trace (B x K x n_iter) and
 //' \code{eta_count}.
 //' @keywords internal
-//' @export
 // [[Rcpp::export]]
 Rcpp::List gpWeightChain(
   arma::uword K,

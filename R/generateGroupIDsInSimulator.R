@@ -20,7 +20,7 @@
 #' batch_weights <- rep(1 / B, B)
 #' batch_IDs <- sample(seq(1, B), N, replace = TRUE, prob = batch_weights)
 #' varying_group_within_batch <- FALSE
-#' group_IDs <- generateGroupIDsInSimulator(
+#' group_IDs <- batchmix:::generateGroupIDsInSimulator(
 #'   N,
 #'   K,
 #'   B,

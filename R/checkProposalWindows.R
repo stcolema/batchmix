@@ -21,7 +21,7 @@
 #' windows are outside their expected scale.
 #' @return No return value, called for side effects
 #' @examples
-#' checkProposalWindows(0.1, 0.2, 0.3, 0.1, 0.4, 0.3)
+#' batchmix:::checkProposalWindows(0.1, 0.2, 0.3, 0.1, 0.4, 0.3)
 checkProposalWindows <- function(mu_proposal_window,
                                  cov_proposal_window,
                                  m_proposal_window,

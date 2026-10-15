@@ -728,7 +728,6 @@ double robbinsMonroUpdateReciprocal(
 //' Student-t degrees of freedom.
 //' @return The change in log-likelihood.
 //' @keywords internal
-//' @export
 // [[Rcpp::export]]
 double interactionLogLikDelta(
   arma::mat X_t,
@@ -811,7 +810,6 @@ double interactionLogLikDeltaImpl(
 //' @param cov_comb_inv P x P x (K * B) inverses of \eqn{\Sigma_{kb}}.
 //' @return An N x P matrix.
 //' @keywords internal
-//' @export
 // [[Rcpp::export]]
 arma::mat batchCorrectedPosteriorMean(
   arma::mat X_t,

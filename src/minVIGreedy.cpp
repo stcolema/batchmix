@@ -29,7 +29,6 @@ using namespace arma ;
 //' @return A list with \code{labels} (1-indexed, consecutive) and
 //' \code{value}, the lower-bound loss of the returned clustering.
 //' @keywords internal
-//' @export
 // [[Rcpp::export]]
 Rcpp::List minVIGreedyRefine(arma::mat psm, arma::uvec init, arma::uword max_passes = 50) {
 
