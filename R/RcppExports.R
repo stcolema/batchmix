@@ -584,6 +584,8 @@ predictNewBatchMVN <- function(X, X_new, K, B, batch_vec, fixed_new, labels_new_
 #' @inheritParams predictNewBatchMVN
 #' @param column_type P-vector as at training time (0 = continuous,
 #' 1 = binary/probit, 2 = censored - see \code{sampleSemisupervisedMVNMixed()}).
+#' @param censor_code N x P matrix, the training data's censoring indicator;
+#' 0 = not censored, 1 = left-censored, 2 = right-censored.
 #' @param censor_code_new N_new x P matrix, \code{X_new}'s own censoring
 #' indicator (same convention as the original fit's \code{censor_code}).
 predictNewBatchMVNMixed <- function(X, X_new, K, B, batch_vec, fixed_new, labels_new_init, column_type, censor_code, censor_code_new, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_logit_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, gp_kernel_type, pp_mu_prior_sd, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin) {
@@ -839,6 +841,19 @@ sampleSemisupervisedMVN <- function(X, K, B, labels, batch_vec, fixed, mu_propos
 #' @param auto_tune,n_burn,include_interaction,gamma_proposal_window,a_gamma,b_gamma,weight_prior_type,batch_coordinates,gp_tau2,gp_length_scale,eta_proposal_window,sample_gp_hyperparameters,gp_hyperparameter_proposal_window,pp_tau2_shape,pp_tau2_rate,pp_mu_prior_sd
 #' Auto-tuning, interaction-term and GP-correlated-weight options; see
 #' sampleSemisupervisedMVN() for the full description of each.
+#' @param gp_kernel_type Integer; 0 = stationary Matern-3/2 (legacy), 1 =
+#' Wiener process (random walk) with diffuse level, 2 = integrated Wiener
+#' process (second-order random walk) with diffuse level and slope - both
+#' non-stationary; ``batch_coordinates`` must then be non-negative (the R
+#' layer rescales them to [0, 1]). Only used if ``weight_prior_type`` is 2.
+#' @param sample_s_scale Bool; if true, the batch-scale prior's
+#' concentration (rho) is estimated by Metropolis-Hastings rather than
+#' held fixed at ``rho``; the prior mean of the batch scale stays fixed. See
+#' ``sampleSemisupervisedMVN()``.
+#' @param a_s,b_s Shape/rate of the Gamma hyperprior on (rho - 2); only
+#' used if ``sample_s_scale`` is true.
+#' @param s_scale_proposal_window Proposal window for the concentration's
+#' Metropolis-Hastings update; only used if ``sample_s_scale`` is true.
 #' @return A named list of MCMC samples and diagnostics.
 sampleSemisupervisedMVNMixed <- function(X, K, B, labels, batch_vec, fixed, column_type, censor_code, mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window, n_iter, thin, concentration, m_scale, rho, theta, eta, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, gp_kernel_type, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd, sample_s_scale, a_s, b_s, s_scale_proposal_window) {
     .Call('_batchmix_sampleSemisupervisedMVNMixed', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, fixed, column_type, censor_code, mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window, n_iter, thin, concentration, m_scale, rho, theta, eta, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, gp_kernel_type, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd, sample_s_scale, a_s, b_s, s_scale_proposal_window)
@@ -872,6 +887,19 @@ sampleSemisupervisedMVNMixed <- function(X, K, B, labels, batch_vec, fixed, colu
 #' @param auto_tune,n_burn,include_interaction,gamma_proposal_window,a_gamma,b_gamma,weight_prior_type,batch_coordinates,gp_tau2,gp_length_scale,eta_proposal_window,sample_gp_hyperparameters,gp_hyperparameter_proposal_window,pp_tau2_shape,pp_tau2_rate,pp_mu_prior_sd
 #' Auto-tuning, interaction-term and GP-correlated-weight options; see
 #' sampleSemisupervisedMVN() for the full description of each.
+#' @param gp_kernel_type Integer; 0 = stationary Matern-3/2 (legacy), 1 =
+#' Wiener process (random walk) with diffuse level, 2 = integrated Wiener
+#' process (second-order random walk) with diffuse level and slope - both
+#' non-stationary; ``batch_coordinates`` must then be non-negative (the R
+#' layer rescales them to [0, 1]). Only used if ``weight_prior_type`` is 2.
+#' @param sample_s_scale Bool; if true, the batch-scale prior's
+#' concentration (rho) is estimated by Metropolis-Hastings rather than
+#' held fixed at ``rho``; the prior mean of the batch scale stays fixed. See
+#' ``sampleSemisupervisedMVN()``.
+#' @param a_s,b_s Shape/rate of the Gamma hyperprior on (rho - 2); only
+#' used if ``sample_s_scale`` is true.
+#' @param s_scale_proposal_window Proposal window for the concentration's
+#' Metropolis-Hastings update; only used if ``sample_s_scale`` is true.
 #' @return Named list of the different quantities drawn by the sampler.
 sampleSemisupervisedMVNSeparationStrategy <- function(X, K, B, labels, batch_vec, fixed, mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window, n_iter, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale, eta, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, gp_kernel_type, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd, sample_s_scale, a_s, b_s, s_scale_proposal_window) {
     .Call('_batchmix_sampleSemisupervisedMVNSeparationStrategy', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, fixed, mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window, n_iter, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale, eta, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, gp_kernel_type, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd, sample_s_scale, a_s, b_s, s_scale_proposal_window)
@@ -975,6 +1003,14 @@ sampleSemisupervisedMVNSeparationStrategy <- function(X, K, B, labels, batch_vec
 #' population logit mu_k before the sum-to-zero constraint (prior mu_k ~
 #' N(0, pp_mu_prior_sd^2));
 #' only used if ``weight_prior_type`` is 1.
+#' @param sample_s_scale Bool; if true, the batch-scale prior's
+#' concentration (rho) is estimated by Metropolis-Hastings rather than
+#' held fixed at ``rho``; the prior mean of the batch scale stays fixed. See
+#' ``sampleSemisupervisedMVN()``.
+#' @param a_s,b_s Shape/rate of the Gamma hyperprior on (rho - 2); only
+#' used if ``sample_s_scale`` is true.
+#' @param s_scale_proposal_window Proposal window for the concentration's
+#' Metropolis-Hastings update; only used if ``sample_s_scale`` is true.
 #' @return Named list of the different quantities drawn by the sampler.
 sampleSemisupervisedMVT <- function(X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, n_iter, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_df, initial_m, initial_S, mu_initialised, cov_initialised, df_initialised, m_initialised, S_initialised, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, gp_kernel_type, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd, sample_s_scale, a_s, b_s, s_scale_proposal_window) {
     .Call('_batchmix_sampleSemisupervisedMVT', PACKAGE = 'batchmix', X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, n_iter, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_df, initial_m, initial_S, mu_initialised, cov_initialised, df_initialised, m_initialised, S_initialised, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, gp_kernel_type, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd, sample_s_scale, a_s, b_s, s_scale_proposal_window)

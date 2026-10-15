@@ -24,6 +24,8 @@
 //' @inheritParams predictNewBatchMVN
 //' @param column_type P-vector as at training time (0 = continuous,
 //' 1 = binary/probit, 2 = censored - see \code{sampleSemisupervisedMVNMixed()}).
+//' @param censor_code N x P matrix, the training data's censoring indicator;
+//' 0 = not censored, 1 = left-censored, 2 = right-censored.
 //' @param censor_code_new N_new x P matrix, \code{X_new}'s own censoring
 //' indicator (same convention as the original fit's \code{censor_code}).
 // [[Rcpp::export]]

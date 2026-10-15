@@ -90,6 +90,23 @@ correlation matrices.}
 
 \item{auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd}{Auto-tuning, interaction-term and GP-correlated-weight options; see
 sampleSemisupervisedMVN() for the full description of each.}
+
+\item{gp_kernel_type}{Integer; 0 = stationary Matern-3/2 (legacy), 1 =
+Wiener process (random walk) with diffuse level, 2 = integrated Wiener
+process (second-order random walk) with diffuse level and slope - both
+non-stationary; ``batch_coordinates`` must then be non-negative (the R
+layer rescales them to [0, 1]). Only used if ``weight_prior_type`` is 2.}
+
+\item{sample_s_scale}{Bool; if true, the batch-scale prior's
+concentration (rho) is estimated by Metropolis-Hastings rather than
+held fixed at ``rho``; the prior mean of the batch scale stays fixed. See
+``sampleSemisupervisedMVN()``.}
+
+\item{a_s, b_s}{Shape/rate of the Gamma hyperprior on (rho - 2); only
+used if ``sample_s_scale`` is true.}
+
+\item{s_scale_proposal_window}{Proposal window for the concentration's
+Metropolis-Hastings update; only used if ``sample_s_scale`` is true.}
 }
 \value{
 Named list of the different quantities drawn by the sampler.

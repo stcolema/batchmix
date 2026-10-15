@@ -14,6 +14,9 @@
 #' @param concentration Initial concentration vector for component weights;
 #' alternative to \code{alpha} (only one of the two should be given) for
 #' directly specifying an asymmetric concentration per component.
+#' @param s_scale_proposal_window \strong{Deprecated}: pass this inside
+#' \code{control = batchmixControl(s_scale_proposal_window = ...)} instead; see
+#' \code{?batchmixControl}. If both are supplied, \code{control} wins.
 #' @return A named list containing the sampled partitions, cluster and batch
 #' parameters, model fit measures and some details on the model call.
 #' @examples
