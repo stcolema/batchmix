@@ -33,7 +33,8 @@ mvtSampler::mvtSampler(
   double _m_scale,
   double _rho,
   double _theta,
-  bool _sample_m_scale
+  bool _sample_m_scale,
+  bool _sample_s_scale
 ) : mvnSampler(
   _K,
   _B,
@@ -49,7 +50,8 @@ mvtSampler::mvtSampler(
   _m_scale,
   _rho,
   _theta,
-  _sample_m_scale
+  _sample_m_scale,
+  _sample_s_scale
 ) {
   
   n_param_cluster = 2 + P + P * (P + 1) * 0.5;
@@ -461,19 +463,31 @@ void mvtSampler::interactionMetropolis() {
 
 void mvtSampler::metropolisStep() {
 
-  // Metropolis step for cluster parameters
-  clusterCovarianceMetropolis();
-  clusterMeanMetropolis();
-  clusterDFMetropolis();
+  // Predicting a new batch (see sampler.h): see the identical guard in
+  // mvnSampler::metropolisStep() for why cluster parameters (here
+  // including t_df), lambda_2/m_scale, and the interaction term are all
+  // frozen while batchScaleMetropolis()/batchShiftMetorpolis() (inherited
+  // from mvnSampler, already restricted to predict_batch internally) stay
+  // unconditional.
+  if(!predict_mode) {
+    // Metropolis step for cluster parameters
+    clusterCovarianceMetropolis();
+    clusterMeanMetropolis();
+    clusterDFMetropolis();
+
+    if(sample_m_scale) {
+      sampleMScalePosterior();
+    }
+    if(sample_s_scale) {
+      sScaleConcentrationMetropolis();
+    }
+  }
 
   // Metropolis step for batch parameters
-  if(sample_m_scale) {
-    sampleMScalePosterior();
-  }
   batchScaleMetropolis();
   batchShiftMetorpolis();
 
-  if(include_interaction) {
+  if(include_interaction && !predict_mode) {
     interactionMetropolis();
     sampleTauInteractionPosterior();
   }

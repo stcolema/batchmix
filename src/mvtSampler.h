@@ -86,7 +86,8 @@ public:
     double _m_scale,
     double _rho,
     double _theta,
-    bool _sample_m_scale
+    bool _sample_m_scale,
+    bool _sample_s_scale = false
   ) ;
   
   // Destructor

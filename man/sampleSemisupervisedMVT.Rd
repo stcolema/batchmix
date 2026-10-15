@@ -48,7 +48,11 @@ sampleSemisupervisedMVT(
   gp_hyperparameter_proposal_window,
   pp_tau2_shape,
   pp_tau2_rate,
-  pp_mu_prior_sd
+  pp_mu_prior_sd,
+  sample_s_scale,
+  a_s,
+  b_s,
+  s_scale_proposal_window
 )
 }
 \arguments{

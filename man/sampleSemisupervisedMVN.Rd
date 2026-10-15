@@ -45,7 +45,11 @@ sampleSemisupervisedMVN(
   gp_hyperparameter_proposal_window,
   pp_tau2_shape,
   pp_tau2_rate,
-  pp_mu_prior_sd
+  pp_mu_prior_sd,
+  sample_s_scale,
+  a_s,
+  b_s,
+  s_scale_proposal_window
 )
 }
 \arguments{
@@ -175,6 +179,22 @@ on each ALR coordinate's population variance tau2_j; only used if
 \item{pp_mu_prior_sd}{Prior standard deviation for each ALR
 coordinate's population mean mu_j (prior mu_j ~ N(0, pp_mu_prior_sd^2));
 only used if ``weight_prior_type`` is 1.}
+
+\item{sample_s_scale}{Bool; if true, the batch-scale prior's
+concentration (rho) is estimated by Metropolis-Hastings rather than
+held fixed at ``rho`` - partial pooling for the batch SCALE, the
+analogue of ``sample_m_scale`` for the batch shift. The prior MEAN of
+the batch scale is always held fixed (at what ``rho``/``theta`` imply);
+only how tightly batches concentrate around it is estimated - see
+``mvnSampler::sScaleConcentrationMetropolis()`` for why the mean itself
+cannot also be freed (a non-identifiability with the cluster
+covariance's own scale, exactly as for the batch shift/cluster mean).}
+
+\item{a_s, b_s}{Shape/rate of the Gamma hyperprior on (rho - 2); only
+used if ``sample_s_scale`` is true.}
+
+\item{s_scale_proposal_window}{Proposal window for the concentration's
+Metropolis-Hastings update; only used if ``sample_s_scale`` is true.}
 }
 \value{
 Named list of the different quantities drawn by the sampler.
