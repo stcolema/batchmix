@@ -40,6 +40,12 @@ on location but disagree on scale. \eqn{\hat{R}} values comfortably above
 1.01 indicate chains that have not mixed (Vehtari et al., 2021,
 recommend 1.01 as the threshold, tightened from the older folklore
 value of 1.1).
+
+The bulk ESS is the effective sample size of the rank-normalized split
+chains; the tail ESS is the smaller of the ESS of the indicators of the 5\%
+and 95\% quantiles (Vehtari et al., 2021, Section 4.2), which is \code{NA} if
+either indicator is constant, as in \code{posterior}. The estimators follow \code{posterior} and
+agree with its \code{rhat()}, \code{ess_bulk()} and \code{ess_tail()}.
 }
 \examples{
 set.seed(1)

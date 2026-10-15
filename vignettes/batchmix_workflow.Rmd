@@ -40,6 +40,10 @@ loop on a single simulated dataset:
    the cluster means and batch effects used to generate the data?
 7. **Did the batch correction work?**: comparing the model's inferred
    batch-corrected data against the simulator's batch-free ground truth.
+8. **Posterior draws**: the same fit as a `posterior` draws array, for
+   `posterior`/`bayesplot` summaries and diagnostics.
+9. **Model comparison**: pointwise log-likelihoods for `loo`/`waic`, and
+   `calcBICM()`.
 
 Steps 2 and 5 are standard Bayesian workflow, not specific to this
 package: Gelman, Carlin, Stern, Dunson, Vehtari & Rubin (2013), *Bayesian
@@ -96,6 +100,22 @@ lists the same items. In brief:
 - **Model comparison** should use `calcBICM()` (the BIC at the best retained
   draw), not the per-iteration `BIC` trace, which uses a single posterior
   draw.
+- **Diagnostics follow `posterior` and Stan.** `rankNormalizedRhat()` (and so
+  `assessConvergence()` and the report printed by `fitBatchMix()`) had four
+  departures from the published estimators, in the rank normalisation, the tail
+  ESS, and the ESS estimator's final-term and lower-bound corrections. Rhat and
+  ESS reported by earlier versions are not comparable and should be recomputed.
+  `as_draws()` hands a fit to `posterior`, whose `rhat()` and `ess_bulk()` agree
+  with the package's own (Step 9).
+- **`pointwiseLogLik()`** gives the draws x items log-likelihood that `loo::loo()`
+  and `loo::waic()` take, with the allocation summed out (Step 10).
+- **`n_cores`** runs chains in parallel in `fitBatchMix()` and `continueChains()`;
+  the default is one core.
+- **Arguments are named as in `mdir`.** `n_iter`, `K_max`, `control` and `thin` mean
+  the same in both packages; `simulatePriorPredictive(K = )` is now `K_max`. The
+  table at the end of the vignette lists what is shared and what still differs.
+- **Exports are explicit**: only documented functions are attached by
+  `library(batchmix)`; internal helpers are no longer visible.
 - **`salso` is no longer needed**: unsupervised point estimates use
   `minVI()` on the posterior similarity matrix, which needs the `N x N`
   matrix in memory.
@@ -202,7 +222,7 @@ unless overridden - since that is what is being checked.
 ```{r priorPC}
 prior_sims <- simulatePriorPredictive(
   X, batch_vec,
-  K = K, type = "MVN",
+  K_max = K, type = "MVN",
   n_datasets = 30
 )
 
@@ -623,6 +643,91 @@ structure and batch mixing, not item-by-item values. And the simulator
 scales the whole deviation by $\sqrt{S_b}$, whereas the fitted model
 inflates only each feature's own variance, so the two agree closely only
 when the within-cluster correlations are weak.
+
+## 9. Posterior draws in the `posterior` format
+
+`as_draws()` converts a fit to a `posterior::draws_array`, so the summaries
+and diagnostics of `posterior` and `bayesplot` apply to it as they do to a Stan
+or `brms` fit. By default it keeps the second half of each chain and the
+label-invariant quantities only: the batch shifts and scales, the
+concentration of the batch-scale prior, the likelihoods and, with
+`weights = TRUE`, the mixture weights. Cluster means and allocations depend on
+how the clusters are labelled, so a per-cluster Rhat is not meaningful for them
+(`allocations = TRUE` and the per-cluster parameters are opt-in; see
+`?as_draws.batchmix_fit`).
+
+```{r draws}
+draws <- posterior::as_draws(new_output)
+posterior::summarise_draws(draws, "mean", "sd", "rhat", "ess_bulk", "ess_tail")[1:8, ]
+```
+
+`posterior`'s `rhat()` and `ess_bulk()` agree with `assessConvergence()` on the
+same draws, since both implement Vehtari et al. (2021) as Stan does. `batchmix`
+also keeps its own implementation, so that `fitBatchMix()` can report
+convergence without `posterior` installed.
+
+## 10. Model comparison
+
+Two tools, for different questions.
+
+`calcBICM()` is the BIC at the best retained draw (Step 5). It is a rough
+model-selection value, comparable only between models with the same likelihood
+structure.
+
+`pointwiseLogLik()` gives the log-likelihood of each item at each retained
+draw, with the item's allocation summed out, which is what `loo::loo()` and
+`loo::waic()` need. It recomputes the values from the stored draws, so no refit
+is required, but it needs the data and batch labels, because a fit does not
+store them. Estimating the expected log predictive density of a new item from
+a batch already seen (Vehtari, Gelman and Gabry, 2017):
+
+```{r loo, eval = requireNamespace("loo", quietly = TRUE)}
+ll <- pointwiseLogLik(new_output, X, batch_vec, fixed = fixed)
+r_eff <- loo::relative_eff(exp(ll), chain_id = attr(ll, "chain_id"))
+loo_fit <- loo::loo(ll, r_eff = r_eff)
+print(loo_fit)
+```
+
+Check the Pareto-$k$ diagnostics: a cluster or batch with very few members
+makes its items influential, and the importance-sampling approximation can then
+fail. `fixed = fixed` is required here because the fit is semi-supervised; the
+labelled items contribute the joint density of their data and label, so for
+comparing models that treat different items as labelled, use the unlabelled
+items only (`?pointwiseLogLik`). This is leave-one-item-out within a batch, not
+prediction for an unseen batch, for which see `predictNewBatch()`.
+
+To fit chains in parallel, pass `n_cores`. Each chain gets its own
+L'Ecuyer-CMRG random-number stream, so the result follows `set.seed()` and does
+not depend on the number of cores, but it differs from the serial result for the
+same seed (`?fitBatchMix`).
+
+```{r parallel, eval = FALSE}
+fitBatchMix(X, n_chains = 4, n_iter, thin, batch_vec, "MVN", K_max = K, n_cores = 4)
+```
+
+## Naming conventions shared with `mdir`
+
+`batchmix` and `mdir` (multi-dataset integration, with Gaussian process views)
+use the same names where they mean the same thing, so that code moves between
+them:
+
+| Concept | `batchmix` | `mdir` | Same? |
+|---|---|---|---|
+| Iterations, thinning | `n_iter`, `thin` | `n_iter`, `thin` | yes |
+| Number of chains | `n_chains` | `n_chains` | yes |
+| Maximum number of clusters | `K_max` | `K_max` | yes |
+| Sampler settings | `control = batchmixControl()` | `control = mdirControl()` | same idea, different fields |
+| Parallel chains | `n_cores` | `n_cores` | yes |
+| Fit several chains | `fitBatchMix()` | `fitMDI()` | `fit*`: chains and diagnostics |
+| Run one chain | `runBatchMix()` | `callMDI()` | no: `run*` here, `call*` there |
+| Burn-in used for diagnostics when fitting | `convergence_burn` | `convergence_burn` | yes |
+| Posterior draws | `as_draws()` | `as_draws()` | yes |
+| Pointwise log-likelihood | `pointwiseLogLik(object, X, batch_vec, burn, fixed)` | `pointwiseLogLik(object, burn)` | name and use yes; arguments no (`mdir` needs `save_pointwise` when fitting; `batchmix` recomputes from the data) |
+| Posterior predictive | `simulatePosteriorPredictive(fit, batch_vec, ...)` | `simulatePosteriorPredictive(fit, X, ...)` | name yes; arguments no |
+| Plot a predictive check | `plotPredictiveCheck(X, replicates, column)` | `plotPredictiveCheck(X, predictive, view)` | no: `replicates`/`column` against `predictive`/`view` |
+
+The earlier names (`K`, `burn` in `fitMDI()`, and so on) still work and give a
+deprecation warning.
 
 ## Summary
 

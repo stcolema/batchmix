@@ -45,5 +45,5 @@ No return value, called for side effects
 Checks the proposal windows are acceptable.
 }
 \examples{
-checkProposalWindows(0.1, 0.2, 0.3, 0.1, 0.4, 0.3)
+batchmix:::checkProposalWindows(0.1, 0.2, 0.3, 0.1, 0.4, 0.3)
 }

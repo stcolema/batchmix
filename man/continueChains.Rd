@@ -11,6 +11,7 @@ continueChains(
   batch_vec,
   n_iter,
   keep_old_samples = TRUE,
+  n_cores = NULL,
   ...
 )
 }
@@ -28,6 +29,10 @@ factor is the same as initial chain).}
 
 \item{keep_old_samples}{Logical indicating if the original samples should be
 kept or only the new samples returned. Defaults to TRUE.}
+
+\item{n_cores}{Number of cores to continue the chains on; see
+\code{\link{fitBatchMix}}, whose rules for the default, the random-number
+streams and the cap apply unchanged.}
 
 \item{...}{Accepts only the deprecated \code{R} argument (renamed to
 \code{n_iter}; still works, with a warning, for this release, when

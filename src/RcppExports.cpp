@@ -548,8 +548,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // gpWeightChain
-Rcpp::List gpWeightChain(arma::uword K, arma::uword B, arma::uword n_iter, arma::vec coords, arma::uword kernel_type, double tau2, double length_scale, double level_sd, double eta_pw);
-RcppExport SEXP _batchmix_gpWeightChain(SEXP KSEXP, SEXP BSEXP, SEXP n_iterSEXP, SEXP coordsSEXP, SEXP kernel_typeSEXP, SEXP tau2SEXP, SEXP length_scaleSEXP, SEXP level_sdSEXP, SEXP eta_pwSEXP) {
+Rcpp::List gpWeightChain(arma::uword K, arma::uword B, arma::uword n_iter, arma::vec coords, arma::uword kernel_type, double tau2, double length_scale, double level_sd, double eta_pw, bool sample_hyperparameters, double hyper_pw);
+RcppExport SEXP _batchmix_gpWeightChain(SEXP KSEXP, SEXP BSEXP, SEXP n_iterSEXP, SEXP coordsSEXP, SEXP kernel_typeSEXP, SEXP tau2SEXP, SEXP length_scaleSEXP, SEXP level_sdSEXP, SEXP eta_pwSEXP, SEXP sample_hyperparametersSEXP, SEXP hyper_pwSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -562,7 +562,57 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< double >::type length_scale(length_scaleSEXP);
     Rcpp::traits::input_parameter< double >::type level_sd(level_sdSEXP);
     Rcpp::traits::input_parameter< double >::type eta_pw(eta_pwSEXP);
-    rcpp_result_gen = Rcpp::wrap(gpWeightChain(K, B, n_iter, coords, kernel_type, tau2, length_scale, level_sd, eta_pw));
+    Rcpp::traits::input_parameter< bool >::type sample_hyperparameters(sample_hyperparametersSEXP);
+    Rcpp::traits::input_parameter< double >::type hyper_pw(hyper_pwSEXP);
+    rcpp_result_gen = Rcpp::wrap(gpWeightChain(K, B, n_iter, coords, kernel_type, tau2, length_scale, level_sd, eta_pw, sample_hyperparameters, hyper_pw));
+    return rcpp_result_gen;
+END_RCPP
+}
+// priorOnlyChain
+Rcpp::List priorOnlyChain(std::string type, arma::mat X, arma::uword K, arma::uword B, arma::uvec labels, arma::uvec batch_vec, arma::uword n_iter, double mu_pw, double cov_pw, double m_pw, double S_pw, double t_df_pw, double m_scale, double rho, double theta, bool sample_m_scale, bool sample_s_scale, double s_scale_pw, arma::vec concentration, bool update_allocation);
+RcppExport SEXP _batchmix_priorOnlyChain(SEXP typeSEXP, SEXP XSEXP, SEXP KSEXP, SEXP BSEXP, SEXP labelsSEXP, SEXP batch_vecSEXP, SEXP n_iterSEXP, SEXP mu_pwSEXP, SEXP cov_pwSEXP, SEXP m_pwSEXP, SEXP S_pwSEXP, SEXP t_df_pwSEXP, SEXP m_scaleSEXP, SEXP rhoSEXP, SEXP thetaSEXP, SEXP sample_m_scaleSEXP, SEXP sample_s_scaleSEXP, SEXP s_scale_pwSEXP, SEXP concentrationSEXP, SEXP update_allocationSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< std::string >::type type(typeSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X(XSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type K(KSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type B(BSEXP);
+    Rcpp::traits::input_parameter< arma::uvec >::type labels(labelsSEXP);
+    Rcpp::traits::input_parameter< arma::uvec >::type batch_vec(batch_vecSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type n_iter(n_iterSEXP);
+    Rcpp::traits::input_parameter< double >::type mu_pw(mu_pwSEXP);
+    Rcpp::traits::input_parameter< double >::type cov_pw(cov_pwSEXP);
+    Rcpp::traits::input_parameter< double >::type m_pw(m_pwSEXP);
+    Rcpp::traits::input_parameter< double >::type S_pw(S_pwSEXP);
+    Rcpp::traits::input_parameter< double >::type t_df_pw(t_df_pwSEXP);
+    Rcpp::traits::input_parameter< double >::type m_scale(m_scaleSEXP);
+    Rcpp::traits::input_parameter< double >::type rho(rhoSEXP);
+    Rcpp::traits::input_parameter< double >::type theta(thetaSEXP);
+    Rcpp::traits::input_parameter< bool >::type sample_m_scale(sample_m_scaleSEXP);
+    Rcpp::traits::input_parameter< bool >::type sample_s_scale(sample_s_scaleSEXP);
+    Rcpp::traits::input_parameter< double >::type s_scale_pw(s_scale_pwSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type concentration(concentrationSEXP);
+    Rcpp::traits::input_parameter< bool >::type update_allocation(update_allocationSEXP);
+    rcpp_result_gen = Rcpp::wrap(priorOnlyChain(type, X, K, B, labels, batch_vec, n_iter, mu_pw, cov_pw, m_pw, S_pw, t_df_pw, m_scale, rho, theta, sample_m_scale, sample_s_scale, s_scale_pw, concentration, update_allocation));
+    return rcpp_result_gen;
+END_RCPP
+}
+// priorOnlyInteractionChain
+Rcpp::List priorOnlyInteractionChain(std::string type, arma::uword P, arma::uword K, arma::uword B, arma::uword n_iter, double gamma_pw, double a_gamma, double b_gamma);
+RcppExport SEXP _batchmix_priorOnlyInteractionChain(SEXP typeSEXP, SEXP PSEXP, SEXP KSEXP, SEXP BSEXP, SEXP n_iterSEXP, SEXP gamma_pwSEXP, SEXP a_gammaSEXP, SEXP b_gammaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< std::string >::type type(typeSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type P(PSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type K(KSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type B(BSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type n_iter(n_iterSEXP);
+    Rcpp::traits::input_parameter< double >::type gamma_pw(gamma_pwSEXP);
+    Rcpp::traits::input_parameter< double >::type a_gamma(a_gammaSEXP);
+    Rcpp::traits::input_parameter< double >::type b_gamma(b_gammaSEXP);
+    rcpp_result_gen = Rcpp::wrap(priorOnlyInteractionChain(type, P, K, B, n_iter, gamma_pw, a_gamma, b_gamma));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -822,7 +872,9 @@ static const R_CallMethodDef CallEntries[] = {
     {"_batchmix_predictNewBatchMVT", (DL_FUNC) &_batchmix_predictNewBatchMVT, 41},
     {"_batchmix_priorOnlyLKJChain", (DL_FUNC) &_batchmix_priorOnlyLKJChain, 12},
     {"_batchmix_partialPoolingWeightChain", (DL_FUNC) &_batchmix_partialPoolingWeightChain, 8},
-    {"_batchmix_gpWeightChain", (DL_FUNC) &_batchmix_gpWeightChain, 9},
+    {"_batchmix_gpWeightChain", (DL_FUNC) &_batchmix_gpWeightChain, 11},
+    {"_batchmix_priorOnlyChain", (DL_FUNC) &_batchmix_priorOnlyChain, 20},
+    {"_batchmix_priorOnlyInteractionChain", (DL_FUNC) &_batchmix_priorOnlyInteractionChain, 8},
     {"_batchmix_sampleSemisupervisedMVN", (DL_FUNC) &_batchmix_sampleSemisupervisedMVN, 46},
     {"_batchmix_sampleSemisupervisedMVNMixed", (DL_FUNC) &_batchmix_sampleSemisupervisedMVNMixed, 42},
     {"_batchmix_sampleSemisupervisedMVNSeparationStrategy", (DL_FUNC) &_batchmix_sampleSemisupervisedMVNSeparationStrategy, 48},

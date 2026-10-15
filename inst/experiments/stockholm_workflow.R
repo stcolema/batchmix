@@ -74,7 +74,7 @@ cat("N =", nrow(d), "| donors", sum(is_donor), "| fixed controls", sum(fixed), "
 
 # ---- 1. Prior predictive check ----------------------------------------------
 section("1. Prior predictive check (partial pooling, default priors)")
-pri <- simulatePriorPredictive(X, batch - 1L, K = 2, type = "MVN", batch_weight_prior = "partial_pooling", n_datasets = 40)
+pri <- simulatePriorPredictive(X, batch - 1L, K_max = 2, type = "MVN", batch_weight_prior = "partial_pooling", n_datasets = 40)
 obs_rng <- apply(X, 2, quantile, c(0.01, 0.99))
 cat("observed 1% and 99% quantiles of log10 OD:\n"); print(round(obs_rng, 2))
 sim_rng <- sapply(pri, function(s) as.vector(apply(s$X, 2, quantile, c(0.01, 0.99))))

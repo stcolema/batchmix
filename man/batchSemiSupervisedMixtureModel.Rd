@@ -49,7 +49,7 @@ batchSemiSupervisedMixtureModel(
   batch_coordinates = NULL,
   gp_tau2 = NULL,
   gp_length_scale = 1,
-  gp_kernel = "rw2",
+  gp_kernel = "rw1",
   sample_gp_hyperparameters = FALSE,
   pp_tau2_shape = 2,
   pp_tau2_rate = 1,
@@ -143,6 +143,10 @@ argument is ignored (with a warning).}
 
 \item{verbose}{Logical indicating if warnings about proposal windows should
 be printed.}
+
+\item{s_scale_proposal_window}{\strong{Deprecated}: pass this inside
+\code{control = batchmixControl(s_scale_proposal_window = ...)} instead; see
+\code{?batchmixControl}. If both are supplied, \code{control} wins.}
 
 \item{m_scale}{The scale hyperparameter for the batch shift prior
 distribution. This defines the scale of the batch effect upon the mean and
@@ -266,10 +270,12 @@ priors are inverse-gamma with shape 2 and mean 20 and 1500: on the unit
 time span they allow a change of about two logits over a fifth of it.}
 
 \item{gp_kernel}{The Gaussian process kernel when \code{batch_weight_prior}
-is \code{"gp"}. \code{"rw2"} (the default) is an integrated Wiener process
-(a second-order random walk, i.e. a cubic smoothing spline) with a diffuse
-level and slope; \code{"rw1"} is a Wiener process (a random walk) with a
-diffuse level; \code{"matern32"} is the stationary Matern-3/2 kernel.
+is \code{"gp"}. \code{"rw1"} (the default) is a Wiener process (a random
+walk) with a diffuse level; \code{"rw2"} is an integrated Wiener process (a
+second-order random walk, i.e. a cubic smoothing spline) with a diffuse
+level and slope: smoother, but it extrapolates a linear trend and follows
+abrupt changes (epidemic waves, vaccination steps) less well;
+\code{"matern32"} is the stationary Matern-3/2 kernel.
 The first two are non-stationary: the prior variance grows with the
 coordinate, there is no mean the weights revert to, and forecasts widen
 with distance from the data, which is appropriate for epidemic-type

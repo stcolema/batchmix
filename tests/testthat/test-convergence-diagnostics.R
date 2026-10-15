@@ -92,3 +92,27 @@ test_that("calcBICM() is the maximum post-burn-in per-draw BIC and assessConverg
   conv <- suppressWarnings(assessConvergence(chains, burn = 50, statistic = "BIC"))
   expect_equal(conv$chain_bicm, c(calcBICM(chains[[1]], 50), calcBICM(chains[[2]], 50)))
 })
+
+test_that("rankNormalizedRhat agrees with the posterior package", {
+  skip_if_not_installed("posterior")
+  set.seed(11)
+  ar1 <- function(n, phi) as.numeric(stats::arima.sim(list(ar = phi), n))
+  cases <- list(
+    white = matrix(rnorm(2000), ncol = 4),
+    autocorrelated = cbind(ar1(500, 0.9), ar1(500, 0.9), ar1(500, 0.9)),
+    heavy_tailed = matrix(stats::rt(1500, df = 2), ncol = 3),
+    not_mixed = cbind(rnorm(300, 0), rnorm(300, 1), rnorm(300, -1)),
+    odd_length = matrix(rnorm(3 * 101), ncol = 3),
+    discrete = matrix(sample(1:4, 600, replace = TRUE, prob = c(0.5, 0.3, 0.15, 0.05)), ncol = 3)
+  )
+  for (nm in names(cases)) {
+    x <- cases[[nm]]
+    ours <- rankNormalizedRhat(x)
+    ref <- list(
+      rhat = posterior::rhat(x), ess_bulk = posterior::ess_bulk(x), ess_tail = posterior::ess_tail(x)
+    )
+    expect_equal(ours$rhat, ref$rhat, tolerance = 1e-6, info = nm)
+    expect_equal(ours$ess_bulk, ref$ess_bulk, tolerance = 1e-6, info = nm)
+    expect_equal(ours$ess_tail, ref$ess_tail, tolerance = 1e-6, info = nm)
+  }
+})

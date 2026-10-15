@@ -8,6 +8,9 @@
 #' factor is the same as initial chain).
 #' @param keep_old_samples Logical indicating if the original samples should be
 #' kept or only the new samples returned. Defaults to TRUE.
+#' @param n_cores Number of cores to continue the chains on; see
+#' \code{\link{fitBatchMix}}, whose rules for the default, the random-number
+#' streams and the cap apply unchanged.
 #' @param ... Accepts only the deprecated \code{R} argument (renamed to
 #' \code{n_iter}; still works, with a warning, for this release, when
 #' passed positionally in its original slot or when every other argument is
@@ -70,22 +73,17 @@ continueChains <- function(mcmc_output,
                            batch_vec,
                            n_iter,
                            keep_old_samples = TRUE,
+                           n_cores = NULL,
                            ...) {
   n_iter <- .resolveDeprecatedNIter(
     missing(n_iter), if (missing(n_iter)) NULL else n_iter, list(...), "continueChains"
   )
 
-  new_output <- lapply(
-    mcmc_output,
-    continueChain,
-    X,
-    fixed,
-    batch_vec,
-    n_iter,
-    keep_old_samples
-  )
-
   n_chains <- length(mcmc_output)
+  n_cores <- .batchmixResolveCores(n_cores, n_chains)
+  new_output <- .batchmixRunChains(n_chains, n_cores, function(ii) {
+    continueChain(mcmc_output[[ii]], X, fixed, batch_vec, n_iter, keep_old_samples)
+  })
 
   # Record chain number
   for (ii in seq(n_chains)) {

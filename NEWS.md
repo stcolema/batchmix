@@ -1,5 +1,11 @@
 # batchmix 3.0.0
 
+## Vignettes
+
+* `batchmix_workflow` now covers the posterior draws (`as_draws()`), model comparison with `pointwiseLogLik()` and
+  `loo`, parallel chains (`n_cores`) and the corrected Rhat/ESS, and has a table of the names shared with `mdir`
+  and the differences that remain.
+
 ## Breaking changes to defaults and results (read first)
 
 * **Partial pooling is now the default.** `batch_weight_prior` defaults to
@@ -70,8 +76,26 @@
 * The startup message now lists these changes and points to the vignettes,
   which were updated throughout (see the items below).
 
+* **`rankNormalizedRhat()` (and so `assessConvergence()`, `fitBatchMix()`'s
+  convergence report) now agrees with `posterior`.** Three departures from
+  Vehtari et al. (2021) are corrected: (i) the rank-normalisation used
+  `(r - 3/8) / (S - 1/4)` where Blom's formula has `S + 1/4`; (ii) the tail ESS
+  was the ESS of the folded series, not the smaller ESS of the 5% and 95%
+  quantile indicators, and is now `NA` if either indicator is constant; (iii)
+  the ESS estimator omitted the final-term correction and the lower bound on
+  the autocorrelation time that Stan uses. On the same draws, the new values
+  match `posterior::rhat()`, `ess_bulk()` and `ess_tail()` to 1e-6 on white,
+  autocorrelated, heavy-tailed, non-mixing, odd-length and discrete series
+  (`tests/testthat/test-convergence-diagnostics.R`); the old ones differed
+  (on one short run of 60 draws: bulk ESS 7 against 9, tail ESS 27 against 43).
+  Rhat and ESS from earlier versions are therefore not comparable with these,
+  and a chain judged converged by the old values may not be by the new.
+  Reported `Rhat`/ESS in saved reports from earlier versions should be recomputed.
+
 ## Breaking (soft - old code still works, with a deprecation warning)
 
+* **`simulatePriorPredictive(K = )` is now `K_max`**, as in the fitting functions and in `mdir`. The old name still
+  works, with a warning.
 * **`fitBatchMix()` is now the package's main entry point**, replacing
   `runMCMCChains()` as the recommended way to fit a model: it runs several
   chains (fitting only one chain is not extra rigour, it is how
@@ -129,6 +153,44 @@
   `?batchmixControl`.
 
 ## New features
+
+* **`posterior::as_draws()` and its relatives for fits** (`as_draws_array()`,
+  `_df()`, `_matrix()`, `_list()`, `_rvars()`), for the output of
+  `runBatchMix()`, `batchSemiSupervisedMixtureModel()`, `fitBatchMix()` and
+  `processMCMCChains()`. This makes `posterior::summarise_draws()`,
+  `subset_draws()`, `resample_draws()` and `bayesplot` available. Cluster-indexed
+  parameters are not label-switching invariant, so the variables are the
+  log-likelihoods and BIC, the number of occupied clusters, the batch shifts and
+  scales (batches are observed), the batch-effect and Gaussian-process
+  hyperparameters when they are sampled, and, on request, the sorted mixture
+  weights (`weights = TRUE`) and the allocations (`allocations = TRUE`). The burn
+  in follows `assessConvergence()`, so `posterior`'s Rhat and ESS agree with it.
+  `posterior` is a suggested package; `Depends: R (>= 3.6.0)` is added for the
+  delayed method registration.
+
+* **Parallel chains: `n_cores` in `fitBatchMix()` and `continueChains()`.** Off by default (one core, or
+  `options(batchmix.cores)`), so existing calls run exactly as before, draw for draw. With
+  `n_cores > 1` each chain gets its own L'Ecuyer-CMRG random-number stream, drawn from the user's
+  generator, so the result follows `set.seed()` and does not depend on the number of cores, nor on
+  whether workers are forked (Unix-alikes) or sockets (Windows; `options(batchmix.parallel_type)`
+  forces either); the user's generator kind and state are restored. A parallel run differs from the
+  serial run for the same seed, because serial chains share one stream. At most two cores are used
+  while `R CMD check` runs (`_R_CHECK_LIMIT_CORES_`), as `data.table` does, and never more than the
+  chains or the machine allow. A failing chain is reported by number. `parallel` (a base package)
+  is added to `Imports`; `n_chains` is now checked to be a positive integer.
+
+* **`pointwiseLogLik()`: the log-likelihood of each item at each draw, for `loo` and `waic`.**
+  It returns the draws x items matrix (with `chain_id` for `loo::relative_eff()`) of
+  `log sum_k w_bk f(x_n | mu_kb, Sigma_kb)`: the cluster allocation is summed out, so the value
+  does not depend on the labelling, and the batch shift, batch scale, batch-specific weights and
+  interaction are applied. It is recomputed from the stored draws, so it needs `X` and `batch_vec`
+  (and `fixed` for a semi-supervised fit) but no refit. Supported for `MVN`, `MVN_LKJ` and `MVT`,
+  with `NA` entries integrated out; `MVN_MIXED` is refused because its binary and censored columns
+  need probit integrals. Items with an observed label contribute the joint density of data and
+  label. The row sums equal the observed-data log-likelihood the sampler records at each draw, for
+  every batch weight prior, with interaction, and for the t and LKJ types (tested). Leave-one-out
+  here leaves one item out, so it does not assess prediction for an unseen batch
+  (`predictNewBatch()` does that); `loo` is a suggested package.
 
 * **Fitted models now print and summarise like a model object, not a raw
   list** (`runBatchMix()`/`batchSemiSupervisedMixtureModel()`/
@@ -216,6 +278,49 @@
 
 ## Internal
 
+* **Prior recovery for every update block, and an exact-posterior test.**
+  `tests/testthat/test-prior-recovery.R` runs the samplers with the data
+  likelihood switched off, so that each Metropolis or Gibbs kernel is left with
+  its prior terms, Jacobians and proposal corrections, and compares the chain
+  with the exact prior: the cluster mean and covariance (MVN and MVT), the batch
+  shift and its variance hyperprior, the batch scale with and without a sampled
+  concentration, the t degrees of freedom, the interaction term and its
+  variance, the Gaussian-process hyperparameters (all three kernels), and the
+  labels and weights against the Dirichlet-multinomial. Only the LKJ sampler had
+  such chains before. `tests/testthat/test-exact-posterior.R` enumerates the
+  label posterior of five items exactly for one feature, one batch and two
+  clusters (closed-form Student-t cluster marginals, a Dirichlet-multinomial for
+  the weights, Gauss quadrature over the batch shift and scale) and checks that
+  the full sampler reproduces it. Deliberately planting a bug in each of
+  fourteen places (wrong exponents and degrees of freedom, a dropped Jacobian,
+  swapped forward and reverse proposal densities, a dropped log-determinant,
+  a wrong weight prior) was caught by these tests every time; the exact test
+  alone missed a doubled batch-shift prior precision, because with one batch the
+  shift is nearly confounded with the diffuse cluster means and the label
+  posterior hardly depends on its variance, which the prior test does catch.
+  To make the MVT sampler testable its likelihood helpers are now virtual and
+  `dfLogKernel()` is split into `dfLogLikelihood()` and `dfLogPrior()`; results
+  are unchanged.
+* **The namespace lists its exports explicitly.** `exportPattern()` is gone: it
+  exported every function whose name starts with a letter, so the Rcpp
+  samplers, validators and density helpers were all public. The exported
+  functions are those that carry `@export`, plus `batchSemiSupervisedMixtureModel()`
+  and `gpKernelMatrix()`. No longer exported: `sampleSemisupervisedMVN()`,
+  `sampleSemisupervisedMVT()`, `sampleSemisupervisedMVNMixed()`,
+  `sampleSemisupervisedMVNSeparationStrategy()`, the `predictNewBatch*()`
+  engines (`predictNewBatch()` itself stays), `VI.lb()`,
+  `squaredExponentialKernel()`, `maternKernel32()`, `robbinsMonroUpdate()`,
+  `robbinsMonroUpdateReciprocal()`, `prepareInitialParameters()`,
+  `sampleLKJCorrelationMatrix()`, `lkjLogLikelihood()`, `gammaLogLikelihood()`,
+  `invGammaLogLikelihood()`, `wishartLogLikelihood()`, `invWishartLogLikelihood()`,
+  `logJacobianZToR()`, `buildCorrelationCholeskyFromZ()`,
+  `choleskyToPartialCorrelations()`, `multinomialLogitLogLik()`,
+  `multinomialLogitGPLogKernel()`, `generateGroupIDsInSimulator()`,
+  `checkDataGenerationInputs()`, `checkProposalWindows()`, and seven test hooks
+  that carried `@export` (`batchCorrectedPosteriorMean()`,
+  `interactionLogLikDelta()`, `minVIGreedyRefine()`, `gpWeightChain()`,
+  `partialPoolingWeightChain()`, `priorOnlyLKJChain()`,
+  `diagRSigmaOnlyChain2()`). Reach them with `batchmix:::` if needed.
 * Collapsed the diamond/virtual-multiple-inheritance C++ class hierarchy
   (`sampler`/`semisupervisedSampler` and the `*Predictive` wrapper classes)
   into a single inheritance chain per sampler family, verified
