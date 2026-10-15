@@ -53,23 +53,14 @@ _fixed) {
   // runs (see the driver loop in sampleSemisupervisedMVNSeparationStrategy.cpp).
   mat X_imputed = imputeColumnMeans(X);
 
-  rowvec X_min = min(X_imputed), X_max = max(X_imputed);
   mat global_cov = arma::cov(X_imputed);
 
   // Mean
   mat mean_mat = mean(X_imputed, 0).t();
   mu_0 = mean_mat.col(0);
 
-  // Empirical Bayes fora diagonal covariance matrix
-  mat scale_param = X_imputed.each_row() - mu_0.t();
-  vec diag_entries(P);
-  // double scale_entry = accu(scale_param % scale_param, 0) / (N * std::pow(K, 1.0 / (double) P));
-  
-  double scale_entry = (accu(global_cov.diag()) / P) / std::pow(K, 2.0 / (double) P);
-  
-  diag_entries.fill(scale_entry);
-  scale = diagmat( diag_entries );
-  
+  // Empirical-Bayes inverse-Wishart scale: the global covariance shrunk by
+  // K^(2/P), so each of the K components is a priori a fraction of the total spread.
   scale = global_cov / std::pow(K, 2.0 / (double) P);
   
   // The mean of the prior distribution for the batch shift, m, parameter
@@ -91,12 +82,13 @@ _fixed) {
   theta = _theta;
   sample_s_scale = _sample_s_scale;
   s_scale_prior_mean = theta / (rho - 1.0);
+  if(sample_s_scale && rho <= 2.0) {
+    Rcpp::stop("sample_s_scale = TRUE requires rho > 2 (the batch-scale concentration is sampled on log(rho - 2) so that S_b has a finite prior variance); got rho = %f.", rho);
+  }
 
   // Set the size of the objects to hold the component specific parameters
   mu.set_size(P, K);
   mu.zeros();
-  
-  Rcpp::Rcout << "\nSetting new parameters sizes.\n";
   
   sigma.set_size(P, K);
   sigma.zeros();
@@ -149,8 +141,6 @@ _fixed) {
   // The inverse of the covariance combination
   cov_comb_inv.set_size(P, P, K * B);
   cov_comb_inv.zeros();
-  
-  Rcpp::Rcout << "\nProposal windows.\n";
   
   // The batch corrected data
   Y.set_size(N, P);
@@ -300,8 +290,19 @@ void mvnSamplerSeparationStrategy::sScaleConcentrationMetropolis() {
 
 // Update the common matrix manipulations to avoid recalculating N times
 void mvnSamplerSeparationStrategy::matrixCombinations() {
-  
+
   for(uword k = 0; k < K; k++) {
+    // rMHStep() scores the CURRENT state with r_log_det(k), which is
+    // otherwise only ever refreshed when a proposal is accepted; until
+    // then it would sit at its zero initial value rather than
+    // log det(R_k), mis-scoring the LKJ term (eta - 1) * log det(R_k) for
+    // every eta != 1. R is left at zero (and r_log_det with it) when it was
+    // never set, e.g. in prediction mode where R is not updated.
+    double r_log_det_val = 0.0, r_sign = 0.0;
+    if(arma::log_det(r_log_det_val, r_sign, R.slice(k)) && r_sign > 0.0 && std::isfinite(r_log_det_val)) {
+      r_log_det(k) = r_log_det_val;
+    }
+
     cov_inv.slice(k) = inv_sympd(cov.slice(k));
     cov_log_det(k) = log_det(cov.slice(k)).real();
     for(uword b = 0; b < B; b++) {
@@ -535,8 +536,15 @@ double mvnSamplerSeparationStrategy::sigmaLogKernel(uword k,
   // (sigma_mat), NOT the class member sigma (which, critically, is the
   // *other* cluster's value unless k == 0, and in any case is not the
   // value being scored by this call - using it here was the bug).
+  //
+  // sigma is proposed on its own scale (Gamma random walk), so the target
+  // needs the log-normal density with respect to d(sigma), which carries a
+  // 1 / sigma factor: log f(sigma) = -log(sigma) - (log sigma - beta)^2 /
+  // (2 xi^2) + const. Omitting the -log(sigma) term targets
+  // LogNormal(beta + xi^2, xi) instead (sigma * LogNormal(beta, xi) is
+  // proportional to it).
   for(uword p = 0; p < P; p++) {
-    score += -std::pow(log(sigma_mat(p)) - beta, 2.0) / (2.0 * xi * xi);
+    score += -std::log(sigma_mat(p)) - std::pow(log(sigma_mat(p)) - beta, 2.0) / (2.0 * xi * xi);
   }
   
   score += -0.5 * log_det((1.0 / kappa) * cov).real()
@@ -917,8 +925,11 @@ void mvnSamplerSeparationStrategy::rMHStep() {
 
     }
     if( (u < acceptance_prob) || (N_k(k) == 0) ){
-      r_count(k)++;
-      
+      // Forced prior draws (empty cluster) are not acceptances.
+      if(N_k(k) > 0) {
+        r_count(k)++;
+      }
+
       R.slice(k) = R_proposed;
       r_log_det(k) = proposed_r_log_det;
       
@@ -1125,8 +1136,11 @@ void mvnSamplerSeparationStrategy::sigmaMHStep() {
     if( (u < acceptance_prob) || (N_k(k) == 0) ){
       
       // Rcpp::Rcout << "SIGMA MH: Update count.\n";
-      sigma_count(k)++;
-      
+      // Forced prior draws (empty cluster) are not acceptances.
+      if(N_k(k) > 0) {
+        sigma_count(k)++;
+      }
+
       // Rcpp::Rcout << "SIGMA MH: Update sigma.\n";
       sigma.col(k) = sigma_proposed;
       Sigma_mat.slice(k).diag() = sigma_proposed;
@@ -1171,10 +1185,18 @@ void mvnSamplerSeparationStrategy::clusterMeanMetropolis() {
         }
       }
     } else {
-      for(arma::uword p = 0; p < P; p++){
-        // The proposal window is now a diagonal matrix of common entries.
-        mu_proposed(p) = (arma::randn() * mu_proposal_window) + mu(p, k);
+      // Random walk shaped like the cluster's own covariance,
+      // mu' = mu + window * chol(Sigma_k) z, z ~ N(0, I). Sigma_k is fixed
+      // while mu is updated, so the proposal is symmetric and needs no
+      // Hastings term. An isotropic step (as used previously) is poorly
+      // matched to a correlated or unequal-variance cluster: it must be
+      // small enough for the tightest direction and so crawls along the
+      // widest. The window is now in units of the cluster's own spread.
+      arma::mat chol_cov_k;
+      if(!arma::chol(chol_cov_k, cov.slice(k), "lower")) {
+        chol_cov_k = arma::diagmat(arma::sqrt(cov.slice(k).diag()));
       }
+      mu_proposed = mu.col(k) + mu_proposal_window * (chol_cov_k * arma::randn<arma::vec>(P));
       for(arma::uword b = 0; b < B; b++) {
         proposed_mean_sum.col(b) = mu_proposed + m.col(b);
         if(include_interaction) {
@@ -1193,7 +1215,10 @@ void mvnSamplerSeparationStrategy::clusterMeanMetropolis() {
     
     if((u < acceptance_prob) || (N_k(k) == 0)) {
       mu.col(k) = mu_proposed;
-      mu_count(k)++;
+      // Forced prior draws (empty cluster) are not acceptances.
+      if(N_k(k) > 0) {
+        mu_count(k)++;
+      }
       
       for(arma::uword b = 0; b < B; b++) {
         mean_sum.col(k * B + b) = proposed_mean_sum.col(b);
@@ -1209,14 +1234,6 @@ void mvnSamplerSeparationStrategy::clusterMeanMetropolis() {
 void mvnSamplerSeparationStrategy::interactionMetropolis() {
 
   arma::uvec combined_group = labels * B + batch_vec;
-  arma::uvec all_items = arma::regspace<arma::uvec>(0, N - 1);
-
-  arma::vec cov_det_flat(K * B);
-  for(arma::uword k = 0; k < K; k++) {
-    for(arma::uword b = 0; b < B; b++) {
-      cov_det_flat(k * B + b) = cov_comb_log_det(k, b);
-    }
-  }
 
   for(arma::uword p = 0; p < P; p++) {
 
@@ -1231,6 +1248,7 @@ void mvnSamplerSeparationStrategy::interactionMetropolis() {
     arma::mat proposed_mean_sum = mean_sum;
     double prior_current = 0.0, prior_proposed = 0.0;
     arma::mat current_gamma_p(K, B), proposed_gamma_p(K, B);
+    arma::vec delta_cell(K * B);
 
     for(arma::uword k = 0; k < K; k++) {
       for(arma::uword b = 0; b < B; b++) {
@@ -1240,15 +1258,19 @@ void mvnSamplerSeparationStrategy::interactionMetropolis() {
         prior_current += -0.5 * std::pow(current_gamma_p(k, b), 2.0) / tau2_interaction(p);
         prior_proposed += -0.5 * std::pow(proposed_gamma_p(k, b), 2.0) / tau2_interaction(p);
 
-        proposed_mean_sum(p, k * B + b) = mean_sum(p, k * B + b) - current_gamma_p(k, b) + proposed_gamma_p(k, b);
+        delta_cell(k * B + b) = proposed_gamma_p(k, b) - current_gamma_p(k, b);
+        proposed_mean_sum(p, k * B + b) = mean_sum(p, k * B + b) + delta_cell(k * B + b);
       }
     }
 
-    double current_model_score = groupLikelihood(all_items, combined_group, cov_det_flat, mean_sum, cov_comb_inv) + prior_current;
-    double proposed_model_score = groupLikelihood(all_items, combined_group, cov_det_flat, proposed_mean_sum, cov_comb_inv) + prior_proposed;
+    // Only feature p of the cell means moves, so score the change in the
+    // data log-likelihood directly instead of re-evaluating both full
+    // quadratic forms for every item (see interactionLogLikDeltaImpl()).
+    double log_ratio = interactionLogLikDeltaImpl(X_t, combined_group, mean_sum, cov_comb_inv, p, delta_cell, arma::vec())
+      + prior_proposed - prior_current;
 
     double u = arma::randu();
-    double acceptance_prob = std::min(1.0, std::exp(proposed_model_score - current_model_score));
+    double acceptance_prob = std::min(1.0, std::exp(log_ratio));
 
     if(u < acceptance_prob) {
       for(arma::uword k = 0; k < K; k++) {
@@ -1264,18 +1286,9 @@ void mvnSamplerSeparationStrategy::interactionMetropolis() {
 
 void mvnSamplerSeparationStrategy::updateBatchCorrectedData() {
 
-  arma::mat mu_mat = mu.cols(labels);
-  arma::mat location_correction = m.cols(batch_vec);
-
-  // See mvnSampler::updateBatchCorrectedData() for why gamma must be
-  // subtracted here too whenever it's in use.
-  if(include_interaction) {
-    for(arma::uword n = 0; n < N; n++) {
-      location_correction.col(n) += gamma.slice(batch_vec(n)).col(labels(n));
-    }
-  }
-
-  Y = ((X_t - mu_mat - location_correction) / sqrt(S.cols(batch_vec)) + mu_mat).t();
+  // See mvnSampler::updateBatchCorrectedData() and
+  // batchCorrectedPosteriorMean() (genericFunctions.cpp).
+  Y = batchCorrectedPosteriorMean(X_t, labels, batch_vec, B, mu, mean_sum, cov, cov_comb_inv);
 }
 
 void mvnSamplerSeparationStrategy::metropolisStep() {
@@ -1287,14 +1300,21 @@ void mvnSamplerSeparationStrategy::metropolisStep() {
   // batchShiftMetorpolis() (already restricted to predict_batch
   // internally) stay unconditional.
   if(!predict_mode) {
-    clusterMeanMetropolis();
-
     // Metropolis step for cluster parameters
     // Rcpp::Rcout << "\nR MH.";
     rMHStep();
 
     // Rcpp::Rcout << "\nSigma MH.";
     sigmaMHStep();
+
+    // The mean goes AFTER R and sigma: for an empty cluster, mu | Sigma is
+    // a draw from N(mu_0, Sigma / kappa), so it must use the covariance
+    // just redrawn from its prior. Drawing mu first and then redrawing
+    // Sigma independently leaves (mu, Sigma) decoupled, unlike the joint
+    // prior (mvnSampler's cov -> mean order is the valid one). For an
+    // occupied cluster the order of these three conditional updates does
+    // not affect validity.
+    clusterMeanMetropolis();
 
     // Rcpp::Rcout << "\nNew MH moves complete.";
 

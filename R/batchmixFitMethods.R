@@ -100,6 +100,7 @@ summary.batchmix_fit <- function(object, ...) {
       auto_tune = isTRUE(object$auto_tune),
       bic_mean = if (!is.null(bic)) mean(bic) else NA_real_,
       bic_range = if (!is.null(bic)) range(bic) else c(NA_real_, NA_real_),
+      bicm = if (!is.null(bic)) calcBICM(object) else NA_real_,
       complete_likelihood_mean = if (!is.null(cll)) mean(cll) else NA_real_,
       observed_likelihood_mean = if (!is.null(oll)) mean(oll) else NA_real_,
       acceptance_rates = fam_means,
@@ -125,6 +126,10 @@ print.summary.batchmix_fit <- function(x, ...) {
   cat(sprintf(
     "  BIC: mean = %.2f, range = [%.2f, %.2f]\n",
     x$bic_mean, x$bic_range[1], x$bic_range[2]
+  ))
+  cat(sprintf(
+    "  BICM (best post-burn-in draw; use this to compare models) = %.2f\n",
+    x$bicm
   ))
   cat(sprintf(
     "  Complete-data log-likelihood (mean) = %.2f, observed log-likelihood (mean) = %.2f\n",

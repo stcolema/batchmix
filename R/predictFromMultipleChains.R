@@ -13,7 +13,9 @@
 #' estimate. Must be ``'mean'`` or ``'median'``. ``'median'`` is the default.
 #' @param chains_already_processed Logical indicating if the chains have already
 #' had a burn-in applied.
-#' @param nCores Integer used by salso to parallelize point estimate prediction.
+#' @param nCores Ignored. Retained for backwards compatibility: point
+#' estimation used to call ``salso::salso()``, which used it to parallelize
+#' its search; it is now done by the local, single-threaded ``minVI()``.
 #' @returns A named list of quantities related to prediction/clustering:
 #'
 #'  * ``allocation_probability``: List with an $(N x K)$ matrix if the model is
@@ -24,8 +26,11 @@
 #'    allocated to the class with the highest probability.
 #'
 #'  * ``pred``: $N$ vector of the predicted class for each sample. If the model
-#'    is unsupervised then the ``salso`` function from Dahl et al. (2021) is
-#'    used on the sampled partitions using the default settings.
+#'    is unsupervised then ``minVI(method = "greedy")`` is applied to the
+#'    posterior similarity matrix of the sampled partitions: the point estimate
+#'    minimising the Jensen lower bound to the posterior expected Variation of
+#'    Information (Wade & Ghahramani, 2018), refined by greedy relocation.
+#'    This needs the ``N x N`` similarity matrix in memory.
 #'
 #'  * ``samples``: List of sampled allocations for each view. Columns
 #'    correspond to items being clustered, rows to MCMC samples.
@@ -200,7 +205,8 @@ predictFromMultipleChains <- function(mcmc_outputs,
   } else {
     # merged_outputs$psm <- .psm <- createSimilarityMat(merged_outputs$samples)
     # merged_outputs$pred <- minVI(.psm, merged_outputs$samples, method = "avg")
-    merged_outputs$pred <- suppressWarnings(salso::salso(merged_outputs$samples, nCores = nCores))
+    .psm <- createSimilarityMat(merged_outputs$samples)
+    merged_outputs$pred <- as.vector(minVI(.psm, merged_outputs$samples, method = "greedy"))
   }
   merged_outputs
 }

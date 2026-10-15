@@ -62,6 +62,23 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// gpKernelMatrix
+arma::mat gpKernelMatrix(arma::vec x, arma::uword type, double tau2, double length_scale, double jitter, double level_var, double slope_var);
+RcppExport SEXP _batchmix_gpKernelMatrix(SEXP xSEXP, SEXP typeSEXP, SEXP tau2SEXP, SEXP length_scaleSEXP, SEXP jitterSEXP, SEXP level_varSEXP, SEXP slope_varSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::vec >::type x(xSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type type(typeSEXP);
+    Rcpp::traits::input_parameter< double >::type tau2(tau2SEXP);
+    Rcpp::traits::input_parameter< double >::type length_scale(length_scaleSEXP);
+    Rcpp::traits::input_parameter< double >::type jitter(jitterSEXP);
+    Rcpp::traits::input_parameter< double >::type level_var(level_varSEXP);
+    Rcpp::traits::input_parameter< double >::type slope_var(slope_varSEXP);
+    rcpp_result_gen = Rcpp::wrap(gpKernelMatrix(x, type, tau2, length_scale, jitter, level_var, slope_var));
+    return rcpp_result_gen;
+END_RCPP
+}
 // multinomialLogitLogLik
 double multinomialLogitLogLik(arma::vec eta, arma::vec eta_other_sum, arma::vec class_counts_j, arma::vec class_counts_total);
 RcppExport SEXP _batchmix_multinomialLogitLogLik(SEXP etaSEXP, SEXP eta_other_sumSEXP, SEXP class_counts_jSEXP, SEXP class_counts_totalSEXP) {
@@ -141,6 +158,70 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< double >::type step_scale(step_scaleSEXP);
     Rcpp::traits::input_parameter< double >::type kappa(kappaSEXP);
     rcpp_result_gen = Rcpp::wrap(robbinsMonroUpdate(window, acceptance_rate, target_rate, n, step_scale, kappa));
+    return rcpp_result_gen;
+END_RCPP
+}
+// robbinsMonroUpdateReciprocal
+double robbinsMonroUpdateReciprocal(double window, double acceptance_rate, double target_rate, double n, double step_scale, double kappa);
+RcppExport SEXP _batchmix_robbinsMonroUpdateReciprocal(SEXP windowSEXP, SEXP acceptance_rateSEXP, SEXP target_rateSEXP, SEXP nSEXP, SEXP step_scaleSEXP, SEXP kappaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< double >::type window(windowSEXP);
+    Rcpp::traits::input_parameter< double >::type acceptance_rate(acceptance_rateSEXP);
+    Rcpp::traits::input_parameter< double >::type target_rate(target_rateSEXP);
+    Rcpp::traits::input_parameter< double >::type n(nSEXP);
+    Rcpp::traits::input_parameter< double >::type step_scale(step_scaleSEXP);
+    Rcpp::traits::input_parameter< double >::type kappa(kappaSEXP);
+    rcpp_result_gen = Rcpp::wrap(robbinsMonroUpdateReciprocal(window, acceptance_rate, target_rate, n, step_scale, kappa));
+    return rcpp_result_gen;
+END_RCPP
+}
+// interactionLogLikDelta
+double interactionLogLikDelta(arma::mat X_t, arma::uvec cell_of_item, arma::mat mean_sum, arma::cube cov_comb_inv, arma::uword p, arma::vec delta_cell, arma::vec t_df_item);
+RcppExport SEXP _batchmix_interactionLogLikDelta(SEXP X_tSEXP, SEXP cell_of_itemSEXP, SEXP mean_sumSEXP, SEXP cov_comb_invSEXP, SEXP pSEXP, SEXP delta_cellSEXP, SEXP t_df_itemSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat >::type X_t(X_tSEXP);
+    Rcpp::traits::input_parameter< arma::uvec >::type cell_of_item(cell_of_itemSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type mean_sum(mean_sumSEXP);
+    Rcpp::traits::input_parameter< arma::cube >::type cov_comb_inv(cov_comb_invSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type p(pSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type delta_cell(delta_cellSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type t_df_item(t_df_itemSEXP);
+    rcpp_result_gen = Rcpp::wrap(interactionLogLikDelta(X_t, cell_of_item, mean_sum, cov_comb_inv, p, delta_cell, t_df_item));
+    return rcpp_result_gen;
+END_RCPP
+}
+// batchCorrectedPosteriorMean
+arma::mat batchCorrectedPosteriorMean(arma::mat X_t, arma::uvec labels, arma::uvec batch_vec, arma::uword B, arma::mat mu, arma::mat mean_sum, arma::cube cov, arma::cube cov_comb_inv);
+RcppExport SEXP _batchmix_batchCorrectedPosteriorMean(SEXP X_tSEXP, SEXP labelsSEXP, SEXP batch_vecSEXP, SEXP BSEXP, SEXP muSEXP, SEXP mean_sumSEXP, SEXP covSEXP, SEXP cov_comb_invSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat >::type X_t(X_tSEXP);
+    Rcpp::traits::input_parameter< arma::uvec >::type labels(labelsSEXP);
+    Rcpp::traits::input_parameter< arma::uvec >::type batch_vec(batch_vecSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type B(BSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type mu(muSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type mean_sum(mean_sumSEXP);
+    Rcpp::traits::input_parameter< arma::cube >::type cov(covSEXP);
+    Rcpp::traits::input_parameter< arma::cube >::type cov_comb_inv(cov_comb_invSEXP);
+    rcpp_result_gen = Rcpp::wrap(batchCorrectedPosteriorMean(X_t, labels, batch_vec, B, mu, mean_sum, cov, cov_comb_inv));
+    return rcpp_result_gen;
+END_RCPP
+}
+// minVIGreedyRefine
+Rcpp::List minVIGreedyRefine(arma::mat psm, arma::uvec init, arma::uword max_passes);
+RcppExport SEXP _batchmix_minVIGreedyRefine(SEXP psmSEXP, SEXP initSEXP, SEXP max_passesSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat >::type psm(psmSEXP);
+    Rcpp::traits::input_parameter< arma::uvec >::type init(initSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type max_passes(max_passesSEXP);
+    rcpp_result_gen = Rcpp::wrap(minVIGreedyRefine(psm, init, max_passes));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -226,8 +307,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // predictNewBatchMVN
-Rcpp::List predictNewBatchMVN(arma::mat X, arma::mat X_new, arma::uword K, arma::uword B, arma::uvec batch_vec, arma::uvec fixed_new, arma::uvec labels_new_init, arma::umat label_draws, arma::cube means_draws, arma::cube cov_draws, arma::cube batch_shift_draws, arma::cube batch_scale_draws, arma::mat shift_new_init, arma::mat scale_new_init, double m_scale, arma::vec lambda_2_draws, bool sample_m_scale, double rho, double theta, arma::vec rho_draws, double s_scale_prior_mean, bool sample_s_scale, arma::uword weight_prior_type, arma::mat weights_draws, arma::cube eta_alr_init_draws, arma::mat gp_beta_draws, arma::mat pp_mu_draws, arma::mat pp_tau2_draws, arma::vec gp_tau2_draws, arma::vec gp_length_scale_draws, arma::vec batch_coordinates_new, double eta_proposal_window, double m_proposal_window, double S_proposal_window, arma::uword n_pred_iter, arma::uword pred_burn, arma::uword pred_thin);
-RcppExport SEXP _batchmix_predictNewBatchMVN(SEXP XSEXP, SEXP X_newSEXP, SEXP KSEXP, SEXP BSEXP, SEXP batch_vecSEXP, SEXP fixed_newSEXP, SEXP labels_new_initSEXP, SEXP label_drawsSEXP, SEXP means_drawsSEXP, SEXP cov_drawsSEXP, SEXP batch_shift_drawsSEXP, SEXP batch_scale_drawsSEXP, SEXP shift_new_initSEXP, SEXP scale_new_initSEXP, SEXP m_scaleSEXP, SEXP lambda_2_drawsSEXP, SEXP sample_m_scaleSEXP, SEXP rhoSEXP, SEXP thetaSEXP, SEXP rho_drawsSEXP, SEXP s_scale_prior_meanSEXP, SEXP sample_s_scaleSEXP, SEXP weight_prior_typeSEXP, SEXP weights_drawsSEXP, SEXP eta_alr_init_drawsSEXP, SEXP gp_beta_drawsSEXP, SEXP pp_mu_drawsSEXP, SEXP pp_tau2_drawsSEXP, SEXP gp_tau2_drawsSEXP, SEXP gp_length_scale_drawsSEXP, SEXP batch_coordinates_newSEXP, SEXP eta_proposal_windowSEXP, SEXP m_proposal_windowSEXP, SEXP S_proposal_windowSEXP, SEXP n_pred_iterSEXP, SEXP pred_burnSEXP, SEXP pred_thinSEXP) {
+Rcpp::List predictNewBatchMVN(arma::mat X, arma::mat X_new, arma::uword K, arma::uword B, arma::uvec batch_vec, arma::uvec fixed_new, arma::uvec labels_new_init, arma::umat label_draws, arma::cube means_draws, arma::cube cov_draws, arma::cube batch_shift_draws, arma::cube batch_scale_draws, arma::mat shift_new_init, arma::mat scale_new_init, double m_scale, arma::vec lambda_2_draws, bool sample_m_scale, double rho, double theta, arma::vec rho_draws, double s_scale_prior_mean, bool sample_s_scale, arma::uword weight_prior_type, arma::mat weights_draws, arma::cube eta_logit_init_draws, arma::mat gp_beta_draws, arma::mat pp_mu_draws, arma::mat pp_tau2_draws, arma::vec gp_tau2_draws, arma::vec gp_length_scale_draws, arma::uword gp_kernel_type, double pp_mu_prior_sd, arma::vec batch_coordinates_new, double eta_proposal_window, double m_proposal_window, double S_proposal_window, arma::uword n_pred_iter, arma::uword pred_burn, arma::uword pred_thin);
+RcppExport SEXP _batchmix_predictNewBatchMVN(SEXP XSEXP, SEXP X_newSEXP, SEXP KSEXP, SEXP BSEXP, SEXP batch_vecSEXP, SEXP fixed_newSEXP, SEXP labels_new_initSEXP, SEXP label_drawsSEXP, SEXP means_drawsSEXP, SEXP cov_drawsSEXP, SEXP batch_shift_drawsSEXP, SEXP batch_scale_drawsSEXP, SEXP shift_new_initSEXP, SEXP scale_new_initSEXP, SEXP m_scaleSEXP, SEXP lambda_2_drawsSEXP, SEXP sample_m_scaleSEXP, SEXP rhoSEXP, SEXP thetaSEXP, SEXP rho_drawsSEXP, SEXP s_scale_prior_meanSEXP, SEXP sample_s_scaleSEXP, SEXP weight_prior_typeSEXP, SEXP weights_drawsSEXP, SEXP eta_logit_init_drawsSEXP, SEXP gp_beta_drawsSEXP, SEXP pp_mu_drawsSEXP, SEXP pp_tau2_drawsSEXP, SEXP gp_tau2_drawsSEXP, SEXP gp_length_scale_drawsSEXP, SEXP gp_kernel_typeSEXP, SEXP pp_mu_prior_sdSEXP, SEXP batch_coordinates_newSEXP, SEXP eta_proposal_windowSEXP, SEXP m_proposal_windowSEXP, SEXP S_proposal_windowSEXP, SEXP n_pred_iterSEXP, SEXP pred_burnSEXP, SEXP pred_thinSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -255,12 +336,14 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< bool >::type sample_s_scale(sample_s_scaleSEXP);
     Rcpp::traits::input_parameter< arma::uword >::type weight_prior_type(weight_prior_typeSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type weights_draws(weights_drawsSEXP);
-    Rcpp::traits::input_parameter< arma::cube >::type eta_alr_init_draws(eta_alr_init_drawsSEXP);
+    Rcpp::traits::input_parameter< arma::cube >::type eta_logit_init_draws(eta_logit_init_drawsSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type gp_beta_draws(gp_beta_drawsSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type pp_mu_draws(pp_mu_drawsSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type pp_tau2_draws(pp_tau2_drawsSEXP);
     Rcpp::traits::input_parameter< arma::vec >::type gp_tau2_draws(gp_tau2_drawsSEXP);
     Rcpp::traits::input_parameter< arma::vec >::type gp_length_scale_draws(gp_length_scale_drawsSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type gp_kernel_type(gp_kernel_typeSEXP);
+    Rcpp::traits::input_parameter< double >::type pp_mu_prior_sd(pp_mu_prior_sdSEXP);
     Rcpp::traits::input_parameter< arma::vec >::type batch_coordinates_new(batch_coordinates_newSEXP);
     Rcpp::traits::input_parameter< double >::type eta_proposal_window(eta_proposal_windowSEXP);
     Rcpp::traits::input_parameter< double >::type m_proposal_window(m_proposal_windowSEXP);
@@ -268,13 +351,13 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< arma::uword >::type n_pred_iter(n_pred_iterSEXP);
     Rcpp::traits::input_parameter< arma::uword >::type pred_burn(pred_burnSEXP);
     Rcpp::traits::input_parameter< arma::uword >::type pred_thin(pred_thinSEXP);
-    rcpp_result_gen = Rcpp::wrap(predictNewBatchMVN(X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_alr_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin));
+    rcpp_result_gen = Rcpp::wrap(predictNewBatchMVN(X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_logit_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, gp_kernel_type, pp_mu_prior_sd, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin));
     return rcpp_result_gen;
 END_RCPP
 }
 // predictNewBatchMVNMixed
-Rcpp::List predictNewBatchMVNMixed(arma::mat X, arma::mat X_new, arma::uword K, arma::uword B, arma::uvec batch_vec, arma::uvec fixed_new, arma::uvec labels_new_init, arma::uvec column_type, arma::umat censor_code, arma::umat censor_code_new, arma::umat label_draws, arma::cube means_draws, arma::cube cov_draws, arma::cube batch_shift_draws, arma::cube batch_scale_draws, arma::mat shift_new_init, arma::mat scale_new_init, double m_scale, arma::vec lambda_2_draws, bool sample_m_scale, double rho, double theta, arma::vec rho_draws, double s_scale_prior_mean, bool sample_s_scale, arma::uword weight_prior_type, arma::mat weights_draws, arma::cube eta_alr_init_draws, arma::mat gp_beta_draws, arma::mat pp_mu_draws, arma::mat pp_tau2_draws, arma::vec gp_tau2_draws, arma::vec gp_length_scale_draws, arma::vec batch_coordinates_new, double eta_proposal_window, double m_proposal_window, double S_proposal_window, arma::uword n_pred_iter, arma::uword pred_burn, arma::uword pred_thin);
-RcppExport SEXP _batchmix_predictNewBatchMVNMixed(SEXP XSEXP, SEXP X_newSEXP, SEXP KSEXP, SEXP BSEXP, SEXP batch_vecSEXP, SEXP fixed_newSEXP, SEXP labels_new_initSEXP, SEXP column_typeSEXP, SEXP censor_codeSEXP, SEXP censor_code_newSEXP, SEXP label_drawsSEXP, SEXP means_drawsSEXP, SEXP cov_drawsSEXP, SEXP batch_shift_drawsSEXP, SEXP batch_scale_drawsSEXP, SEXP shift_new_initSEXP, SEXP scale_new_initSEXP, SEXP m_scaleSEXP, SEXP lambda_2_drawsSEXP, SEXP sample_m_scaleSEXP, SEXP rhoSEXP, SEXP thetaSEXP, SEXP rho_drawsSEXP, SEXP s_scale_prior_meanSEXP, SEXP sample_s_scaleSEXP, SEXP weight_prior_typeSEXP, SEXP weights_drawsSEXP, SEXP eta_alr_init_drawsSEXP, SEXP gp_beta_drawsSEXP, SEXP pp_mu_drawsSEXP, SEXP pp_tau2_drawsSEXP, SEXP gp_tau2_drawsSEXP, SEXP gp_length_scale_drawsSEXP, SEXP batch_coordinates_newSEXP, SEXP eta_proposal_windowSEXP, SEXP m_proposal_windowSEXP, SEXP S_proposal_windowSEXP, SEXP n_pred_iterSEXP, SEXP pred_burnSEXP, SEXP pred_thinSEXP) {
+Rcpp::List predictNewBatchMVNMixed(arma::mat X, arma::mat X_new, arma::uword K, arma::uword B, arma::uvec batch_vec, arma::uvec fixed_new, arma::uvec labels_new_init, arma::uvec column_type, arma::umat censor_code, arma::umat censor_code_new, arma::umat label_draws, arma::cube means_draws, arma::cube cov_draws, arma::cube batch_shift_draws, arma::cube batch_scale_draws, arma::mat shift_new_init, arma::mat scale_new_init, double m_scale, arma::vec lambda_2_draws, bool sample_m_scale, double rho, double theta, arma::vec rho_draws, double s_scale_prior_mean, bool sample_s_scale, arma::uword weight_prior_type, arma::mat weights_draws, arma::cube eta_logit_init_draws, arma::mat gp_beta_draws, arma::mat pp_mu_draws, arma::mat pp_tau2_draws, arma::vec gp_tau2_draws, arma::vec gp_length_scale_draws, arma::uword gp_kernel_type, double pp_mu_prior_sd, arma::vec batch_coordinates_new, double eta_proposal_window, double m_proposal_window, double S_proposal_window, arma::uword n_pred_iter, arma::uword pred_burn, arma::uword pred_thin);
+RcppExport SEXP _batchmix_predictNewBatchMVNMixed(SEXP XSEXP, SEXP X_newSEXP, SEXP KSEXP, SEXP BSEXP, SEXP batch_vecSEXP, SEXP fixed_newSEXP, SEXP labels_new_initSEXP, SEXP column_typeSEXP, SEXP censor_codeSEXP, SEXP censor_code_newSEXP, SEXP label_drawsSEXP, SEXP means_drawsSEXP, SEXP cov_drawsSEXP, SEXP batch_shift_drawsSEXP, SEXP batch_scale_drawsSEXP, SEXP shift_new_initSEXP, SEXP scale_new_initSEXP, SEXP m_scaleSEXP, SEXP lambda_2_drawsSEXP, SEXP sample_m_scaleSEXP, SEXP rhoSEXP, SEXP thetaSEXP, SEXP rho_drawsSEXP, SEXP s_scale_prior_meanSEXP, SEXP sample_s_scaleSEXP, SEXP weight_prior_typeSEXP, SEXP weights_drawsSEXP, SEXP eta_logit_init_drawsSEXP, SEXP gp_beta_drawsSEXP, SEXP pp_mu_drawsSEXP, SEXP pp_tau2_drawsSEXP, SEXP gp_tau2_drawsSEXP, SEXP gp_length_scale_drawsSEXP, SEXP gp_kernel_typeSEXP, SEXP pp_mu_prior_sdSEXP, SEXP batch_coordinates_newSEXP, SEXP eta_proposal_windowSEXP, SEXP m_proposal_windowSEXP, SEXP S_proposal_windowSEXP, SEXP n_pred_iterSEXP, SEXP pred_burnSEXP, SEXP pred_thinSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -305,12 +388,14 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< bool >::type sample_s_scale(sample_s_scaleSEXP);
     Rcpp::traits::input_parameter< arma::uword >::type weight_prior_type(weight_prior_typeSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type weights_draws(weights_drawsSEXP);
-    Rcpp::traits::input_parameter< arma::cube >::type eta_alr_init_draws(eta_alr_init_drawsSEXP);
+    Rcpp::traits::input_parameter< arma::cube >::type eta_logit_init_draws(eta_logit_init_drawsSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type gp_beta_draws(gp_beta_drawsSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type pp_mu_draws(pp_mu_drawsSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type pp_tau2_draws(pp_tau2_drawsSEXP);
     Rcpp::traits::input_parameter< arma::vec >::type gp_tau2_draws(gp_tau2_drawsSEXP);
     Rcpp::traits::input_parameter< arma::vec >::type gp_length_scale_draws(gp_length_scale_drawsSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type gp_kernel_type(gp_kernel_typeSEXP);
+    Rcpp::traits::input_parameter< double >::type pp_mu_prior_sd(pp_mu_prior_sdSEXP);
     Rcpp::traits::input_parameter< arma::vec >::type batch_coordinates_new(batch_coordinates_newSEXP);
     Rcpp::traits::input_parameter< double >::type eta_proposal_window(eta_proposal_windowSEXP);
     Rcpp::traits::input_parameter< double >::type m_proposal_window(m_proposal_windowSEXP);
@@ -318,13 +403,13 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< arma::uword >::type n_pred_iter(n_pred_iterSEXP);
     Rcpp::traits::input_parameter< arma::uword >::type pred_burn(pred_burnSEXP);
     Rcpp::traits::input_parameter< arma::uword >::type pred_thin(pred_thinSEXP);
-    rcpp_result_gen = Rcpp::wrap(predictNewBatchMVNMixed(X, X_new, K, B, batch_vec, fixed_new, labels_new_init, column_type, censor_code, censor_code_new, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_alr_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin));
+    rcpp_result_gen = Rcpp::wrap(predictNewBatchMVNMixed(X, X_new, K, B, batch_vec, fixed_new, labels_new_init, column_type, censor_code, censor_code_new, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_logit_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, gp_kernel_type, pp_mu_prior_sd, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin));
     return rcpp_result_gen;
 END_RCPP
 }
 // predictNewBatchMVNSeparationStrategy
-Rcpp::List predictNewBatchMVNSeparationStrategy(arma::mat X, arma::mat X_new, arma::uword K, arma::uword B, arma::uvec batch_vec, arma::uvec fixed_new, arma::uvec labels_new_init, arma::umat label_draws, arma::cube means_draws, arma::cube cov_draws, arma::cube batch_shift_draws, arma::cube batch_scale_draws, arma::mat shift_new_init, arma::mat scale_new_init, double m_scale, arma::vec lambda_2_draws, bool sample_m_scale, double rho, double theta, arma::vec rho_draws, double s_scale_prior_mean, bool sample_s_scale, arma::uword weight_prior_type, arma::mat weights_draws, arma::cube eta_alr_init_draws, arma::mat gp_beta_draws, arma::mat pp_mu_draws, arma::mat pp_tau2_draws, arma::vec gp_tau2_draws, arma::vec gp_length_scale_draws, arma::vec batch_coordinates_new, double eta_proposal_window, double m_proposal_window, double S_proposal_window, arma::uword n_pred_iter, arma::uword pred_burn, arma::uword pred_thin);
-RcppExport SEXP _batchmix_predictNewBatchMVNSeparationStrategy(SEXP XSEXP, SEXP X_newSEXP, SEXP KSEXP, SEXP BSEXP, SEXP batch_vecSEXP, SEXP fixed_newSEXP, SEXP labels_new_initSEXP, SEXP label_drawsSEXP, SEXP means_drawsSEXP, SEXP cov_drawsSEXP, SEXP batch_shift_drawsSEXP, SEXP batch_scale_drawsSEXP, SEXP shift_new_initSEXP, SEXP scale_new_initSEXP, SEXP m_scaleSEXP, SEXP lambda_2_drawsSEXP, SEXP sample_m_scaleSEXP, SEXP rhoSEXP, SEXP thetaSEXP, SEXP rho_drawsSEXP, SEXP s_scale_prior_meanSEXP, SEXP sample_s_scaleSEXP, SEXP weight_prior_typeSEXP, SEXP weights_drawsSEXP, SEXP eta_alr_init_drawsSEXP, SEXP gp_beta_drawsSEXP, SEXP pp_mu_drawsSEXP, SEXP pp_tau2_drawsSEXP, SEXP gp_tau2_drawsSEXP, SEXP gp_length_scale_drawsSEXP, SEXP batch_coordinates_newSEXP, SEXP eta_proposal_windowSEXP, SEXP m_proposal_windowSEXP, SEXP S_proposal_windowSEXP, SEXP n_pred_iterSEXP, SEXP pred_burnSEXP, SEXP pred_thinSEXP) {
+Rcpp::List predictNewBatchMVNSeparationStrategy(arma::mat X, arma::mat X_new, arma::uword K, arma::uword B, arma::uvec batch_vec, arma::uvec fixed_new, arma::uvec labels_new_init, arma::umat label_draws, arma::cube means_draws, arma::cube cov_draws, arma::cube batch_shift_draws, arma::cube batch_scale_draws, arma::mat shift_new_init, arma::mat scale_new_init, double m_scale, arma::vec lambda_2_draws, bool sample_m_scale, double rho, double theta, arma::vec rho_draws, double s_scale_prior_mean, bool sample_s_scale, arma::uword weight_prior_type, arma::mat weights_draws, arma::cube eta_logit_init_draws, arma::mat gp_beta_draws, arma::mat pp_mu_draws, arma::mat pp_tau2_draws, arma::vec gp_tau2_draws, arma::vec gp_length_scale_draws, arma::uword gp_kernel_type, double pp_mu_prior_sd, arma::vec batch_coordinates_new, double eta_proposal_window, double m_proposal_window, double S_proposal_window, arma::uword n_pred_iter, arma::uword pred_burn, arma::uword pred_thin);
+RcppExport SEXP _batchmix_predictNewBatchMVNSeparationStrategy(SEXP XSEXP, SEXP X_newSEXP, SEXP KSEXP, SEXP BSEXP, SEXP batch_vecSEXP, SEXP fixed_newSEXP, SEXP labels_new_initSEXP, SEXP label_drawsSEXP, SEXP means_drawsSEXP, SEXP cov_drawsSEXP, SEXP batch_shift_drawsSEXP, SEXP batch_scale_drawsSEXP, SEXP shift_new_initSEXP, SEXP scale_new_initSEXP, SEXP m_scaleSEXP, SEXP lambda_2_drawsSEXP, SEXP sample_m_scaleSEXP, SEXP rhoSEXP, SEXP thetaSEXP, SEXP rho_drawsSEXP, SEXP s_scale_prior_meanSEXP, SEXP sample_s_scaleSEXP, SEXP weight_prior_typeSEXP, SEXP weights_drawsSEXP, SEXP eta_logit_init_drawsSEXP, SEXP gp_beta_drawsSEXP, SEXP pp_mu_drawsSEXP, SEXP pp_tau2_drawsSEXP, SEXP gp_tau2_drawsSEXP, SEXP gp_length_scale_drawsSEXP, SEXP gp_kernel_typeSEXP, SEXP pp_mu_prior_sdSEXP, SEXP batch_coordinates_newSEXP, SEXP eta_proposal_windowSEXP, SEXP m_proposal_windowSEXP, SEXP S_proposal_windowSEXP, SEXP n_pred_iterSEXP, SEXP pred_burnSEXP, SEXP pred_thinSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -352,12 +437,14 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< bool >::type sample_s_scale(sample_s_scaleSEXP);
     Rcpp::traits::input_parameter< arma::uword >::type weight_prior_type(weight_prior_typeSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type weights_draws(weights_drawsSEXP);
-    Rcpp::traits::input_parameter< arma::cube >::type eta_alr_init_draws(eta_alr_init_drawsSEXP);
+    Rcpp::traits::input_parameter< arma::cube >::type eta_logit_init_draws(eta_logit_init_drawsSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type gp_beta_draws(gp_beta_drawsSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type pp_mu_draws(pp_mu_drawsSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type pp_tau2_draws(pp_tau2_drawsSEXP);
     Rcpp::traits::input_parameter< arma::vec >::type gp_tau2_draws(gp_tau2_drawsSEXP);
     Rcpp::traits::input_parameter< arma::vec >::type gp_length_scale_draws(gp_length_scale_drawsSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type gp_kernel_type(gp_kernel_typeSEXP);
+    Rcpp::traits::input_parameter< double >::type pp_mu_prior_sd(pp_mu_prior_sdSEXP);
     Rcpp::traits::input_parameter< arma::vec >::type batch_coordinates_new(batch_coordinates_newSEXP);
     Rcpp::traits::input_parameter< double >::type eta_proposal_window(eta_proposal_windowSEXP);
     Rcpp::traits::input_parameter< double >::type m_proposal_window(m_proposal_windowSEXP);
@@ -365,13 +452,13 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< arma::uword >::type n_pred_iter(n_pred_iterSEXP);
     Rcpp::traits::input_parameter< arma::uword >::type pred_burn(pred_burnSEXP);
     Rcpp::traits::input_parameter< arma::uword >::type pred_thin(pred_thinSEXP);
-    rcpp_result_gen = Rcpp::wrap(predictNewBatchMVNSeparationStrategy(X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_alr_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin));
+    rcpp_result_gen = Rcpp::wrap(predictNewBatchMVNSeparationStrategy(X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_logit_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, gp_kernel_type, pp_mu_prior_sd, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, n_pred_iter, pred_burn, pred_thin));
     return rcpp_result_gen;
 END_RCPP
 }
 // predictNewBatchMVT
-Rcpp::List predictNewBatchMVT(arma::mat X, arma::mat X_new, arma::uword K, arma::uword B, arma::uvec batch_vec, arma::uvec fixed_new, arma::uvec labels_new_init, arma::umat label_draws, arma::cube means_draws, arma::cube cov_draws, arma::mat t_df_draws, arma::cube batch_shift_draws, arma::cube batch_scale_draws, arma::mat shift_new_init, arma::mat scale_new_init, double m_scale, arma::vec lambda_2_draws, bool sample_m_scale, double rho, double theta, arma::vec rho_draws, double s_scale_prior_mean, bool sample_s_scale, arma::uword weight_prior_type, arma::mat weights_draws, arma::cube eta_alr_init_draws, arma::mat gp_beta_draws, arma::mat pp_mu_draws, arma::mat pp_tau2_draws, arma::vec gp_tau2_draws, arma::vec gp_length_scale_draws, arma::vec batch_coordinates_new, double eta_proposal_window, double m_proposal_window, double S_proposal_window, double t_df_proposal_window, arma::uword n_pred_iter, arma::uword pred_burn, arma::uword pred_thin);
-RcppExport SEXP _batchmix_predictNewBatchMVT(SEXP XSEXP, SEXP X_newSEXP, SEXP KSEXP, SEXP BSEXP, SEXP batch_vecSEXP, SEXP fixed_newSEXP, SEXP labels_new_initSEXP, SEXP label_drawsSEXP, SEXP means_drawsSEXP, SEXP cov_drawsSEXP, SEXP t_df_drawsSEXP, SEXP batch_shift_drawsSEXP, SEXP batch_scale_drawsSEXP, SEXP shift_new_initSEXP, SEXP scale_new_initSEXP, SEXP m_scaleSEXP, SEXP lambda_2_drawsSEXP, SEXP sample_m_scaleSEXP, SEXP rhoSEXP, SEXP thetaSEXP, SEXP rho_drawsSEXP, SEXP s_scale_prior_meanSEXP, SEXP sample_s_scaleSEXP, SEXP weight_prior_typeSEXP, SEXP weights_drawsSEXP, SEXP eta_alr_init_drawsSEXP, SEXP gp_beta_drawsSEXP, SEXP pp_mu_drawsSEXP, SEXP pp_tau2_drawsSEXP, SEXP gp_tau2_drawsSEXP, SEXP gp_length_scale_drawsSEXP, SEXP batch_coordinates_newSEXP, SEXP eta_proposal_windowSEXP, SEXP m_proposal_windowSEXP, SEXP S_proposal_windowSEXP, SEXP t_df_proposal_windowSEXP, SEXP n_pred_iterSEXP, SEXP pred_burnSEXP, SEXP pred_thinSEXP) {
+Rcpp::List predictNewBatchMVT(arma::mat X, arma::mat X_new, arma::uword K, arma::uword B, arma::uvec batch_vec, arma::uvec fixed_new, arma::uvec labels_new_init, arma::umat label_draws, arma::cube means_draws, arma::cube cov_draws, arma::mat t_df_draws, arma::cube batch_shift_draws, arma::cube batch_scale_draws, arma::mat shift_new_init, arma::mat scale_new_init, double m_scale, arma::vec lambda_2_draws, bool sample_m_scale, double rho, double theta, arma::vec rho_draws, double s_scale_prior_mean, bool sample_s_scale, arma::uword weight_prior_type, arma::mat weights_draws, arma::cube eta_logit_init_draws, arma::mat gp_beta_draws, arma::mat pp_mu_draws, arma::mat pp_tau2_draws, arma::vec gp_tau2_draws, arma::vec gp_length_scale_draws, arma::uword gp_kernel_type, double pp_mu_prior_sd, arma::vec batch_coordinates_new, double eta_proposal_window, double m_proposal_window, double S_proposal_window, double t_df_proposal_window, arma::uword n_pred_iter, arma::uword pred_burn, arma::uword pred_thin);
+RcppExport SEXP _batchmix_predictNewBatchMVT(SEXP XSEXP, SEXP X_newSEXP, SEXP KSEXP, SEXP BSEXP, SEXP batch_vecSEXP, SEXP fixed_newSEXP, SEXP labels_new_initSEXP, SEXP label_drawsSEXP, SEXP means_drawsSEXP, SEXP cov_drawsSEXP, SEXP t_df_drawsSEXP, SEXP batch_shift_drawsSEXP, SEXP batch_scale_drawsSEXP, SEXP shift_new_initSEXP, SEXP scale_new_initSEXP, SEXP m_scaleSEXP, SEXP lambda_2_drawsSEXP, SEXP sample_m_scaleSEXP, SEXP rhoSEXP, SEXP thetaSEXP, SEXP rho_drawsSEXP, SEXP s_scale_prior_meanSEXP, SEXP sample_s_scaleSEXP, SEXP weight_prior_typeSEXP, SEXP weights_drawsSEXP, SEXP eta_logit_init_drawsSEXP, SEXP gp_beta_drawsSEXP, SEXP pp_mu_drawsSEXP, SEXP pp_tau2_drawsSEXP, SEXP gp_tau2_drawsSEXP, SEXP gp_length_scale_drawsSEXP, SEXP gp_kernel_typeSEXP, SEXP pp_mu_prior_sdSEXP, SEXP batch_coordinates_newSEXP, SEXP eta_proposal_windowSEXP, SEXP m_proposal_windowSEXP, SEXP S_proposal_windowSEXP, SEXP t_df_proposal_windowSEXP, SEXP n_pred_iterSEXP, SEXP pred_burnSEXP, SEXP pred_thinSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -400,12 +487,14 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< bool >::type sample_s_scale(sample_s_scaleSEXP);
     Rcpp::traits::input_parameter< arma::uword >::type weight_prior_type(weight_prior_typeSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type weights_draws(weights_drawsSEXP);
-    Rcpp::traits::input_parameter< arma::cube >::type eta_alr_init_draws(eta_alr_init_drawsSEXP);
+    Rcpp::traits::input_parameter< arma::cube >::type eta_logit_init_draws(eta_logit_init_drawsSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type gp_beta_draws(gp_beta_drawsSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type pp_mu_draws(pp_mu_drawsSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type pp_tau2_draws(pp_tau2_drawsSEXP);
     Rcpp::traits::input_parameter< arma::vec >::type gp_tau2_draws(gp_tau2_drawsSEXP);
     Rcpp::traits::input_parameter< arma::vec >::type gp_length_scale_draws(gp_length_scale_drawsSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type gp_kernel_type(gp_kernel_typeSEXP);
+    Rcpp::traits::input_parameter< double >::type pp_mu_prior_sd(pp_mu_prior_sdSEXP);
     Rcpp::traits::input_parameter< arma::vec >::type batch_coordinates_new(batch_coordinates_newSEXP);
     Rcpp::traits::input_parameter< double >::type eta_proposal_window(eta_proposal_windowSEXP);
     Rcpp::traits::input_parameter< double >::type m_proposal_window(m_proposal_windowSEXP);
@@ -414,13 +503,72 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< arma::uword >::type n_pred_iter(n_pred_iterSEXP);
     Rcpp::traits::input_parameter< arma::uword >::type pred_burn(pred_burnSEXP);
     Rcpp::traits::input_parameter< arma::uword >::type pred_thin(pred_thinSEXP);
-    rcpp_result_gen = Rcpp::wrap(predictNewBatchMVT(X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, t_df_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_alr_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, n_pred_iter, pred_burn, pred_thin));
+    rcpp_result_gen = Rcpp::wrap(predictNewBatchMVT(X, X_new, K, B, batch_vec, fixed_new, labels_new_init, label_draws, means_draws, cov_draws, t_df_draws, batch_shift_draws, batch_scale_draws, shift_new_init, scale_new_init, m_scale, lambda_2_draws, sample_m_scale, rho, theta, rho_draws, s_scale_prior_mean, sample_s_scale, weight_prior_type, weights_draws, eta_logit_init_draws, gp_beta_draws, pp_mu_draws, pp_tau2_draws, gp_tau2_draws, gp_length_scale_draws, gp_kernel_type, pp_mu_prior_sd, batch_coordinates_new, eta_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, n_pred_iter, pred_burn, pred_thin));
+    return rcpp_result_gen;
+END_RCPP
+}
+// priorOnlyLKJChain
+Rcpp::List priorOnlyLKJChain(arma::mat X, arma::uword K, arma::uword B, arma::uvec labels, arma::uvec batch_vec, arma::uword n_iter, double eta, double r_pw, double sigma_pw, double mu_pw, double m_pw, double S_pw);
+RcppExport SEXP _batchmix_priorOnlyLKJChain(SEXP XSEXP, SEXP KSEXP, SEXP BSEXP, SEXP labelsSEXP, SEXP batch_vecSEXP, SEXP n_iterSEXP, SEXP etaSEXP, SEXP r_pwSEXP, SEXP sigma_pwSEXP, SEXP mu_pwSEXP, SEXP m_pwSEXP, SEXP S_pwSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat >::type X(XSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type K(KSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type B(BSEXP);
+    Rcpp::traits::input_parameter< arma::uvec >::type labels(labelsSEXP);
+    Rcpp::traits::input_parameter< arma::uvec >::type batch_vec(batch_vecSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type n_iter(n_iterSEXP);
+    Rcpp::traits::input_parameter< double >::type eta(etaSEXP);
+    Rcpp::traits::input_parameter< double >::type r_pw(r_pwSEXP);
+    Rcpp::traits::input_parameter< double >::type sigma_pw(sigma_pwSEXP);
+    Rcpp::traits::input_parameter< double >::type mu_pw(mu_pwSEXP);
+    Rcpp::traits::input_parameter< double >::type m_pw(m_pwSEXP);
+    Rcpp::traits::input_parameter< double >::type S_pw(S_pwSEXP);
+    rcpp_result_gen = Rcpp::wrap(priorOnlyLKJChain(X, K, B, labels, batch_vec, n_iter, eta, r_pw, sigma_pw, mu_pw, m_pw, S_pw));
+    return rcpp_result_gen;
+END_RCPP
+}
+// partialPoolingWeightChain
+Rcpp::List partialPoolingWeightChain(arma::uvec labels, arma::uvec batch_vec, arma::uword K, arma::uword B, arma::uword n_iter, arma::vec mu, arma::vec tau2, double eta_pw);
+RcppExport SEXP _batchmix_partialPoolingWeightChain(SEXP labelsSEXP, SEXP batch_vecSEXP, SEXP KSEXP, SEXP BSEXP, SEXP n_iterSEXP, SEXP muSEXP, SEXP tau2SEXP, SEXP eta_pwSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::uvec >::type labels(labelsSEXP);
+    Rcpp::traits::input_parameter< arma::uvec >::type batch_vec(batch_vecSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type K(KSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type B(BSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type n_iter(n_iterSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type mu(muSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type tau2(tau2SEXP);
+    Rcpp::traits::input_parameter< double >::type eta_pw(eta_pwSEXP);
+    rcpp_result_gen = Rcpp::wrap(partialPoolingWeightChain(labels, batch_vec, K, B, n_iter, mu, tau2, eta_pw));
+    return rcpp_result_gen;
+END_RCPP
+}
+// gpWeightChain
+Rcpp::List gpWeightChain(arma::uword K, arma::uword B, arma::uword n_iter, arma::vec coords, arma::uword kernel_type, double tau2, double length_scale, double level_sd, double eta_pw);
+RcppExport SEXP _batchmix_gpWeightChain(SEXP KSEXP, SEXP BSEXP, SEXP n_iterSEXP, SEXP coordsSEXP, SEXP kernel_typeSEXP, SEXP tau2SEXP, SEXP length_scaleSEXP, SEXP level_sdSEXP, SEXP eta_pwSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::uword >::type K(KSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type B(BSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type n_iter(n_iterSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type coords(coordsSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type kernel_type(kernel_typeSEXP);
+    Rcpp::traits::input_parameter< double >::type tau2(tau2SEXP);
+    Rcpp::traits::input_parameter< double >::type length_scale(length_scaleSEXP);
+    Rcpp::traits::input_parameter< double >::type level_sd(level_sdSEXP);
+    Rcpp::traits::input_parameter< double >::type eta_pw(eta_pwSEXP);
+    rcpp_result_gen = Rcpp::wrap(gpWeightChain(K, B, n_iter, coords, kernel_type, tau2, length_scale, level_sd, eta_pw));
     return rcpp_result_gen;
 END_RCPP
 }
 // sampleSemisupervisedMVN
-Rcpp::List sampleSemisupervisedMVN(arma::mat X, arma::uword K, arma::uword B, arma::uvec labels, arma::uvec batch_vec, arma::uvec fixed, double mu_proposal_window, double cov_proposal_window, double m_proposal_window, double S_proposal_window, arma::uword n_iter, arma::uword thin, arma::vec concentration, double m_scale, double rho, double theta, arma::mat initial_mu, arma::cube initial_cov, arma::mat initial_m, arma::mat initial_S, bool mu_initialised, bool cov_initialised, bool m_initialised, bool S_initialised, bool sample_m_scale, bool auto_tune, arma::uword n_burn, bool include_interaction, double gamma_proposal_window, double a_gamma, double b_gamma, arma::uword weight_prior_type, arma::vec batch_coordinates, double gp_tau2, double gp_length_scale, double eta_proposal_window, bool sample_gp_hyperparameters, double gp_hyperparameter_proposal_window, double pp_tau2_shape, double pp_tau2_rate, double pp_mu_prior_sd, bool sample_s_scale, double a_s, double b_s, double s_scale_proposal_window);
-RcppExport SEXP _batchmix_sampleSemisupervisedMVN(SEXP XSEXP, SEXP KSEXP, SEXP BSEXP, SEXP labelsSEXP, SEXP batch_vecSEXP, SEXP fixedSEXP, SEXP mu_proposal_windowSEXP, SEXP cov_proposal_windowSEXP, SEXP m_proposal_windowSEXP, SEXP S_proposal_windowSEXP, SEXP n_iterSEXP, SEXP thinSEXP, SEXP concentrationSEXP, SEXP m_scaleSEXP, SEXP rhoSEXP, SEXP thetaSEXP, SEXP initial_muSEXP, SEXP initial_covSEXP, SEXP initial_mSEXP, SEXP initial_SSEXP, SEXP mu_initialisedSEXP, SEXP cov_initialisedSEXP, SEXP m_initialisedSEXP, SEXP S_initialisedSEXP, SEXP sample_m_scaleSEXP, SEXP auto_tuneSEXP, SEXP n_burnSEXP, SEXP include_interactionSEXP, SEXP gamma_proposal_windowSEXP, SEXP a_gammaSEXP, SEXP b_gammaSEXP, SEXP weight_prior_typeSEXP, SEXP batch_coordinatesSEXP, SEXP gp_tau2SEXP, SEXP gp_length_scaleSEXP, SEXP eta_proposal_windowSEXP, SEXP sample_gp_hyperparametersSEXP, SEXP gp_hyperparameter_proposal_windowSEXP, SEXP pp_tau2_shapeSEXP, SEXP pp_tau2_rateSEXP, SEXP pp_mu_prior_sdSEXP, SEXP sample_s_scaleSEXP, SEXP a_sSEXP, SEXP b_sSEXP, SEXP s_scale_proposal_windowSEXP) {
+Rcpp::List sampleSemisupervisedMVN(arma::mat X, arma::uword K, arma::uword B, arma::uvec labels, arma::uvec batch_vec, arma::uvec fixed, double mu_proposal_window, double cov_proposal_window, double m_proposal_window, double S_proposal_window, arma::uword n_iter, arma::uword thin, arma::vec concentration, double m_scale, double rho, double theta, arma::mat initial_mu, arma::cube initial_cov, arma::mat initial_m, arma::mat initial_S, bool mu_initialised, bool cov_initialised, bool m_initialised, bool S_initialised, bool sample_m_scale, bool auto_tune, arma::uword n_burn, bool include_interaction, double gamma_proposal_window, double a_gamma, double b_gamma, arma::uword weight_prior_type, arma::vec batch_coordinates, double gp_tau2, double gp_length_scale, arma::uword gp_kernel_type, double eta_proposal_window, bool sample_gp_hyperparameters, double gp_hyperparameter_proposal_window, double pp_tau2_shape, double pp_tau2_rate, double pp_mu_prior_sd, bool sample_s_scale, double a_s, double b_s, double s_scale_proposal_window);
+RcppExport SEXP _batchmix_sampleSemisupervisedMVN(SEXP XSEXP, SEXP KSEXP, SEXP BSEXP, SEXP labelsSEXP, SEXP batch_vecSEXP, SEXP fixedSEXP, SEXP mu_proposal_windowSEXP, SEXP cov_proposal_windowSEXP, SEXP m_proposal_windowSEXP, SEXP S_proposal_windowSEXP, SEXP n_iterSEXP, SEXP thinSEXP, SEXP concentrationSEXP, SEXP m_scaleSEXP, SEXP rhoSEXP, SEXP thetaSEXP, SEXP initial_muSEXP, SEXP initial_covSEXP, SEXP initial_mSEXP, SEXP initial_SSEXP, SEXP mu_initialisedSEXP, SEXP cov_initialisedSEXP, SEXP m_initialisedSEXP, SEXP S_initialisedSEXP, SEXP sample_m_scaleSEXP, SEXP auto_tuneSEXP, SEXP n_burnSEXP, SEXP include_interactionSEXP, SEXP gamma_proposal_windowSEXP, SEXP a_gammaSEXP, SEXP b_gammaSEXP, SEXP weight_prior_typeSEXP, SEXP batch_coordinatesSEXP, SEXP gp_tau2SEXP, SEXP gp_length_scaleSEXP, SEXP gp_kernel_typeSEXP, SEXP eta_proposal_windowSEXP, SEXP sample_gp_hyperparametersSEXP, SEXP gp_hyperparameter_proposal_windowSEXP, SEXP pp_tau2_shapeSEXP, SEXP pp_tau2_rateSEXP, SEXP pp_mu_prior_sdSEXP, SEXP sample_s_scaleSEXP, SEXP a_sSEXP, SEXP b_sSEXP, SEXP s_scale_proposal_windowSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -459,6 +607,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< arma::vec >::type batch_coordinates(batch_coordinatesSEXP);
     Rcpp::traits::input_parameter< double >::type gp_tau2(gp_tau2SEXP);
     Rcpp::traits::input_parameter< double >::type gp_length_scale(gp_length_scaleSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type gp_kernel_type(gp_kernel_typeSEXP);
     Rcpp::traits::input_parameter< double >::type eta_proposal_window(eta_proposal_windowSEXP);
     Rcpp::traits::input_parameter< bool >::type sample_gp_hyperparameters(sample_gp_hyperparametersSEXP);
     Rcpp::traits::input_parameter< double >::type gp_hyperparameter_proposal_window(gp_hyperparameter_proposal_windowSEXP);
@@ -469,13 +618,13 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< double >::type a_s(a_sSEXP);
     Rcpp::traits::input_parameter< double >::type b_s(b_sSEXP);
     Rcpp::traits::input_parameter< double >::type s_scale_proposal_window(s_scale_proposal_windowSEXP);
-    rcpp_result_gen = Rcpp::wrap(sampleSemisupervisedMVN(X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, n_iter, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd, sample_s_scale, a_s, b_s, s_scale_proposal_window));
+    rcpp_result_gen = Rcpp::wrap(sampleSemisupervisedMVN(X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, n_iter, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, gp_kernel_type, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd, sample_s_scale, a_s, b_s, s_scale_proposal_window));
     return rcpp_result_gen;
 END_RCPP
 }
 // sampleSemisupervisedMVNMixed
-Rcpp::List sampleSemisupervisedMVNMixed(arma::mat X, arma::uword K, arma::uword B, arma::uvec labels, arma::uvec batch_vec, arma::uvec fixed, arma::uvec column_type, arma::umat censor_code, double mu_proposal_window, double r_proposal_window, double sigma_proposal_window, double m_proposal_window, double S_proposal_window, arma::uword n_iter, arma::uword thin, arma::vec concentration, double m_scale, double rho, double theta, double eta, bool sample_m_scale, bool auto_tune, arma::uword n_burn, bool include_interaction, double gamma_proposal_window, double a_gamma, double b_gamma, arma::uword weight_prior_type, arma::vec batch_coordinates, double gp_tau2, double gp_length_scale, double eta_proposal_window, bool sample_gp_hyperparameters, double gp_hyperparameter_proposal_window, double pp_tau2_shape, double pp_tau2_rate, double pp_mu_prior_sd, bool sample_s_scale, double a_s, double b_s, double s_scale_proposal_window);
-RcppExport SEXP _batchmix_sampleSemisupervisedMVNMixed(SEXP XSEXP, SEXP KSEXP, SEXP BSEXP, SEXP labelsSEXP, SEXP batch_vecSEXP, SEXP fixedSEXP, SEXP column_typeSEXP, SEXP censor_codeSEXP, SEXP mu_proposal_windowSEXP, SEXP r_proposal_windowSEXP, SEXP sigma_proposal_windowSEXP, SEXP m_proposal_windowSEXP, SEXP S_proposal_windowSEXP, SEXP n_iterSEXP, SEXP thinSEXP, SEXP concentrationSEXP, SEXP m_scaleSEXP, SEXP rhoSEXP, SEXP thetaSEXP, SEXP etaSEXP, SEXP sample_m_scaleSEXP, SEXP auto_tuneSEXP, SEXP n_burnSEXP, SEXP include_interactionSEXP, SEXP gamma_proposal_windowSEXP, SEXP a_gammaSEXP, SEXP b_gammaSEXP, SEXP weight_prior_typeSEXP, SEXP batch_coordinatesSEXP, SEXP gp_tau2SEXP, SEXP gp_length_scaleSEXP, SEXP eta_proposal_windowSEXP, SEXP sample_gp_hyperparametersSEXP, SEXP gp_hyperparameter_proposal_windowSEXP, SEXP pp_tau2_shapeSEXP, SEXP pp_tau2_rateSEXP, SEXP pp_mu_prior_sdSEXP, SEXP sample_s_scaleSEXP, SEXP a_sSEXP, SEXP b_sSEXP, SEXP s_scale_proposal_windowSEXP) {
+Rcpp::List sampleSemisupervisedMVNMixed(arma::mat X, arma::uword K, arma::uword B, arma::uvec labels, arma::uvec batch_vec, arma::uvec fixed, arma::uvec column_type, arma::umat censor_code, double mu_proposal_window, double r_proposal_window, double sigma_proposal_window, double m_proposal_window, double S_proposal_window, arma::uword n_iter, arma::uword thin, arma::vec concentration, double m_scale, double rho, double theta, double eta, bool sample_m_scale, bool auto_tune, arma::uword n_burn, bool include_interaction, double gamma_proposal_window, double a_gamma, double b_gamma, arma::uword weight_prior_type, arma::vec batch_coordinates, double gp_tau2, double gp_length_scale, arma::uword gp_kernel_type, double eta_proposal_window, bool sample_gp_hyperparameters, double gp_hyperparameter_proposal_window, double pp_tau2_shape, double pp_tau2_rate, double pp_mu_prior_sd, bool sample_s_scale, double a_s, double b_s, double s_scale_proposal_window);
+RcppExport SEXP _batchmix_sampleSemisupervisedMVNMixed(SEXP XSEXP, SEXP KSEXP, SEXP BSEXP, SEXP labelsSEXP, SEXP batch_vecSEXP, SEXP fixedSEXP, SEXP column_typeSEXP, SEXP censor_codeSEXP, SEXP mu_proposal_windowSEXP, SEXP r_proposal_windowSEXP, SEXP sigma_proposal_windowSEXP, SEXP m_proposal_windowSEXP, SEXP S_proposal_windowSEXP, SEXP n_iterSEXP, SEXP thinSEXP, SEXP concentrationSEXP, SEXP m_scaleSEXP, SEXP rhoSEXP, SEXP thetaSEXP, SEXP etaSEXP, SEXP sample_m_scaleSEXP, SEXP auto_tuneSEXP, SEXP n_burnSEXP, SEXP include_interactionSEXP, SEXP gamma_proposal_windowSEXP, SEXP a_gammaSEXP, SEXP b_gammaSEXP, SEXP weight_prior_typeSEXP, SEXP batch_coordinatesSEXP, SEXP gp_tau2SEXP, SEXP gp_length_scaleSEXP, SEXP gp_kernel_typeSEXP, SEXP eta_proposal_windowSEXP, SEXP sample_gp_hyperparametersSEXP, SEXP gp_hyperparameter_proposal_windowSEXP, SEXP pp_tau2_shapeSEXP, SEXP pp_tau2_rateSEXP, SEXP pp_mu_prior_sdSEXP, SEXP sample_s_scaleSEXP, SEXP a_sSEXP, SEXP b_sSEXP, SEXP s_scale_proposal_windowSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -510,6 +659,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< arma::vec >::type batch_coordinates(batch_coordinatesSEXP);
     Rcpp::traits::input_parameter< double >::type gp_tau2(gp_tau2SEXP);
     Rcpp::traits::input_parameter< double >::type gp_length_scale(gp_length_scaleSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type gp_kernel_type(gp_kernel_typeSEXP);
     Rcpp::traits::input_parameter< double >::type eta_proposal_window(eta_proposal_windowSEXP);
     Rcpp::traits::input_parameter< bool >::type sample_gp_hyperparameters(sample_gp_hyperparametersSEXP);
     Rcpp::traits::input_parameter< double >::type gp_hyperparameter_proposal_window(gp_hyperparameter_proposal_windowSEXP);
@@ -520,13 +670,13 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< double >::type a_s(a_sSEXP);
     Rcpp::traits::input_parameter< double >::type b_s(b_sSEXP);
     Rcpp::traits::input_parameter< double >::type s_scale_proposal_window(s_scale_proposal_windowSEXP);
-    rcpp_result_gen = Rcpp::wrap(sampleSemisupervisedMVNMixed(X, K, B, labels, batch_vec, fixed, column_type, censor_code, mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window, n_iter, thin, concentration, m_scale, rho, theta, eta, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd, sample_s_scale, a_s, b_s, s_scale_proposal_window));
+    rcpp_result_gen = Rcpp::wrap(sampleSemisupervisedMVNMixed(X, K, B, labels, batch_vec, fixed, column_type, censor_code, mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window, n_iter, thin, concentration, m_scale, rho, theta, eta, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, gp_kernel_type, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd, sample_s_scale, a_s, b_s, s_scale_proposal_window));
     return rcpp_result_gen;
 END_RCPP
 }
 // sampleSemisupervisedMVNSeparationStrategy
-Rcpp::List sampleSemisupervisedMVNSeparationStrategy(arma::mat X, arma::uword K, arma::uword B, arma::uvec labels, arma::uvec batch_vec, arma::uvec fixed, double mu_proposal_window, double r_proposal_window, double sigma_proposal_window, double m_proposal_window, double S_proposal_window, arma::uword n_iter, arma::uword thin, arma::vec concentration, double m_scale, double rho, double theta, arma::mat initial_mu, arma::cube initial_cov, arma::mat initial_m, arma::mat initial_S, bool mu_initialised, bool cov_initialised, bool m_initialised, bool S_initialised, bool sample_m_scale, double eta, bool auto_tune, arma::uword n_burn, bool include_interaction, double gamma_proposal_window, double a_gamma, double b_gamma, arma::uword weight_prior_type, arma::vec batch_coordinates, double gp_tau2, double gp_length_scale, double eta_proposal_window, bool sample_gp_hyperparameters, double gp_hyperparameter_proposal_window, double pp_tau2_shape, double pp_tau2_rate, double pp_mu_prior_sd, bool sample_s_scale, double a_s, double b_s, double s_scale_proposal_window);
-RcppExport SEXP _batchmix_sampleSemisupervisedMVNSeparationStrategy(SEXP XSEXP, SEXP KSEXP, SEXP BSEXP, SEXP labelsSEXP, SEXP batch_vecSEXP, SEXP fixedSEXP, SEXP mu_proposal_windowSEXP, SEXP r_proposal_windowSEXP, SEXP sigma_proposal_windowSEXP, SEXP m_proposal_windowSEXP, SEXP S_proposal_windowSEXP, SEXP n_iterSEXP, SEXP thinSEXP, SEXP concentrationSEXP, SEXP m_scaleSEXP, SEXP rhoSEXP, SEXP thetaSEXP, SEXP initial_muSEXP, SEXP initial_covSEXP, SEXP initial_mSEXP, SEXP initial_SSEXP, SEXP mu_initialisedSEXP, SEXP cov_initialisedSEXP, SEXP m_initialisedSEXP, SEXP S_initialisedSEXP, SEXP sample_m_scaleSEXP, SEXP etaSEXP, SEXP auto_tuneSEXP, SEXP n_burnSEXP, SEXP include_interactionSEXP, SEXP gamma_proposal_windowSEXP, SEXP a_gammaSEXP, SEXP b_gammaSEXP, SEXP weight_prior_typeSEXP, SEXP batch_coordinatesSEXP, SEXP gp_tau2SEXP, SEXP gp_length_scaleSEXP, SEXP eta_proposal_windowSEXP, SEXP sample_gp_hyperparametersSEXP, SEXP gp_hyperparameter_proposal_windowSEXP, SEXP pp_tau2_shapeSEXP, SEXP pp_tau2_rateSEXP, SEXP pp_mu_prior_sdSEXP, SEXP sample_s_scaleSEXP, SEXP a_sSEXP, SEXP b_sSEXP, SEXP s_scale_proposal_windowSEXP) {
+Rcpp::List sampleSemisupervisedMVNSeparationStrategy(arma::mat X, arma::uword K, arma::uword B, arma::uvec labels, arma::uvec batch_vec, arma::uvec fixed, double mu_proposal_window, double r_proposal_window, double sigma_proposal_window, double m_proposal_window, double S_proposal_window, arma::uword n_iter, arma::uword thin, arma::vec concentration, double m_scale, double rho, double theta, arma::mat initial_mu, arma::cube initial_cov, arma::mat initial_m, arma::mat initial_S, bool mu_initialised, bool cov_initialised, bool m_initialised, bool S_initialised, bool sample_m_scale, double eta, bool auto_tune, arma::uword n_burn, bool include_interaction, double gamma_proposal_window, double a_gamma, double b_gamma, arma::uword weight_prior_type, arma::vec batch_coordinates, double gp_tau2, double gp_length_scale, arma::uword gp_kernel_type, double eta_proposal_window, bool sample_gp_hyperparameters, double gp_hyperparameter_proposal_window, double pp_tau2_shape, double pp_tau2_rate, double pp_mu_prior_sd, bool sample_s_scale, double a_s, double b_s, double s_scale_proposal_window);
+RcppExport SEXP _batchmix_sampleSemisupervisedMVNSeparationStrategy(SEXP XSEXP, SEXP KSEXP, SEXP BSEXP, SEXP labelsSEXP, SEXP batch_vecSEXP, SEXP fixedSEXP, SEXP mu_proposal_windowSEXP, SEXP r_proposal_windowSEXP, SEXP sigma_proposal_windowSEXP, SEXP m_proposal_windowSEXP, SEXP S_proposal_windowSEXP, SEXP n_iterSEXP, SEXP thinSEXP, SEXP concentrationSEXP, SEXP m_scaleSEXP, SEXP rhoSEXP, SEXP thetaSEXP, SEXP initial_muSEXP, SEXP initial_covSEXP, SEXP initial_mSEXP, SEXP initial_SSEXP, SEXP mu_initialisedSEXP, SEXP cov_initialisedSEXP, SEXP m_initialisedSEXP, SEXP S_initialisedSEXP, SEXP sample_m_scaleSEXP, SEXP etaSEXP, SEXP auto_tuneSEXP, SEXP n_burnSEXP, SEXP include_interactionSEXP, SEXP gamma_proposal_windowSEXP, SEXP a_gammaSEXP, SEXP b_gammaSEXP, SEXP weight_prior_typeSEXP, SEXP batch_coordinatesSEXP, SEXP gp_tau2SEXP, SEXP gp_length_scaleSEXP, SEXP gp_kernel_typeSEXP, SEXP eta_proposal_windowSEXP, SEXP sample_gp_hyperparametersSEXP, SEXP gp_hyperparameter_proposal_windowSEXP, SEXP pp_tau2_shapeSEXP, SEXP pp_tau2_rateSEXP, SEXP pp_mu_prior_sdSEXP, SEXP sample_s_scaleSEXP, SEXP a_sSEXP, SEXP b_sSEXP, SEXP s_scale_proposal_windowSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -567,6 +717,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< arma::vec >::type batch_coordinates(batch_coordinatesSEXP);
     Rcpp::traits::input_parameter< double >::type gp_tau2(gp_tau2SEXP);
     Rcpp::traits::input_parameter< double >::type gp_length_scale(gp_length_scaleSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type gp_kernel_type(gp_kernel_typeSEXP);
     Rcpp::traits::input_parameter< double >::type eta_proposal_window(eta_proposal_windowSEXP);
     Rcpp::traits::input_parameter< bool >::type sample_gp_hyperparameters(sample_gp_hyperparametersSEXP);
     Rcpp::traits::input_parameter< double >::type gp_hyperparameter_proposal_window(gp_hyperparameter_proposal_windowSEXP);
@@ -577,13 +728,13 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< double >::type a_s(a_sSEXP);
     Rcpp::traits::input_parameter< double >::type b_s(b_sSEXP);
     Rcpp::traits::input_parameter< double >::type s_scale_proposal_window(s_scale_proposal_windowSEXP);
-    rcpp_result_gen = Rcpp::wrap(sampleSemisupervisedMVNSeparationStrategy(X, K, B, labels, batch_vec, fixed, mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window, n_iter, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale, eta, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd, sample_s_scale, a_s, b_s, s_scale_proposal_window));
+    rcpp_result_gen = Rcpp::wrap(sampleSemisupervisedMVNSeparationStrategy(X, K, B, labels, batch_vec, fixed, mu_proposal_window, r_proposal_window, sigma_proposal_window, m_proposal_window, S_proposal_window, n_iter, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_m, initial_S, mu_initialised, cov_initialised, m_initialised, S_initialised, sample_m_scale, eta, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, gp_kernel_type, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd, sample_s_scale, a_s, b_s, s_scale_proposal_window));
     return rcpp_result_gen;
 END_RCPP
 }
 // sampleSemisupervisedMVT
-Rcpp::List sampleSemisupervisedMVT(arma::mat X, arma::uword K, arma::uword B, arma::uvec labels, arma::uvec batch_vec, arma::uvec fixed, double mu_proposal_window, double cov_proposal_window, double m_proposal_window, double S_proposal_window, double t_df_proposal_window, arma::uword n_iter, arma::uword thin, arma::vec concentration, double m_scale, double rho, double theta, arma::mat initial_mu, arma::cube initial_cov, arma::vec initial_df, arma::mat initial_m, arma::mat initial_S, bool mu_initialised, bool cov_initialised, bool df_initialised, bool m_initialised, bool S_initialised, bool sample_m_scale, bool auto_tune, arma::uword n_burn, bool include_interaction, double gamma_proposal_window, double a_gamma, double b_gamma, arma::uword weight_prior_type, arma::vec batch_coordinates, double gp_tau2, double gp_length_scale, double eta_proposal_window, bool sample_gp_hyperparameters, double gp_hyperparameter_proposal_window, double pp_tau2_shape, double pp_tau2_rate, double pp_mu_prior_sd, bool sample_s_scale, double a_s, double b_s, double s_scale_proposal_window);
-RcppExport SEXP _batchmix_sampleSemisupervisedMVT(SEXP XSEXP, SEXP KSEXP, SEXP BSEXP, SEXP labelsSEXP, SEXP batch_vecSEXP, SEXP fixedSEXP, SEXP mu_proposal_windowSEXP, SEXP cov_proposal_windowSEXP, SEXP m_proposal_windowSEXP, SEXP S_proposal_windowSEXP, SEXP t_df_proposal_windowSEXP, SEXP n_iterSEXP, SEXP thinSEXP, SEXP concentrationSEXP, SEXP m_scaleSEXP, SEXP rhoSEXP, SEXP thetaSEXP, SEXP initial_muSEXP, SEXP initial_covSEXP, SEXP initial_dfSEXP, SEXP initial_mSEXP, SEXP initial_SSEXP, SEXP mu_initialisedSEXP, SEXP cov_initialisedSEXP, SEXP df_initialisedSEXP, SEXP m_initialisedSEXP, SEXP S_initialisedSEXP, SEXP sample_m_scaleSEXP, SEXP auto_tuneSEXP, SEXP n_burnSEXP, SEXP include_interactionSEXP, SEXP gamma_proposal_windowSEXP, SEXP a_gammaSEXP, SEXP b_gammaSEXP, SEXP weight_prior_typeSEXP, SEXP batch_coordinatesSEXP, SEXP gp_tau2SEXP, SEXP gp_length_scaleSEXP, SEXP eta_proposal_windowSEXP, SEXP sample_gp_hyperparametersSEXP, SEXP gp_hyperparameter_proposal_windowSEXP, SEXP pp_tau2_shapeSEXP, SEXP pp_tau2_rateSEXP, SEXP pp_mu_prior_sdSEXP, SEXP sample_s_scaleSEXP, SEXP a_sSEXP, SEXP b_sSEXP, SEXP s_scale_proposal_windowSEXP) {
+Rcpp::List sampleSemisupervisedMVT(arma::mat X, arma::uword K, arma::uword B, arma::uvec labels, arma::uvec batch_vec, arma::uvec fixed, double mu_proposal_window, double cov_proposal_window, double m_proposal_window, double S_proposal_window, double t_df_proposal_window, arma::uword n_iter, arma::uword thin, arma::vec concentration, double m_scale, double rho, double theta, arma::mat initial_mu, arma::cube initial_cov, arma::vec initial_df, arma::mat initial_m, arma::mat initial_S, bool mu_initialised, bool cov_initialised, bool df_initialised, bool m_initialised, bool S_initialised, bool sample_m_scale, bool auto_tune, arma::uword n_burn, bool include_interaction, double gamma_proposal_window, double a_gamma, double b_gamma, arma::uword weight_prior_type, arma::vec batch_coordinates, double gp_tau2, double gp_length_scale, arma::uword gp_kernel_type, double eta_proposal_window, bool sample_gp_hyperparameters, double gp_hyperparameter_proposal_window, double pp_tau2_shape, double pp_tau2_rate, double pp_mu_prior_sd, bool sample_s_scale, double a_s, double b_s, double s_scale_proposal_window);
+RcppExport SEXP _batchmix_sampleSemisupervisedMVT(SEXP XSEXP, SEXP KSEXP, SEXP BSEXP, SEXP labelsSEXP, SEXP batch_vecSEXP, SEXP fixedSEXP, SEXP mu_proposal_windowSEXP, SEXP cov_proposal_windowSEXP, SEXP m_proposal_windowSEXP, SEXP S_proposal_windowSEXP, SEXP t_df_proposal_windowSEXP, SEXP n_iterSEXP, SEXP thinSEXP, SEXP concentrationSEXP, SEXP m_scaleSEXP, SEXP rhoSEXP, SEXP thetaSEXP, SEXP initial_muSEXP, SEXP initial_covSEXP, SEXP initial_dfSEXP, SEXP initial_mSEXP, SEXP initial_SSEXP, SEXP mu_initialisedSEXP, SEXP cov_initialisedSEXP, SEXP df_initialisedSEXP, SEXP m_initialisedSEXP, SEXP S_initialisedSEXP, SEXP sample_m_scaleSEXP, SEXP auto_tuneSEXP, SEXP n_burnSEXP, SEXP include_interactionSEXP, SEXP gamma_proposal_windowSEXP, SEXP a_gammaSEXP, SEXP b_gammaSEXP, SEXP weight_prior_typeSEXP, SEXP batch_coordinatesSEXP, SEXP gp_tau2SEXP, SEXP gp_length_scaleSEXP, SEXP gp_kernel_typeSEXP, SEXP eta_proposal_windowSEXP, SEXP sample_gp_hyperparametersSEXP, SEXP gp_hyperparameter_proposal_windowSEXP, SEXP pp_tau2_shapeSEXP, SEXP pp_tau2_rateSEXP, SEXP pp_mu_prior_sdSEXP, SEXP sample_s_scaleSEXP, SEXP a_sSEXP, SEXP b_sSEXP, SEXP s_scale_proposal_windowSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -625,6 +776,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< arma::vec >::type batch_coordinates(batch_coordinatesSEXP);
     Rcpp::traits::input_parameter< double >::type gp_tau2(gp_tau2SEXP);
     Rcpp::traits::input_parameter< double >::type gp_length_scale(gp_length_scaleSEXP);
+    Rcpp::traits::input_parameter< arma::uword >::type gp_kernel_type(gp_kernel_typeSEXP);
     Rcpp::traits::input_parameter< double >::type eta_proposal_window(eta_proposal_windowSEXP);
     Rcpp::traits::input_parameter< bool >::type sample_gp_hyperparameters(sample_gp_hyperparametersSEXP);
     Rcpp::traits::input_parameter< double >::type gp_hyperparameter_proposal_window(gp_hyperparameter_proposal_windowSEXP);
@@ -635,7 +787,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< double >::type a_s(a_sSEXP);
     Rcpp::traits::input_parameter< double >::type b_s(b_sSEXP);
     Rcpp::traits::input_parameter< double >::type s_scale_proposal_window(s_scale_proposal_windowSEXP);
-    rcpp_result_gen = Rcpp::wrap(sampleSemisupervisedMVT(X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, n_iter, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_df, initial_m, initial_S, mu_initialised, cov_initialised, df_initialised, m_initialised, S_initialised, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd, sample_s_scale, a_s, b_s, s_scale_proposal_window));
+    rcpp_result_gen = Rcpp::wrap(sampleSemisupervisedMVT(X, K, B, labels, batch_vec, fixed, mu_proposal_window, cov_proposal_window, m_proposal_window, S_proposal_window, t_df_proposal_window, n_iter, thin, concentration, m_scale, rho, theta, initial_mu, initial_cov, initial_df, initial_m, initial_S, mu_initialised, cov_initialised, df_initialised, m_initialised, S_initialised, sample_m_scale, auto_tune, n_burn, include_interaction, gamma_proposal_window, a_gamma, b_gamma, weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, gp_kernel_type, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd, sample_s_scale, a_s, b_s, s_scale_proposal_window));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -647,26 +799,34 @@ static const R_CallMethodDef CallEntries[] = {
     {"_batchmix_sampleLKJCorrelationMatrix", (DL_FUNC) &_batchmix_sampleLKJCorrelationMatrix, 2},
     {"_batchmix_squaredExponentialKernel", (DL_FUNC) &_batchmix_squaredExponentialKernel, 4},
     {"_batchmix_maternKernel32", (DL_FUNC) &_batchmix_maternKernel32, 4},
+    {"_batchmix_gpKernelMatrix", (DL_FUNC) &_batchmix_gpKernelMatrix, 7},
     {"_batchmix_multinomialLogitLogLik", (DL_FUNC) &_batchmix_multinomialLogitLogLik, 4},
     {"_batchmix_multinomialLogitGPLogKernel", (DL_FUNC) &_batchmix_multinomialLogitGPLogKernel, 6},
     {"_batchmix_buildCorrelationCholeskyFromZ", (DL_FUNC) &_batchmix_buildCorrelationCholeskyFromZ, 2},
     {"_batchmix_choleskyToPartialCorrelations", (DL_FUNC) &_batchmix_choleskyToPartialCorrelations, 2},
     {"_batchmix_logJacobianZToR", (DL_FUNC) &_batchmix_logJacobianZToR, 2},
     {"_batchmix_robbinsMonroUpdate", (DL_FUNC) &_batchmix_robbinsMonroUpdate, 6},
+    {"_batchmix_robbinsMonroUpdateReciprocal", (DL_FUNC) &_batchmix_robbinsMonroUpdateReciprocal, 6},
+    {"_batchmix_interactionLogLikDelta", (DL_FUNC) &_batchmix_interactionLogLikDelta, 7},
+    {"_batchmix_batchCorrectedPosteriorMean", (DL_FUNC) &_batchmix_batchCorrectedPosteriorMean, 8},
+    {"_batchmix_minVIGreedyRefine", (DL_FUNC) &_batchmix_minVIGreedyRefine, 3},
     {"_batchmix_diagRSigmaOnlyChain2", (DL_FUNC) &_batchmix_diagRSigmaOnlyChain2, 5},
     {"_batchmix_gammaLogLikelihood", (DL_FUNC) &_batchmix_gammaLogLikelihood, 3},
     {"_batchmix_invGammaLogLikelihood", (DL_FUNC) &_batchmix_invGammaLogLikelihood, 3},
     {"_batchmix_wishartLogLikelihood", (DL_FUNC) &_batchmix_wishartLogLikelihood, 4},
     {"_batchmix_invWishartLogLikelihood", (DL_FUNC) &_batchmix_invWishartLogLikelihood, 4},
     {"_batchmix_lkjLogLikelihood", (DL_FUNC) &_batchmix_lkjLogLikelihood, 2},
-    {"_batchmix_predictNewBatchMVN", (DL_FUNC) &_batchmix_predictNewBatchMVN, 37},
-    {"_batchmix_predictNewBatchMVNMixed", (DL_FUNC) &_batchmix_predictNewBatchMVNMixed, 40},
-    {"_batchmix_predictNewBatchMVNSeparationStrategy", (DL_FUNC) &_batchmix_predictNewBatchMVNSeparationStrategy, 37},
-    {"_batchmix_predictNewBatchMVT", (DL_FUNC) &_batchmix_predictNewBatchMVT, 39},
-    {"_batchmix_sampleSemisupervisedMVN", (DL_FUNC) &_batchmix_sampleSemisupervisedMVN, 45},
-    {"_batchmix_sampleSemisupervisedMVNMixed", (DL_FUNC) &_batchmix_sampleSemisupervisedMVNMixed, 41},
-    {"_batchmix_sampleSemisupervisedMVNSeparationStrategy", (DL_FUNC) &_batchmix_sampleSemisupervisedMVNSeparationStrategy, 47},
-    {"_batchmix_sampleSemisupervisedMVT", (DL_FUNC) &_batchmix_sampleSemisupervisedMVT, 48},
+    {"_batchmix_predictNewBatchMVN", (DL_FUNC) &_batchmix_predictNewBatchMVN, 39},
+    {"_batchmix_predictNewBatchMVNMixed", (DL_FUNC) &_batchmix_predictNewBatchMVNMixed, 42},
+    {"_batchmix_predictNewBatchMVNSeparationStrategy", (DL_FUNC) &_batchmix_predictNewBatchMVNSeparationStrategy, 39},
+    {"_batchmix_predictNewBatchMVT", (DL_FUNC) &_batchmix_predictNewBatchMVT, 41},
+    {"_batchmix_priorOnlyLKJChain", (DL_FUNC) &_batchmix_priorOnlyLKJChain, 12},
+    {"_batchmix_partialPoolingWeightChain", (DL_FUNC) &_batchmix_partialPoolingWeightChain, 8},
+    {"_batchmix_gpWeightChain", (DL_FUNC) &_batchmix_gpWeightChain, 9},
+    {"_batchmix_sampleSemisupervisedMVN", (DL_FUNC) &_batchmix_sampleSemisupervisedMVN, 46},
+    {"_batchmix_sampleSemisupervisedMVNMixed", (DL_FUNC) &_batchmix_sampleSemisupervisedMVNMixed, 42},
+    {"_batchmix_sampleSemisupervisedMVNSeparationStrategy", (DL_FUNC) &_batchmix_sampleSemisupervisedMVNSeparationStrategy, 48},
+    {"_batchmix_sampleSemisupervisedMVT", (DL_FUNC) &_batchmix_sampleSemisupervisedMVT, 49},
     {"run_testthat_tests", (DL_FUNC) &run_testthat_tests, 1},
     {NULL, NULL, 0}
 };

@@ -89,8 +89,26 @@
 #' @param m_scale The scale hyperparameter for the batch shift prior
 #' distribution. This defines the scale of the batch effect upon the mean and
 #' should be in (0, 1]. If `NULL`, this quantity is sampled rather then fixed.
-#' @param rho The shape of the prior distribution for the batch scale.
-#' @param theta The scale of the prior distribution for the batch scale.
+#' @param rho,theta Shape and scale of the InvGamma prior on each batch's
+#' excess scale, \eqn{S_{b,p} - 1 \sim \mathrm{InvGamma}(\rho, \theta)}
+#' (\eqn{S_{b,p} \ge 1} is the factor by which batch \eqn{b} inflates
+#' feature \eqn{p}'s variance). When \code{sample_s_scale = TRUE} (the
+#' default) \code{rho} is only the \emph{starting value} and, together with
+#' \code{theta}, fixes the prior \emph{mean} of the excess scale,
+#' \eqn{\theta / (\rho - 1)}, which is then held fixed while \eqn{\rho}
+#' itself is estimated; when \code{FALSE} both are fixed as given.
+#' @param sample_s_scale Logical, default \code{TRUE}: partially pool the batch
+#' scales by estimating the concentration \eqn{\rho} of their common prior
+#' (batches are exchangeable draws from an InvGamma whose tightness is learnt
+#' from the data, so batches with little data are shrunk towards the others)
+#' rather than fixing it. Only the concentration is identifiable, not the
+#' mean: rescaling every \eqn{S_b} is compensated by rescaling the cluster
+#' covariances, so the prior mean \eqn{\theta/(\rho - 1)} stays at its value
+#' from the initial \code{rho}/\code{theta}. Requires \code{rho > 2}. Set to
+#' \code{FALSE} for the previous behaviour (fixed \code{rho}, \code{theta}).
+#' @param s_scale_shape,s_scale_rate Shape and rate of the Gamma prior on
+#' \eqn{\rho - 2} when \code{sample_s_scale = TRUE} (default 2 and 1, a prior
+#' mean of \eqn{\rho = 4}); ignored otherwise.
 #' @param eta The LKJ concentration parameter for the cluster correlation
 #' prior; only used if \code{type} is 'MVN_LKJ' or 'MVN_MIXED'. eta = 1 is
 #' uniform over the space of correlation matrices, eta > 1 shrinks
@@ -115,21 +133,43 @@
 #' prior, shrinking towards the purely-additive model when the data don't
 #' support an interaction). Defaults to \code{FALSE} (the original,
 #' purely-additive mean).
-#' @param batch_weight_prior One of \code{"global"} (the default),
-#' \code{"partial_pooling"} or \code{"gp"}, controlling whether/how mixture
-#' weights vary by batch:
+#' @param batch_weight_prior One of \code{"partial_pooling"},
+#' \code{"global"} or \code{"gp"}, controlling whether/how mixture weights
+#' vary by batch. The default, \code{NULL}, means \code{"partial_pooling"}
+#' when there is more than one batch and \code{"global"} for a single batch
+#' (where a between-batch variance cannot be estimated):
 #' \itemize{
+#'   \item \code{"partial_pooling"} (the default): each batch gets its own
+#'   weight vector \eqn{w_b = \mathrm{softmax}(\eta_b)} on K exchangeable
+#'   logits, \eqn{\eta_{bk} \sim N(\mu_k, \tau_k^2)} independently over
+#'   batches and classes, around a shared, estimated population mean
+#'   \eqn{\mu} (restricted to sum to zero) and class variances
+#'   \eqn{\tau_k^2} - no assumed order, distance or covariance structure
+#'   between batches, and no reference class, so the prior is the same for
+#'   every cluster. (An earlier version fixed the last cluster's logit at 0,
+#'   which made that cluster a priori far less likely to dominate than any
+#'   other; that asymmetry is gone.) The population variance is learnt: it
+#'   pulls batches with little data towards the common composition and lets
+#'   well-observed batches differ. Under this prior the Dirichlet
+#'   concentration \code{alpha}/\code{concentration} is \strong{not used}.
+#'   Surplus components (\code{K_max} above the number of clusters) are
+#'   nevertheless still largely emptied, because the default
+#'   \code{pp_mu_prior_sd = 10} makes the logits very diffuse (a pairwise
+#'   logit difference has standard deviation about 14, that of a
+#'   Dirichlet with concentration about 0.1). In a simulation with 3 true
+#'   clusters and \code{K_max = 8}, about 3.8 components stayed occupied
+#'   (4.1 under the earlier global Dirichlet(1/\code{K_max}) default, 7.3
+#'   under Dirichlet(1)); sharpening \code{pp_mu_prior_sd} to 2.5 gave 4.8 and
+#'   to 1 gave 7.9. This is an empirical finding, not the Rousseau-Mengersen
+#'   guarantee (which is for a Dirichlet prior), it is from one setting, and
+#'   it depends on \code{K_max}: the equivalent Dirichlet concentration
+#'   scales with neither \code{K_max} nor the data.
 #'   \item \code{"global"}: a single mixture weight vector shared by every
-#'   batch - the original behaviour.
-#'   \item \code{"partial_pooling"}: each batch gets its own weight vector,
-#'   with the K-1 additive-log-ratio (ALR) coordinates of each batch's
-#'   weights drawn exchangeably around a shared, estimated population mean
-#'   and variance - no assumed order, distance or covariance structure
-#'   between batches at all (the covariance is simply unknown/unstructured).
-#'   Use this when batches' proportions are expected to vary but there is no
-#'   known notion of which batches should be more similar to which.
+#'   batch, with the symmetric Dirichlet(\code{alpha}) prior - the behaviour
+#'   before partial pooling became the default. Appropriate when batches are
+#'   known to contain the same mixture proportions.
 #'   \item \code{"gp"}: each batch gets its own weight vector as above, but
-#'   the ALR coordinates are instead linked across batches by a Gaussian
+#'   each class's logits are instead linked across batches by a Gaussian
 #'   process prior over \code{batch_coordinates} - for batches collected
 #'   over a genuine, known ordering in time or space, where nearby batches
 #'   are expected to be more similar than distant ones. Requires more
@@ -142,22 +182,46 @@
 #' unique values of \code{batch_vec}. Defaults to \code{NULL}, i.e. batch
 #' order 0, 1, ..., B - 1. Only used if \code{batch_weight_prior} is
 #' \code{"gp"}.
-#' @param gp_tau2,gp_length_scale Marginal variance and length scale of the
-#' squared-exponential Gaussian process kernel over \code{batch_coordinates};
-#' only used if \code{batch_weight_prior} is \code{"gp"}.
+#' @param gp_tau2,gp_length_scale Parameters of the Gaussian process kernel
+#' over \code{batch_coordinates}; only used if \code{batch_weight_prior} is
+#' \code{"gp"}. \code{gp_tau2} is the marginal variance (\code{"matern32"})
+#' or the innovation variance per unit of the rescaled [0, 1] coordinate
+#' (\code{"rw1"}, \code{"rw2"}); \code{gp_length_scale} is used only by
+#' \code{"matern32"}. \code{gp_tau2 = NULL} (the default) starts it at the
+#' mode of the kernel's own default prior (1, 20/3 and 500 for
+#' \code{"matern32"}, \code{"rw1"} and \code{"rw2"}). The two random-walk
+#' priors are inverse-gamma with shape 2 and mean 20 and 1500: on the unit
+#' time span they allow a change of about two logits over a fifth of it.
+#' @param gp_kernel The Gaussian process kernel when \code{batch_weight_prior}
+#' is \code{"gp"}. \code{"rw1"} (the default) is a Wiener process (a random
+#' walk) with a diffuse level; \code{"rw2"} is an integrated Wiener process (a
+#' second-order random walk, i.e. a cubic smoothing spline) with a diffuse
+#' level and slope: smoother, but it extrapolates a linear trend and follows
+#' abrupt changes (epidemic waves, vaccination steps) less well;
+#' \code{"matern32"} is the stationary Matern-3/2 kernel.
+#' The first two are non-stationary: the prior variance grows with the
+#' coordinate, there is no mean the weights revert to, and forecasts widen
+#' with distance from the data, which is appropriate for epidemic-type
+#' weights (e.g. seroprevalence) that need not return to any long-run level.
+#' Coordinates are rescaled to [0, 1] internally; a new batch in
+#' \code{predictNewBatch()} may not precede the earliest batch.
 #' @param sample_gp_hyperparameters Logical; if \code{TRUE}, \code{gp_tau2}
 #' and \code{gp_length_scale} are themselves updated by Metropolis-Hastings
 #' rather than held fixed at the values passed in; only used if
 #' \code{batch_weight_prior} is \code{"gp"}.
 #' @param pp_tau2_shape,pp_tau2_rate Shape/rate of the InvGamma hyperprior
-#' on each ALR coordinate's population variance (how much pooling there is
+#' on each class's population variance (how much pooling there is
 #' across batches: small values of the resulting tau2 pull batches strongly
 #' towards their shared mean, large values let them vary close to
 #' independently); only used if \code{batch_weight_prior} is
 #' \code{"partial_pooling"}.
-#' @param pp_mu_prior_sd Prior standard deviation for each ALR coordinate's
-#' population mean (the shared value batches are pooled towards); only used
-#' if \code{batch_weight_prior} is \code{"partial_pooling"}.
+#' @param pp_mu_prior_sd Prior standard deviation of each class's population
+#' logit before the sum-to-zero constraint (the shared value batches are
+#' pooled towards); pairwise logit differences then have standard deviation
+#' about \code{1.4 * pp_mu_prior_sd}. It also governs how strongly surplus
+#' components are emptied (see \code{batch_weight_prior}). Only used if
+#' \code{batch_weight_prior} is \code{"partial_pooling"} (or \code{"gp"}, for
+#' the intercepts).
 #' @param column_type Only used if \code{type} is 'MVN_MIXED': a P-vector, 0
 #' for a continuous column, 1 for a binary column observed via a probit
 #' link. Defaults to all-continuous.
@@ -268,6 +332,9 @@ runBatchMix <- function(X,
                         m_scale = NULL,
                         rho = 3.0,
                         theta = 1.0,
+                        sample_s_scale = TRUE,
+                        s_scale_shape = 2.0,
+                        s_scale_rate = 1.0,
                         eta = 1.0,
                         a_gamma = 2.0,
                         b_gamma = 1.0,
@@ -279,10 +346,11 @@ runBatchMix <- function(X,
                         initial_class_df = NULL,
                         # -- optional structural extensions --
                         include_interaction = FALSE,
-                        batch_weight_prior = c("global", "partial_pooling", "gp"),
+                        batch_weight_prior = NULL,
                         batch_coordinates = NULL,
-                        gp_tau2 = 1.0,
+                        gp_tau2 = NULL,
                         gp_length_scale = 1.0,
+                        gp_kernel = "rw1",
                         sample_gp_hyperparameters = FALSE,
                         pp_tau2_shape = 2.0,
                         pp_tau2_rate = 1.0,
@@ -360,6 +428,9 @@ runBatchMix <- function(X,
     m_scale = m_scale,
     rho = rho,
     theta = theta,
+    sample_s_scale = sample_s_scale,
+    s_scale_shape = s_scale_shape,
+    s_scale_rate = s_scale_rate,
     initial_class_means = initial_class_means,
     initial_class_covariance = initial_class_covariance,
     initial_batch_shift = initial_batch_shift,
@@ -376,6 +447,7 @@ runBatchMix <- function(X,
     batch_coordinates = batch_coordinates,
     gp_tau2 = gp_tau2,
     gp_length_scale = gp_length_scale,
+    gp_kernel = gp_kernel,
     sample_gp_hyperparameters = sample_gp_hyperparameters,
     pp_tau2_shape = pp_tau2_shape,
     pp_tau2_rate = pp_tau2_rate,

@@ -26,8 +26,9 @@ test_that("fixed (semi-supervised) items' observed_likelihood matches complete_l
   labels <- c(rep(0, N / 2), rep(1, N / 2))
   batch_vec <- sample(0:(B - 1), N, replace = TRUE)
 
+  # Global weights: one vector shared by every batch.
   out <- runBatchMix(X, 200, 10, batch_vec, "MVN",
-    initial_labels = labels, fixed = rep(1, N)
+    initial_labels = labels, fixed = rep(1, N), batch_weight_prior = "global"
   )
 
   n_saved <- length(out$observed_likelihood)
@@ -41,6 +42,19 @@ test_that("fixed (semi-supervised) items' observed_likelihood matches complete_l
   actual_gap <- out$observed_likelihood[, 1] - out$complete_likelihood[, 1]
 
   expect_equal(actual_gap, expected_log_w_sum, tolerance = 1e-6)
+
+  # Partial pooling (the default): each item is weighted by ITS batch's
+  # weight vector, so the identity uses w_batch, not the N-weighted average
+  # saved as `weights`.
+  out_pp <- runBatchMix(X, 200, 10, batch_vec, "MVN",
+    initial_labels = labels, fixed = rep(1, N)
+  )
+  expect_identical(out_pp$batch_weight_prior, "partial_pooling")
+  expected_pp <- vapply(seq_len(length(out_pp$observed_likelihood)), function(t) {
+    sum(log(out_pp$w_batch[cbind(batch_vec + 1, labels + 1, t)]))
+  }, numeric(1))
+  gap_pp <- out_pp$observed_likelihood[, 1] - out_pp$complete_likelihood[, 1]
+  expect_equal(gap_pp, expected_pp, tolerance = 1e-6)
 })
 
 test_that("minVI() does not crash when max.k is passed explicitly (regression for the undefined k_inds bug)", {
@@ -242,7 +256,15 @@ test_that("relabelChain()/processMCMCChain() work on a real MVN fit's raw (0-ind
   X <- matrix(c(rnorm(100, 0, 1), rnorm(100, 3, 1)), ncol = 2, byrow = TRUE)
   batch_vec <- sample(seq(1, 3), replace = TRUE, size = 100)
 
-  mcmc_out <- runBatchMix(X, 1000, 50, batch_vec, "MVN", verbose = FALSE)
+  # A few items are fixed to label 0 so that label 0 is guaranteed to occur:
+  # an unsupervised fit no longer occupies any particular label by chance,
+  # since the weight prior is exchangeable over clusters.
+  init_labels <- sample(0:2, 100, replace = TRUE)
+  init_labels[1:5] <- 0L
+  fixed_0 <- c(rep(1L, 5), rep(0L, 95))
+  mcmc_out <- runBatchMix(X, 1000, 50, batch_vec, "MVN", K_max = 3,
+    initial_labels = init_labels, fixed = fixed_0, verbose = FALSE
+  )
   expect_equal(min(mcmc_out$samples), 0) # sanity: genuinely 0-indexed
   expect_lt(max(mcmc_out$samples), mcmc_out$K_max)
 
@@ -285,4 +307,56 @@ test_that("processMCMCChain() computes allocation_probability/prob/pred for a fu
   tab <- table(proc$pred, labels)
   accuracy <- max(sum(diag(tab)), sum(tab) - sum(diag(tab))) / sum(tab)
   expect_gt(accuracy, 0.85)
+})
+
+test_that("minVI(method = 'greedy') recovers a planted partition and never worsens its starting point", {
+  set.seed(5)
+  truth <- rep(1:3, times = c(12, 10, 8))
+  n <- length(truth)
+  # Noisy sampled partitions: each draw relabels the truth and moves ~10% of items.
+  draws <- t(vapply(seq_len(200), function(i) {
+    cl <- sample(3)[truth]
+    flip <- sample(n, 3)
+    cl[flip] <- sample(3, 3, replace = TRUE)
+    cl
+  }, numeric(n)))
+  psm <- createSimilarityMat(draws)
+
+  start <- as.vector(minVI(psm, draws, method = "avg", max.k = 6))
+  est <- minVI(psm, draws, method = "greedy", max.k = 6)
+
+  expect_lte(VI.lb(est, psm), VI.lb(start, psm) + 1e-10)
+  expect_equal(attr(est, "info")$expectedLoss, VI.lb(est, psm), tolerance = 1e-8)
+  # Same partition as the truth, up to labelling.
+  expect_equal(length(unique(paste(est, truth))), 3)
+  expect_equal(length(unique(est)), 3)
+})
+
+test_that("greedy refinement repairs a partition with misallocated items", {
+  set.seed(6)
+  truth <- rep(1:2, each = 15)
+  draws <- matrix(rep(truth, 50), nrow = 50, byrow = TRUE)
+  psm <- createSimilarityMat(draws)
+
+  # Single-item moves cannot split one big cluster (each lone move worsens
+  # the bound), which is why minVI() starts them from hclust candidates; a
+  # start that is right up to a few misallocated items is what it must repair.
+  bad_start <- truth
+  bad_start[c(1, 2, 20, 21, 22)] <- 3 - bad_start[c(1, 2, 20, 21, 22)]
+  refined <- minVIGreedyRefine(psm, bad_start)
+  expect_lt(refined$value, VI.lb(bad_start, psm))
+  expect_equal(length(unique(paste(refined$labels, truth))), 2)
+  expect_equal(refined$value, VI.lb(truth, psm), tolerance = 1e-10)
+})
+
+test_that("predictFromMultipleChains() no longer needs salso for unsupervised point estimates", {
+  d <- make_characterization_data(N = 30, K = 2)
+  set.seed(9)
+  chains <- fitBatchMix(
+    d$X, n_chains = 2, n_iter = 40, thin = 5, batch_vec = d$batch_vec, type = "MVN",
+    K_max = 2, verbose = FALSE
+  )
+  pred <- suppressWarnings(predictFromMultipleChains(chains, burn = 20))
+  expect_length(pred$pred, d$N)
+  expect_false("salso" %in% loadedNamespaces())
 })

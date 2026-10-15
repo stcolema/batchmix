@@ -57,8 +57,15 @@ latent Gaussian vector (Dunson, 2000, *JRSS-B*; Dunson & Herring, 2005,
 
 $$
 z_i \mid c_i = k,\ b_i = b \ \sim\ \mathcal{N}\!\left(\mu_k + m_b,\ \Sigma_k^{(b)}\right),
-\qquad \Sigma_k^{(b)} = \Delta_b \left(\Delta_k R_k \Delta_k\right) \Delta_b,
+\qquad \Sigma_k^{(b)} = S_b \bullet \left(\Delta_k R_k \Delta_k\right),
 $$
+
+where $\bullet$ inflates only the *diagonal* of the cluster covariance by
+the batch's per-feature scale $S_{b,p} \ge 1$ and leaves the off-diagonal
+covariances unchanged (see the "covariance models" vignette); this is
+$\Sigma_k + \mathrm{diag}\big((S_b - 1)\,\mathrm{diag}(\Sigma_k)\big)$, the
+cluster covariance plus independent per-feature batch noise, not the
+congruence transform $\Delta_b \Sigma_k \Delta_b$.
 
 and each column $p$ has its own observation model applied to $z_{i,p}$:
 
@@ -149,7 +156,7 @@ ggplot(viz_df, aes(X1, X2, colour = binary4)) +
 ```{r fitA}
 fit_a <- fitBatchMix(
   X, n_chains = 4, n_iter = 8000, thin = 20, batch_vec0, "MVN_MIXED",
-  K_max = 1, fixed = NULL, m_scale = 0.01, initial_labels = rep(0L, N),
+  K_max = 1, fixed = NULL, m_scale = 0.01, sample_s_scale = FALSE, initial_labels = rep(0L, N),
   column_type = column_type, censor_code = censor_code,
   control = batchmixControl(
     mu_proposal_window = 0.3, r_proposal_window = 0.03, sigma_proposal_window = 40,
@@ -163,7 +170,13 @@ fit_a
 estimated) because with a single batch there is no batch replication to
 inform it - a small fixed value keeps the batch shift near zero so the
 cluster mean, not an arbitrary mean/shift split, carries the location
-signal. `getBestChain()` (by post burn-in mean BIC) is used to select
+signal. For the same reason `sample_s_scale = FALSE` fixes the batch-scale
+prior rather than estimating its concentration: partial pooling of the
+batch scales learns how alike batches are, and one batch has nothing to be
+alike. (The batch weights need no such switch: with a single batch,
+`batch_weight_prior` resolves to `"global"` on its own, and with `K_max = 1`
+there is only one weight anyway.) `getBestChain()` (by post burn-in mean BIC, a trace-level ranking of
+chains rather than a model-selection value - see `?calcBICM`) is used to select
 among the four chains below, not only as routine practice: with this
 proposal window some chains do settle on a poorer fit than others, which
 the BIC comparison correctly identifies.
@@ -282,7 +295,7 @@ column_type_b <- c(0L, 0L)
 ```{r fitB}
 fit_b <- fitBatchMix(
   Xb, n_chains = 4, n_iter = 8000, thin = 10, batch_vec0, "MVN_MIXED",
-  K_max = 1, fixed = NULL, m_scale = 0.01, initial_labels = rep(0L, N),
+  K_max = 1, fixed = NULL, m_scale = 0.01, sample_s_scale = FALSE, initial_labels = rep(0L, N),
   column_type = column_type_b, censor_code = censor_code_b,
   control = batchmixControl(
     mu_proposal_window = 0.2, r_proposal_window = 0.1, sigma_proposal_window = 40,

@@ -1,5 +1,75 @@
 # batchmix 3.0.0
 
+## Breaking changes to defaults and results (read first)
+
+* **Partial pooling is now the default.** `batch_weight_prior` defaults to
+  `"partial_pooling"` (was `"global"`; a single batch still resolves to
+  `"global"`), and `sample_s_scale` defaults to `TRUE` (was `FALSE`), so the
+  concentration of the batch-scale prior is estimated instead of fixed.
+  `sample_s_scale`, `s_scale_shape` and `s_scale_rate` are now also exposed
+  on `runBatchMix()` and `fitBatchMix()` (previously only on
+  `batchSemiSupervisedMixtureModel()`). Restore the earlier model with
+  `batch_weight_prior = "global", sample_s_scale = FALSE`. Consequences: (i)
+  `alpha`/`concentration` are unused under partial pooling, but surplus
+  components are still largely emptied because the partial-pooling weight
+  prior is diffuse (`pp_mu_prior_sd = 10` on the logit scale: pairwise logit
+  differences have standard deviation about 14, that of a Dirichlet with
+  concentration about 0.1): with 3 true clusters and `K_max = 8`, about 3.8
+  components stayed occupied, against 4.1 under the old global
+  Dirichlet(1/`K_max`) default and 7.3 under Dirichlet(1). Sharpening
+  `pp_mu_prior_sd` to 2.5 gave 4.8 and to 1 gave 7.9 (see
+  `inst/experiments/overfitted_weight_priors.R`). This is empirical, not a
+  theorem, and from one setting. (ii) The same diffuseness makes weights
+  close to degenerate a priori, determined by the data. (iii) **The weight
+  prior is now exchangeable over clusters.** Batch weights are the softmax of
+  `K` logits with the same prior for every class (population mean
+  constrained to sum to zero, class variances `tau2_k`), instead of `K - 1`
+  log-ratios against the last class as reference; the reference
+  parameterisation made the last cluster the dominant one with prior
+  probability 0.008 (against 0.14 for each other cluster at `K_max = 8`). The
+  common per-batch shift that softmax cannot see is updated by its own exact
+  Gibbs step. This applies to `"gp"` too (`K` independent GPs with sum-to-zero
+  intercepts). Outputs change shape and name accordingly: `eta_alr` is now
+  `eta_logit` (`B x K x iterations`), and `pp_mu`, `pp_tau2` and `gp_beta` have
+  `K` rows. Every fit's fixed-seed output changes.
+* **The GP batch-weight prior is no longer stationary.** `batch_weight_prior =
+  "gp"` now defaults to `gp_kernel = "rw1"`, a Wiener process (random walk) with a
+  diffuse level; `"rw2"` (integrated Wiener process, a second-order random
+  walk with a diffuse level and slope) and `"matern32"` (the previous
+  stationary Matern-3/2 kernel) are available. `"rw1"` is the default
+  because on a simulated seroprevalence-like series with two abrupt jumps
+  (`vignette("batch_weight_priors")`) it had the lowest or equal-lowest error
+  in three MCMC runs (mean absolute error in the batch proportion 0.12-0.14,
+  against 0.14-0.18 for `"rw2"`, 0.15-0.16 for `"matern32"` and 0.16-0.18
+  for partial pooling); one dataset, small differences, and a smooth truth
+  could reverse the order of `"rw1"` and `"rw2"`. A stationary prior pulls every batch towards a fixed long-run
+  mean with constant variance and reverts forecasts to it, which is wrong
+  for epidemic-type weights such as seroprevalence over several waves. The
+  non-stationary kernels have no length scale (`gp_length_scale` is ignored,
+  and with `sample_gp_hyperparameters = TRUE` only `gp_tau2` is estimated),
+  carry the level inside the covariance (so `gp_beta` stays 0), rescale
+  `batch_coordinates` to [0, 1] (the origin and scale are stored in the fit),
+  and `predictNewBatch()` rejects a new batch earlier than the earliest fitted
+  batch. The block update now proposes prior-shaped increments (`L z`, with
+  `L` the Cholesky factor of the kernel) instead of isotropic ones, which the
+  smooth kernels need: with isotropic steps the integrated Wiener prior was
+  accepted about 4% of the time and a prior-only chain was visibly
+  under-dispersed. The `gp_tau2` prior is inverse-gamma with shape 2 and a
+  kernel-specific scale (mean 4, 20 and 1500 for `"matern32"`, `"rw1"` and
+  `"rw2"`), and `gp_tau2 = NULL` is now the default (start at that prior's
+  mode). The scale matters: with the stationary prior's mean of 4 an
+  integrated Wiener process could barely bend, and on a simulated
+  seroprevalence-like series with two jumps it returned an almost flat curve. Fits from earlier versions continue as `"matern32"`.
+  New `gpKernelMatrix()` exposes the kernels. This is not a spatial model:
+  `batch_coordinates` is still one-dimensional.
+* `simulatePriorPredictive()` follows the default model: batch-specific
+  weights under partial pooling (`w_batch` in `params`), `rho` drawn from its
+  hyperprior when `sample_s_scale = TRUE`, and `m_scale = NULL` (the default)
+  draws the batch-shift scale from its InvGamma(3, 1) hyperprior instead of
+  fixing it at 0.01, matching the fitting functions.
+* The startup message now lists these changes and points to the vignettes,
+  which were updated throughout (see the items below).
+
 ## Breaking (soft - old code still works, with a deprecation warning)
 
 * **`fitBatchMix()` is now the package's main entry point**, replacing
@@ -277,6 +347,84 @@
   Gamma(5, 2) target: the bug recovered a posterior mean of ~1.4 instead of
   the true 2.5). `mvtSampler::clusterDFMetropolis()` already had the
   correct orientation and was used as the reference to fix the rest.
+* Fixed auto-tuning moving the cluster-covariance (Wishart df), batch-scale,
+  marginal-scale (`sigma`) and t degrees-of-freedom proposal windows in the
+  wrong direction. The R layer hands C++ the reciprocal of these windows
+  (larger = tighter proposal), but the Robbins-Monro update treated them as
+  step sizes, so high acceptance widened the acceptance-driving window
+  instead of loosening the proposal. They now use
+  `robbinsMonroUpdateReciprocal()`; the covariance df is also floored at
+  `P`, below which the Wishart proposal is invalid. Acceptance rates feeding
+  adaptation are now averaged over occupied clusters only.
+* Fixed `MVN_LKJ`/`MVN_MIXED` marginal-scale (`sigma`) prior: the Gamma
+  random walk on `sigma` was scored against the log-normal density without
+  its `1 / sigma` Jacobian, so the chain targeted `LogNormal(beta + xi^2,
+  xi)` (median ~2.3 at the defaults) instead of `LogNormal(beta, xi)`
+  (median ~0.85).
+* Fixed `r_log_det` being left at zero until the first accepted correlation
+  proposal, so the first `rMHStep()` decisions scored the LKJ prior term
+  `(eta - 1) * log det(R)` incorrectly for every `eta != 1`.
+* Fixed empty-cluster forced prior draws being counted as Metropolis
+  acceptances (`cov`/`mu`/`r`/`sigma`/`t_df` counters), which inflated both
+  the reported `*_acceptance_rate` values and the adaptation signal. Also
+  fixed the `MVN_LKJ`/`MVN_MIXED` empty-cluster draw order: `mu` is now drawn
+  after `R`/`sigma` so that `(mu, Sigma)` follows the joint prior.
+* **Changed what `batch_corrected_data`/`inferred_dataset` are.** They were
+  `(x - mu_k - m_b) / sqrt(S_b) + mu_k`, which is not the inverse of the
+  fitted batch model: the model inflates only the diagonal of the cluster
+  covariance (`Sigma_kb = Sigma_k + diag((S_b - 1) * diag(Sigma_k))`), so
+  dividing the residual by `sqrt(S_b)` on both sides restored the marginal
+  variances but shrank between-feature correlations by `1 / sqrt(S_p S_q)`.
+  They are now the posterior mean of each item's batch-free signal,
+  `mu_k + Sigma_k Sigma_kb^-1 (x - mu_k - m_b)` (with the interaction term
+  subtracted along with `m_b` when in use; exact for MVN, and for MVT
+  because the latent scale cancels), computed by the new internal
+  `batchCorrectedPosteriorMean()`. This is a denoising estimate: within-
+  cluster deviations are shrunk towards `mu_k`, so the corrected data are
+  less variable than the true batch-free data. Also corrected the
+  `probit_missing_censored` vignette, which stated the congruence form
+  `Delta_b Sigma Delta_b` rather than the diagonal inflation the code uses.
+* **`salso` is no longer a dependency.** It needed a Rust toolchain to build
+  from source, which is a barrier on clusters and managed laptops without
+  admin rights. `predictFromMultipleChains()` now uses `minVI(method =
+  "greedy")` on the posterior similarity matrix: the best of the
+  `avg`/`comp`/`draws` candidates refined by greedy single-item relocation
+  under the same Jensen lower bound to the expected Variation of Information
+  (new `minVIGreedyRefine()`, in C++). On simulated planted-partition
+  problems it matched `salso`'s exact expected VI. The trade-off: `minVI()`
+  works from the `N x N` similarity matrix (`8 N^2` bytes), so it is not
+  suitable for tens of thousands of items, where `salso`'s PSM-free search
+  would be. `nCores` is now ignored. The covariance-models vignette now uses
+  `minVI()` (VI loss) in place of `salso(loss = "binder")`. Also fixed
+  `VI.lb()` rejecting a clustering that carries attributes (as `minVI()`'s
+  output does).
+* **New `calcBICM()`, and BICM reported by `summary()` and
+  `assessConvergence()` (`chain_bicm`).** The stored per-iteration `BIC`
+  plugs the log-likelihood at a single posterior draw into the BIC formula;
+  a draw sits below the maximum-likelihood fit, so this over-penalises
+  complexity and is noisy. BICM (Raftery et al., 2007) uses the best
+  post-burn-in draw instead. The per-iteration `BIC` is kept as a trace, and
+  chain selection is unchanged. BICM shares the missing-data caveat
+  documented at `?calcBICM`: the working (imputed/latent) likelihood is not
+  the observed-data likelihood.
+* Efficiency: the cluster-mean random walk is now shaped by each cluster's
+  covariance (`mu' = mu + w chol(Sigma_k) z`; `mu_proposal_window` is now in
+  units of the cluster's spread); the partial-pooling batch-weight update
+  proposes each batch's entry separately rather than as one B-dimensional
+  block (`eta_acceptance_rate` is now a per-move rate); and the interaction
+  update scores the change in log-likelihood incrementally instead of
+  re-evaluating every item's full quadratic form twice per feature. The
+  GP-correlated weight update keeps its block proposal, since its prior
+  correlates the batches. Each change is checked against the exact target
+  distribution in `test-mcmc-kernel-fixes.R`.
+* Robustness: a label draw can no longer index out of range when the
+  cumulative allocation probabilities round below 1; `sample_s_scale = TRUE`
+  with `rho <= 2` now errors instead of silently leaving `rho` frozen at its
+  initial value; dead empirical-Bayes code and the constructors' console
+  output were removed.
+* Numeric output changes for a fixed seed: every golden fixture whose run has
+  an empty cluster or uses `MVN_LKJ`/`MVN_MIXED` is regenerated (see
+  `tests/testthat/test-mcmc-kernel-fixes.R` for the prior-recovery tests).
 * Fixed numerically catastrophic conditioning of the GP covariance matrix
   underlying `correlated_weights` for realistic length-scale choices (a
   fixed jitter of 1e-6 gave a condition number of ~1.7e7 in one verified

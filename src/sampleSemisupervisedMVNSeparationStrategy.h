@@ -80,6 +80,7 @@ Rcpp::List sampleSemisupervisedMVNSeparationStrategy (
     arma::vec batch_coordinates,
     double gp_tau2,
     double gp_length_scale,
+    arma::uword gp_kernel_type,
     double eta_proposal_window,
     bool sample_gp_hyperparameters,
     double gp_hyperparameter_proposal_window,

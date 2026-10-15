@@ -96,8 +96,8 @@ collectAcceptanceRates <- function(samples) {
     output_df <- cbind(output_df, gamma_rate)
   }
 
-  # Batch-specific weight acceptance rates (one entry per free
-  # additive-log-ratio coordinate, K - 1 of them; see the
+  # Batch-specific weight acceptance rates (one entry per class, K of them;
+  # see the
   # batch_weight_prior argument - "partial_pooling" or "gp").
   batch_weights_used <- isTRUE(samples$weight_prior_type > 0) || isTRUE(samples$batch_weight_prior %in% c("partial_pooling", "gp"))
   if (batch_weights_used && !is.null(samples$eta_acceptance_rate)) {

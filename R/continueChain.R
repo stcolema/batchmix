@@ -174,6 +174,7 @@ continueChain <- function(mcmc_output,
   # of every other continued parameter.
   gp_tau2 <- if (!is.null(mcmc_output$gp_tau2)) mcmc_output$gp_tau2[last_sample] else 1.0
   gp_length_scale <- if (!is.null(mcmc_output$gp_length_scale)) mcmc_output$gp_length_scale[last_sample] else 1.0
+  gp_kernel <- mcmc_output$gp_kernel %||% "matern32" # fits from before the kernel option were stationary
 
   # rho is always a per-iteration trace (constant unless sample_s_scale -
   # see batchSemiSupervisedMixtureModel.R), so resume from its last value
@@ -229,6 +230,7 @@ continueChain <- function(mcmc_output,
     batch_coordinates = batch_coordinates,
     gp_tau2 = gp_tau2,
     gp_length_scale = gp_length_scale,
+    gp_kernel = gp_kernel,
     sample_gp_hyperparameters = sample_gp_hyperparameters,
     pp_tau2_shape = pp_tau2_shape,
     pp_tau2_rate = pp_tau2_rate,
@@ -354,11 +356,11 @@ continueChain <- function(mcmc_output,
       new_samples$gamma_acceptance_rate <- comb_gamma_acceptance_rate
     }
 
-    # Batch-weight-prior model: w_batch/eta_alr are B x K(-1) x iterations
+    # Batch-weight-prior model: w_batch/eta_logit are B x K x iterations
     # traces returned unconditionally (even batch_weight_prior = "global"
     # returns one, just constant across batches within an iteration), so
     # these are always combined; gp_tau2/gp_length_scale (iterations x 1)
-    # and pp_mu/pp_tau2 ((K-1) x iterations) only exist for "gp"/
+    # and pp_mu/pp_tau2 (K x iterations) only exist for "gp"/
     # "partial_pooling" respectively - three different conventions
     # inherited from the underlying C++ wrappers, each combined along its
     # own iteration axis.
@@ -366,9 +368,9 @@ continueChain <- function(mcmc_output,
       c(mcmc_output$w_batch, new_samples$w_batch),
       dim = c(B, K_max, n_iter_comb_eff)
     )
-    combined_eta_alr <- array(
-      c(mcmc_output$eta_alr, new_samples$eta_alr),
-      dim = c(B, K_max - 1, n_iter_comb_eff)
+    combined_eta_logit <- array(
+      c(mcmc_output$eta_logit, new_samples$eta_logit),
+      dim = c(B, K_max, n_iter_comb_eff)
     )
     comb_eta_acceptance_rate <- ((mcmc_output$eta_acceptance_rate * n_iter_old +
       new_samples$eta_acceptance_rate * n_iter)
@@ -376,7 +378,7 @@ continueChain <- function(mcmc_output,
     )
 
     new_samples$w_batch <- combined_w_batch
-    new_samples$eta_alr <- combined_eta_alr
+    new_samples$eta_logit <- combined_eta_logit
     new_samples$eta_acceptance_rate <- comb_eta_acceptance_rate
 
     if (batch_weight_prior == "partial_pooling") {
