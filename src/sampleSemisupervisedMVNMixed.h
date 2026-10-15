@@ -85,7 +85,11 @@ Rcpp::List sampleSemisupervisedMVNMixed(
     double gp_hyperparameter_proposal_window,
     double pp_tau2_shape,
     double pp_tau2_rate,
-    double pp_mu_prior_sd
+    double pp_mu_prior_sd,
+    bool sample_s_scale,
+    double a_s,
+    double b_s,
+    double s_scale_proposal_window
 );
 
 #endif /* SAMPLESEMISUPERVISEDMVNMIXED_H */

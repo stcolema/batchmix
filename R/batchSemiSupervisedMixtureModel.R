@@ -106,10 +106,14 @@ batchSemiSupervisedMixtureModel <- function(X,
                                             gamma_proposal_window = 0.1,
                                             eta_proposal_window = 0.1,
                                             gp_hyperparameter_proposal_window = 0.1,
+                                            s_scale_proposal_window = 0.1,
                                             # -- prior hyperparameters --
                                             m_scale = NULL,
                                             rho = 3.0,
                                             theta = 1.0,
+                                            sample_s_scale = FALSE,
+                                            s_scale_shape = 2.0,
+                                            s_scale_rate = 1.0,
                                             eta = 1.0,
                                             a_gamma = 2.0,
                                             b_gamma = 1.0,
@@ -157,6 +161,9 @@ batchSemiSupervisedMixtureModel <- function(X,
   if (!missing(gp_hyperparameter_proposal_window)) {
     deprecated_control_args$gp_hyperparameter_proposal_window <- gp_hyperparameter_proposal_window
   }
+  if (!missing(s_scale_proposal_window)) {
+    deprecated_control_args$s_scale_proposal_window <- s_scale_proposal_window
+  }
 
   control <- .resolveControlArgs(
     missing(control), control, deprecated_control_args, "batchSemiSupervisedMixtureModel"
@@ -174,6 +181,7 @@ batchSemiSupervisedMixtureModel <- function(X,
   gamma_proposal_window <- control$gamma_proposal_window
   eta_proposal_window <- control$eta_proposal_window
   gp_hyperparameter_proposal_window <- control$gp_hyperparameter_proposal_window
+  s_scale_proposal_window <- control$s_scale_proposal_window
 
   if (!is.matrix(X)) {
     stop("X is not a matrix. Data should be in matrix format.")
@@ -339,7 +347,11 @@ batchSemiSupervisedMixtureModel <- function(X,
     gp_hyperparameter_proposal_window = gp_hyperparameter_proposal_window,
     pp_tau2_shape = pp_tau2_shape,
     pp_tau2_rate = pp_tau2_rate,
-    pp_mu_prior_sd = pp_mu_prior_sd
+    pp_mu_prior_sd = pp_mu_prior_sd,
+    sample_s_scale = sample_s_scale,
+    a_s = s_scale_shape,
+    b_s = s_scale_rate,
+    s_scale_proposal_window = s_scale_proposal_window
   )
 
   # Pull samples from the mixture model
@@ -488,11 +500,17 @@ batchSemiSupervisedMixtureModel <- function(X,
   mcmc_output$K_max <- K_max
   mcmc_output$B <- B
 
-  # Record hyperparameter choice
+  # Record hyperparameter choice. mcmc_output$rho is NOT overwritten here -
+  # unlike theta (always fixed), it is the driver's own per-iteration trace
+  # (constant across iterations unless sample_s_scale, exactly like
+  # mcmc_output$lambda_2 for the shift side's m_scale).
   mcmc_output$alpha <- alpha
   mcmc_output$m_scale <- m_scale
-  mcmc_output$rho <- rho
   mcmc_output$theta <- theta
+  mcmc_output$sample_s_scale <- sample_s_scale
+  mcmc_output$s_scale_shape <- s_scale_shape
+  mcmc_output$s_scale_rate <- s_scale_rate
+  mcmc_output$s_scale_proposal_window <- s_scale_proposal_window
 
   # Proposal windows
   mcmc_output$mu_proposal_window <- mu_proposal_window

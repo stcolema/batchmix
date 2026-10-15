@@ -53,7 +53,11 @@ Rcpp::List sampleSemisupervisedMVN (
     double gp_hyperparameter_proposal_window,
     double pp_tau2_shape,
     double pp_tau2_rate,
-    double pp_mu_prior_sd
+    double pp_mu_prior_sd,
+    bool sample_s_scale,
+    double a_s,
+    double b_s,
+    double s_scale_proposal_window
 ) {
 
   mvnSampler my_sampler(K,
@@ -70,8 +74,12 @@ Rcpp::List sampleSemisupervisedMVN (
     m_scale,
     rho,
     theta,
-    sample_m_scale
+    sample_m_scale,
+    sample_s_scale
   );
+  my_sampler.a_s = a_s;
+  my_sampler.b_s = b_s;
+  my_sampler.s_scale_proposal_window = s_scale_proposal_window;
 
   if(batch_coordinates.n_elem != B) {
     batch_coordinates = arma::regspace<arma::vec>(0, B - 1);
@@ -114,7 +122,8 @@ Rcpp::List sampleSemisupervisedMVN (
   gamma_saved.zeros();
 
   vec gp_tau2_saved = zeros<vec>(n_saved),
-    gp_length_scale_saved = zeros<vec>(n_saved);
+    gp_length_scale_saved = zeros<vec>(n_saved),
+    rho_saved = zeros<vec>(n_saved);
   arma::mat pp_mu_saved((K > 0) ? K - 1 : 0, n_saved, arma::fill::zeros),
     pp_tau2_saved((K > 0) ? K - 1 : 0, n_saved, arma::fill::zeros),
     gp_beta_saved((K > 0) ? K - 1 : 0, n_saved, arma::fill::zeros);
@@ -147,6 +156,7 @@ Rcpp::List sampleSemisupervisedMVN (
   arma::uvec prev_gamma_count = my_sampler.gamma_count;
   arma::uvec prev_eta_count = my_sampler.eta_count;
   arma::uword prev_gp_hyperparameter_count = my_sampler.gp_hyperparameter_count;
+  arma::uword prev_s_scale_count = my_sampler.s_scale_count;
 
   // Iterate over MCMC moves
   for(uword r = 0; r < n_iter; r++){
@@ -178,6 +188,10 @@ Rcpp::List sampleSemisupervisedMVN (
           my_sampler.gp_hyperparameter_proposal_window = robbinsMonroUpdate(my_sampler.gp_hyperparameter_proposal_window, gp_hyper_rate, 0.234, n_adapt);
         }
       }
+      if(sample_s_scale) {
+        double s_scale_rate = (double) (my_sampler.s_scale_count - prev_s_scale_count);
+        my_sampler.s_scale_proposal_window = robbinsMonroUpdate(my_sampler.s_scale_proposal_window, s_scale_rate, 0.234, n_adapt);
+      }
     }
     prev_mu_count = my_sampler.mu_count;
     prev_cov_count = my_sampler.cov_count;
@@ -186,6 +200,7 @@ Rcpp::List sampleSemisupervisedMVN (
     prev_gamma_count = my_sampler.gamma_count;
     prev_eta_count = my_sampler.eta_count;
     prev_gp_hyperparameter_count = my_sampler.gp_hyperparameter_count;
+    prev_s_scale_count = my_sampler.s_scale_count;
 
     my_sampler.updateAllocation();
 
@@ -217,6 +232,7 @@ Rcpp::List sampleSemisupervisedMVN (
       eta_alr_saved.slice( save_int ) = my_sampler.eta_alr;
       gp_tau2_saved( save_int ) = my_sampler.gp_tau2;
       gp_length_scale_saved( save_int ) = my_sampler.gp_length_scale;
+      rho_saved( save_int ) = my_sampler.rho;
       pp_mu_saved.col( save_int ) = my_sampler.pp_mu;
       pp_tau2_saved.col( save_int ) = my_sampler.pp_tau2;
       gp_beta_saved.col( save_int ) = my_sampler.gp_beta;
@@ -229,47 +245,51 @@ Rcpp::List sampleSemisupervisedMVN (
     }
   }
 
-  return(
-    List::create(Named("samples") = class_record,
-      Named("means") = mu_saved,
-      Named("covariance") = cov_saved,
-      Named("batch_shift") = m_saved,
-      Named("batch_scale") = S_saved,
-      Named("mean_sum") = mean_sum_saved,
-      Named("cov_comb") = cov_comb_saved,
-      Named("weights") = weights_saved,
-      Named("cov_acceptance_rate") = conv_to< vec >::from(my_sampler.cov_count) / n_iter,
-      Named("mu_acceptance_rate") = conv_to< vec >::from(my_sampler.mu_count) / n_iter,
-      Named("S_acceptance_rate") = conv_to< vec >::from(my_sampler.S_count) / n_iter,
-      Named("m_acceptance_rate") = conv_to< vec >::from(my_sampler.m_count) / n_iter,
-      Named("alloc") = alloc,
-      Named("observed_likelihood") = observed_likelihood,
-      Named("complete_likelihood") = complete_likelihood,
-      Named("BIC") = BIC_record,
-      Named("batch_corrected_data") = batch_corrected_data,
-      Named("latent_data") = latent_data,
-      Named("lambda_2") = lambda_2_saved,
-      Named("gamma") = gamma_saved,
-      Named("tau2_interaction") = my_sampler.tau2_interaction,
-      Named("gamma_acceptance_rate") = arma::conv_to< arma::vec >::from(arma::vectorise(my_sampler.gamma_count)) / n_iter,
-      Named("w_batch") = w_batch_saved,
-      Named("eta_alr") = eta_alr_saved,
-      Named("eta_acceptance_rate") = arma::conv_to< arma::vec >::from(my_sampler.eta_count) / n_iter,
-      Named("gp_tau2") = gp_tau2_saved,
-      Named("gp_length_scale") = gp_length_scale_saved,
-      Named("pp_mu") = pp_mu_saved,
-      Named("pp_tau2") = pp_tau2_saved,
-      Named("gp_beta") = gp_beta_saved,
-      Named("weight_prior_type") = weight_prior_type,
-      Named("gp_hyperparameter_acceptance_rate") = (double) my_sampler.gp_hyperparameter_count / n_iter,
-      Named("final_mu_proposal_window") = my_sampler.mu_proposal_window,
-      Named("final_cov_proposal_window") = my_sampler.cov_proposal_window,
-      Named("final_m_proposal_window") = my_sampler.m_proposal_window,
-      Named("final_S_proposal_window") = my_sampler.S_proposal_window,
-      Named("final_gamma_proposal_window") = my_sampler.gamma_proposal_window,
-      Named("final_eta_proposal_window") = my_sampler.eta_proposal_window,
-      Named("final_gp_hyperparameter_proposal_window") = my_sampler.gp_hyperparameter_proposal_window
-    )
-  );
+  Rcpp::List out;
+  out["samples"] = class_record;
+  out["means"] = mu_saved;
+  out["covariance"] = cov_saved;
+  out["batch_shift"] = m_saved;
+  out["batch_scale"] = S_saved;
+  out["mean_sum"] = mean_sum_saved;
+  out["cov_comb"] = cov_comb_saved;
+  out["weights"] = weights_saved;
+  out["cov_acceptance_rate"] = conv_to< vec >::from(my_sampler.cov_count) / n_iter;
+  out["mu_acceptance_rate"] = conv_to< vec >::from(my_sampler.mu_count) / n_iter;
+  out["S_acceptance_rate"] = conv_to< vec >::from(my_sampler.S_count) / n_iter;
+  out["m_acceptance_rate"] = conv_to< vec >::from(my_sampler.m_count) / n_iter;
+  out["alloc"] = alloc;
+  out["observed_likelihood"] = observed_likelihood;
+  out["complete_likelihood"] = complete_likelihood;
+  out["BIC"] = BIC_record;
+  out["batch_corrected_data"] = batch_corrected_data;
+  out["latent_data"] = latent_data;
+  out["lambda_2"] = lambda_2_saved;
+  out["gamma"] = gamma_saved;
+  out["tau2_interaction"] = my_sampler.tau2_interaction;
+  out["gamma_acceptance_rate"] = arma::conv_to< arma::vec >::from(arma::vectorise(my_sampler.gamma_count)) / n_iter;
+  out["w_batch"] = w_batch_saved;
+  out["eta_alr"] = eta_alr_saved;
+  out["eta_acceptance_rate"] = arma::conv_to< arma::vec >::from(my_sampler.eta_count) / n_iter;
+  out["gp_tau2"] = gp_tau2_saved;
+  out["gp_length_scale"] = gp_length_scale_saved;
+  out["pp_mu"] = pp_mu_saved;
+  out["pp_tau2"] = pp_tau2_saved;
+  out["gp_beta"] = gp_beta_saved;
+  out["weight_prior_type"] = weight_prior_type;
+  out["gp_hyperparameter_acceptance_rate"] = (double) my_sampler.gp_hyperparameter_count / n_iter;
+  out["final_mu_proposal_window"] = my_sampler.mu_proposal_window;
+  out["final_cov_proposal_window"] = my_sampler.cov_proposal_window;
+  out["final_m_proposal_window"] = my_sampler.m_proposal_window;
+  out["final_S_proposal_window"] = my_sampler.S_proposal_window;
+  out["final_gamma_proposal_window"] = my_sampler.gamma_proposal_window;
+  out["final_eta_proposal_window"] = my_sampler.eta_proposal_window;
+  out["final_gp_hyperparameter_proposal_window"] = my_sampler.gp_hyperparameter_proposal_window;
+  out["rho"] = rho_saved;
+  out["s_scale_prior_mean"] = my_sampler.s_scale_prior_mean;
+  out["sample_s_scale"] = sample_s_scale;
+  out["s_scale_acceptance_rate"] = (double) my_sampler.s_scale_count / n_iter;
+  out["final_s_scale_proposal_window"] = my_sampler.s_scale_proposal_window;
+  return out;
 
 };

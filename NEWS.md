@@ -211,9 +211,56 @@
   against), and now warns if asked for a `style = "density"` check on an
   apparently-binary column (`style = "statistic"` with `statistic = mean`,
   the proportion of 1s, is the appropriate check there).
+* **`predictNewBatch()`**: posterior-predictive quantities for a batch not
+  seen during fitting, for every model `type` and every `batch_weight_prior`.
+  With no new data, draws the new batch's own class weight and location
+  shift/scale straight from their fitted priors - under `batch_weight_prior
+  = "gp"` this is a genuine Gaussian process prediction at a new
+  `new_batch_coordinate` (e.g. a future collection time), and under
+  `"partial_pooling"` a draw from the estimated population distribution of
+  batch weights (the standard "predict a new group" logic for a
+  hierarchical model). With the new batch's own data supplied (`X_new`),
+  additionally classifies it by composition sampling: for each retained
+  posterior draw, the new batch's shift/scale/weight and item allocations
+  are drawn from their conditional posterior given that draw's (fixed)
+  cluster parameters and `X_new`'s own likelihood, reusing the training
+  sampler's own Metropolis/Gibbs updates restricted to the one new batch -
+  a proper posterior predictive by composition (Rubin, 1987), not a
+  plug-in point estimate. See `?predictNewBatch` for the full statistical
+  design.
+* **Partial pooling for the batch-scale prior's concentration**
+  (`sample_s_scale` argument to `batchSemiSupervisedMixtureModel()`/
+  `runBatchMix()`). The batch shift prior already had a genuine
+  partial-pooling hyperparameter (`lambda_2`, via `sample_m_scale`); the
+  batch scale prior `S_b ~ S_loc + InvGamma(rho, theta)` previously fixed
+  both `rho` and `theta` as user-supplied constants, never re-estimated
+  from the batches actually fitted. An additive/multiplicative shift-scale
+  decomposition is only identifiable up to one free hyperparameter per
+  batch effect (a uniform rescaling of every batch's `S_b` is exactly
+  compensated by the inverse rescaling of the cluster covariance), so only
+  the InvGamma's concentration `rho` - never its mean - can be freely
+  estimated; `theta` is kept in lock-step (`theta = s_scale_prior_mean *
+  (rho - 1)`) so the prior's mean stays fixed at its original,
+  user-supplied value while `rho` alone adapts to how similar or different
+  the fitted batches' own scales turn out to be. Off by default
+  (`sample_s_scale = FALSE` reproduces the previous fixed-prior behaviour
+  exactly); when `TRUE`, `rho` is updated by a symmetric log-random-walk
+  Metropolis step (`s_scale_shape`/`s_scale_rate` set its own Gamma prior,
+  `s_scale_proposal_window` its auto-tuned proposal window - see
+  `?batchmixControl`). `predictNewBatch()`'s composition sampling for a new
+  batch's scale now conditions on each posterior draw's own `rho` when the
+  original fit used `sample_s_scale = TRUE`.
 
 ## Bug fixes
 
+* Fixed every `sampleSemisupervised*()` C++ driver building its return value
+  with a single `Rcpp::List::create(Named(...) = ..., ...)` call of 39-42
+  arguments - `List::create()`'s generated overloads only go up to 20
+  arguments in Rcpp versions before its May 2024 move to a genuine C++11
+  variadic template (first released as Rcpp 1.0.13), so this failed to
+  compile against any such Rcpp - including the package's own declared
+  minimum, `Rcpp (>= 1.0.5)`. Replaced with incremental `out["key"] <-
+  value` assignment, which has no such limit on any Rcpp version.
 * Fixed `fitBatchMix()` rejecting every argument forwarded through its own
   documented `...` (e.g. `include_interaction = TRUE`,
   `r_proposal_window = 0.05`) with an "unused argument" error - the
