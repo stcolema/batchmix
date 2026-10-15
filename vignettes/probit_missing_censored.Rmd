@@ -240,7 +240,7 @@ it on an apparently-binary column anyway).
 
 ```{r predCheckA, fig.width=6, fig.height=3.5}
 prior_sims_a <- simulatePriorPredictive(
-  X, batch_vec0, K = 1, type = "MVN_MIXED", column_type = column_type
+  X, batch_vec0, K_max = 1, type = "MVN_MIXED", column_type = column_type
 )
 plotPredictiveCheck(X, prior_sims_a,
   style = "density", column = 1

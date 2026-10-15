@@ -99,7 +99,7 @@ test_that("simulatePriorPredictive() draws batch-specific weights and an estimat
   X <- matrix(rnorm(N * P), N, P)
   batch_vec <- sample(0:2, N, replace = TRUE)
 
-  sims <- simulatePriorPredictive(X, batch_vec, K = K, type = "MVN", n_datasets = 400)
+  sims <- simulatePriorPredictive(X, batch_vec, K_max = K, type = "MVN", n_datasets = 400)
 
   w_batch <- lapply(sims, function(s) s$params$w_batch)
   expect_equal(dim(w_batch[[1]]), c(3, K))
@@ -125,7 +125,7 @@ test_that("simulatePriorPredictive() reproduces the fixed-hyperparameter model o
   batch_vec <- sample(0:1, N, replace = TRUE)
 
   sims <- simulatePriorPredictive(
-    X, batch_vec, K = K, type = "MVN", n_datasets = 5,
+    X, batch_vec, K_max = K, type = "MVN", n_datasets = 5,
     batch_weight_prior = "global", sample_s_scale = FALSE, m_scale = 0.01
   )
   for (s in sims) {
@@ -163,7 +163,7 @@ test_that("the weight prior is exchangeable over clusters: no class is a priori 
   N <- 40; K <- 6
   X <- matrix(rnorm(N * 2), N, 2)
   batch_vec <- sample(0:1, N, replace = TRUE)
-  sims <- simulatePriorPredictive(X, batch_vec, K = K, type = "MVN", n_datasets = 1500)
+  sims <- simulatePriorPredictive(X, batch_vec, K_max = K, type = "MVN", n_datasets = 1500)
   largest <- unlist(lapply(sims, function(s) max.col(s$params$w_batch, ties.method = "first")))
   freq <- tabulate(largest, K) / length(largest)
   # Each class should be the largest about 1 / K = 0.167 of the time; the

@@ -240,7 +240,7 @@ $K$ produce data of a plausible scale, before the model has seen the
 clustering at all?
 
 ```{r priorPCA}
-prior_sims_a <- simulatePriorPredictive(X, batch_vec, K = K_true, type = "MVN", n_datasets = 30)
+prior_sims_a <- simulatePriorPredictive(X, batch_vec, K_max = K_true, type = "MVN", n_datasets = 30)
 plotPredictiveCheck(X, prior_sims_a, style = "density", column = 1)
 ```
 
