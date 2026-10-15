@@ -13,7 +13,9 @@ gpWeightChain(
   tau2,
   length_scale,
   level_sd,
-  eta_pw
+  eta_pw,
+  sample_hyperparameters = FALSE,
+  hyper_pw = 0.1
 )
 }
 \arguments{
@@ -30,10 +32,16 @@ gpWeightChain(
 \item{level_sd}{The prior sd of the diffuse level (and slope).}
 
 \item{eta_pw}{Proposal window of the block random walk.}
+
+\item{sample_hyperparameters}{Update \code{tau2} and \code{length_scale}
+by Metropolis-Hastings, so that they follow their hyperpriors.}
+
+\item{hyper_pw}{Proposal window of that update.}
 }
 \value{
-A list with the \code{eta} trace (B x K x n_iter) and
-\code{eta_count}.
+A list with the \code{eta} trace (B x K x n_iter),
+\code{eta_count}, the traces of the hyperparameters and the shape and rate
+of their priors.
 }
 \description{
 Runs \code{updateWeights()} for the GP batch-weight prior with
