@@ -69,15 +69,15 @@
 }
 
 # Exact GLS conjugate posterior mean of the GP intercept beta_j given one
-# free ALR coordinate's values `eta_j` (B-vector) and the GP covariance's
+# class's logits `eta_j` (B-vector) and the GP covariance's
 # lower-triangular Cholesky factor `gp_chol` (Sigma = gp_chol %*% t(gp_chol))
 # - the same formula as sampler::updateGPWeights()'s Gibbs step in
 # src/sampler.cpp, evaluated here as a posterior MEAN rather than a fresh
 # Gibbs draw (Rao-Blackwellisation: an exact, lower-variance, unbiased
 # summary of the same conditional distribution - Casella & Robert, 1996,
 # "Rao-Blackwellisation of sampling schemes," Biometrika 83(1)). Used
-# instead of the raw sampled gp_beta because gp_beta is indexed by ALR
-# *coordinate*, not by class, and so cannot be safely reused once
+# instead of the raw sampled gp_beta because it is indexed by class as
+# labelled at sampling time, and so cannot be safely reused once
 # relabelChain() has permuted classes (see the "relabelling safety" note
 # in .predictiveWeightDraws() below) - recomputing it from the
 # already-relabelled eta is exact, not an approximation, since this
@@ -92,7 +92,7 @@
 }
 
 # Self-consistent (mu_j, tau2_j) for the partial-pooling prior, given one
-# free ALR coordinate's values `eta_j`. Unlike the GP intercept above,
+# class's logits `eta_j`. Unlike the GP intercept above,
 # mu_j and tau2_j are each other's exact conjugate posterior MEAN only
 # conditional on the other (sampler::updatePartialPoolingWeights()'s two
 # separate Gibbs steps, not a single closed-form joint), so this iterates
@@ -116,7 +116,7 @@
   list(mu = mu_j, tau2 = tau2_j)
 }
 
-# One posterior-predictive draw of a new batch's ALR coordinates (and
+# One posterior-predictive draw of a new batch's per-class logits (and
 # hence its class weight vector), for every retained iteration of
 # `processed_chain` at once. NULL `new_batch_coordinate` is only valid
 # for "global"/"partial_pooling" (batches have no coordinate to place a
@@ -124,13 +124,12 @@
 #
 # Relabelling safety: relabelChain() (run inside processMCMCChain())
 # correctly permutes `w_batch`'s class (column) order every iteration,
-# but does NOT (and, given the ALR transform's dependence on a fixed
-# pivot class, cannot cheaply) permute the separately-stored `eta_alr`/
-# `gp_beta`/`pp_mu`/`pp_tau2` traces, which are indexed by ALR
+# but does NOT permute the separately-stored `eta_logit`/
+# `gp_beta`/`pp_mu`/`pp_tau2` traces, which are indexed by class under
 # *coordinate* under the model's ORIGINAL, possibly label-switched class
 # ordering. Using those fields directly here would silently mix labels
 # whenever the chain actually switched. This function therefore never
-# reads them: every ALR quantity it needs (`eta_j`, and hence `beta_j`/
+# reads them: every quantity it needs (`eta_j`, and hence `beta_j`/
 # `mu_j`/`tau2_j`) is recomputed from the already-correctly-relabelled
 # `w_batch` instead (see .gpBetaPosteriorMean()/.ppMuTau2PosteriorMean()
 # above) - exact for beta_j, and a principled fixed-point summary for
@@ -142,13 +141,49 @@
 # result for the no-data case) plus, when weight_prior != "global" and
 # there's more than one class, the auxiliary per-draw quantities
 # predictNewBatch()'s X_new path needs to seed and then refine the same
-# draw via composition sampling: `eta_known` (B x n_free x n_saved, the
-# ORIGINAL batches' relabelling-safe ALR coordinates), `eta_star` (n_saved
-# x n_free, the new batch's own seeded predictive draw - identical to what
+# draw via composition sampling: `eta_known` (B x K x n_saved, the
+# ORIGINAL batches' relabelling-safe, class-centred logits), `eta_star` (n_saved
+# x K, the new batch's own seeded predictive draw - identical to what
 # produced `weight_draws`), and the Rao-Blackwellised population
 # hyperparameter(s) to hold fixed throughout prediction: `beta_hat`
-# (n_free x n_saved, "gp") or `mu_hat`/`tau2_hat` (n_free x n_saved each,
+# (K x n_saved, "gp") or `mu_hat`/`tau2_hat` (K x n_saved each,
 # "partial_pooling").
+# Integer kernel code used by the C++ layer.
+.gpKernelCode <- function(gp_kernel) {
+  switch(gp_kernel, matern32 = 0L, rw1 = 1L, rw2 = 2L, stop("Unknown gp_kernel."))
+}
+
+# The GP covariance over the original batches plus one new batch, on the
+# scale the fit used. The non-stationary kernels need the new coordinate
+# mapped through the fit's stored origin/scale and not before the origin.
+# The jitter is escalated until the matrix factorises, as in the sampler.
+.gpPredictiveKernel <- function(processed_chain, new_batch_coordinate, gp_tau2, gp_length_scale, mu_prior_sd) {
+  gp_kernel <- processed_chain$gp_kernel %||% "matern32"
+  type <- .gpKernelCode(gp_kernel)
+  coords <- c(processed_chain$batch_coordinates, new_batch_coordinate)
+  if (length(processed_chain$batch_coordinates) == 0) {
+    coords <- c(seq(0, processed_chain$B - 1), new_batch_coordinate)
+  }
+  if (type != 0L) {
+    origin <- processed_chain$gp_coordinate_origin %||% 0
+    scale <- processed_chain$gp_coordinate_scale %||% 1
+    if (new_batch_coordinate < origin) {
+      stop("new_batch_coordinate precedes the earliest fitted batch; the non-stationary ",
+           "gp_kernel starts at that batch, so it cannot predict earlier times.")
+    }
+    coords <- (coords - origin) / scale
+  }
+  jitter <- if (type == 0L) max(1e-6, gp_tau2 * 1e-4) else 1e-6
+  for (attempt in 1:12) {
+    full_cov <- gpKernelMatrix(coords, type, gp_tau2, gp_length_scale, jitter,
+                               mu_prior_sd^2, mu_prior_sd^2)
+    ok <- !inherits(try(chol(full_cov), silent = TRUE), "try-error")
+    if (ok) break
+    jitter <- jitter * 10
+  }
+  list(cov = full_cov, type = type)
+}
+
 .predictiveWeightDraws <- function(processed_chain, new_batch_coordinate = NULL) {
   K <- processed_chain$K_max
   B <- processed_chain$B
@@ -170,36 +205,50 @@
     return(list(weight_draws = processed_chain$weights))
   }
 
-  n_free <- K - 1
   weight_draws <- matrix(1, n_saved, K) # K == 1 edge case: trivially all mass on the one class
-  if (n_free == 0) {
+  if (K == 1) {
     return(list(weight_draws = weight_draws))
   }
 
-  eta_star <- matrix(0, n_saved, n_free)
-  eta_known_arr <- array(0, dim = c(B, n_free, n_saved))
-  beta_hat <- mu_hat <- tau2_hat <- matrix(0, n_free, n_saved)
+  eta_star <- matrix(0, n_saved, K)
+  eta_known_arr <- array(0, dim = c(B, K, n_saved))
+  beta_hat <- mu_hat <- tau2_hat <- matrix(0, K, n_saved)
   mu_prior_sd <- processed_chain$pp_mu_prior_sd %||% 10.0
 
   for (t in seq_len(n_saved)) {
     wb <- processed_chain$w_batch[, , t]
-    eta_known <- log(wb[, seq_len(n_free), drop = FALSE] / wb[, K]) # B x n_free, relabelling-safe
+    # Logits are recovered from the (relabelling-safe) weights, centred over
+    # classes. softmax cannot see a common per-batch shift, and the centred
+    # value is the prior's expected location for it (the population
+    # intercepts are centred too), so nothing is lost by fixing it here.
+    log_w <- log(matrix(wb, nrow = B, ncol = K))
+    eta_known <- log_w - rowMeans(log_w) # B x K
     eta_known_arr[, , t] <- eta_known
 
     if (weight_prior == "gp") {
       gp_tau2 <- processed_chain$gp_tau2[t]
       gp_length_scale <- processed_chain$gp_length_scale[t]
-      coords <- c(processed_chain$batch_coordinates, new_batch_coordinate)
-      full_cov <- maternKernel32(coords, gp_tau2, gp_length_scale, jitter = 1e-8)
-      Sigma_BB <- full_cov[seq_len(B), seq_len(B), drop = FALSE]
-      k_star <- full_cov[B + 1, seq_len(B)]
-      k_star_star <- full_cov[B + 1, B + 1]
+      gpk <- .gpPredictiveKernel(processed_chain, new_batch_coordinate, gp_tau2, gp_length_scale, mu_prior_sd)
+      Sigma_BB <- gpk$cov[seq_len(B), seq_len(B), drop = FALSE]
+      k_star <- gpk$cov[B + 1, seq_len(B)]
+      k_star_star <- gpk$cov[B + 1, B + 1]
       L <- t(chol(Sigma_BB))
 
-      for (j in seq_len(n_free)) {
+      # Only the stationary kernel has a separate per-class intercept (the
+      # non-stationary kernels carry a diffuse level inside the covariance,
+      # so beta stays 0, as in the sampler).
+      if (gpk$type == 0L) {
+        for (j in seq_len(K)) {
+          e <- eta_known[, j]
+          beta_hat[j, t] <- .gpBetaPosteriorMean(e, L, mu_prior_sd)
+        }
+        # The intercepts are sum-to-zero, as in the sampler.
+        beta_hat[, t] <- beta_hat[, t] - mean(beta_hat[, t])
+      }
+
+      for (j in seq_len(K)) {
         e <- eta_known[, j]
-        beta_j <- .gpBetaPosteriorMean(e, L, mu_prior_sd)
-        beta_hat[j, t] <- beta_j
+        beta_j <- beta_hat[j, t]
         solved <- forwardsolve(L, e - beta_j)
         solved <- backsolve(t(L), solved)
         mean_star <- beta_j + sum(k_star * solved)
@@ -210,19 +259,22 @@
     } else { # partial_pooling
       tau2_prior_shape <- processed_chain$pp_tau2_prior_shape %||% 2.0
       tau2_prior_rate <- processed_chain$pp_tau2_prior_rate %||% 1.0
-      for (j in seq_len(n_free)) {
+      for (j in seq_len(K)) {
         e <- eta_known[, j]
         post <- .ppMuTau2PosteriorMean(e, mu_prior_sd, tau2_prior_shape, tau2_prior_rate)
         mu_hat[j, t] <- post$mu
         tau2_hat[j, t] <- post$tau2
-        eta_star[t, j] <- stats::rnorm(1, post$mu, sqrt(post$tau2))
+      }
+      # The population mean is sum-to-zero, as in the sampler.
+      mu_hat[, t] <- mu_hat[, t] - mean(mu_hat[, t])
+      for (j in seq_len(K)) {
+        eta_star[t, j] <- stats::rnorm(1, mu_hat[j, t], sqrt(tau2_hat[j, t]))
       }
     }
   }
 
-  D <- 1 + rowSums(exp(eta_star))
-  weight_draws[, seq_len(n_free)] <- exp(eta_star) / D
-  weight_draws[, K] <- 1 / D
+  expo <- exp(eta_star - apply(eta_star, 1, max))
+  weight_draws <- expo / rowSums(expo)
 
   list(
     weight_draws = weight_draws, eta_known = eta_known_arr, eta_star = eta_star,
@@ -433,24 +485,28 @@ predictNewBatch <- function(processed_chain, X, batch_vec = NULL, new_batch_coor
   B <- processed_chain$B
   weight_prior <- processed_chain$batch_weight_prior %||% "global"
   weight_prior_type <- switch(weight_prior, global = 0L, partial_pooling = 1L, gp = 2L)
-  n_free <- max(K - 1, 0)
 
+  gp_kernel_type <- .gpKernelCode(processed_chain$gp_kernel %||% "matern32")
   batch_coordinates_new <- if (weight_prior == "gp") {
-    c(processed_chain$batch_coordinates, new_batch_coordinate)
+    bc <- c(processed_chain$batch_coordinates, new_batch_coordinate)
+    if (length(processed_chain$batch_coordinates) == 0) bc <- c(seq(0, B - 1), new_batch_coordinate)
+    if (gp_kernel_type != 0L) {
+      bc <- (bc - (processed_chain$gp_coordinate_origin %||% 0)) / (processed_chain$gp_coordinate_scale %||% 1)
+    }
+    bc
   } else {
     numeric(B + 1)
   }
 
-  eta_alr_init_draws <- array(0, dim = c(B + 1, n_free, length(draw_idx)))
-  if (weight_prior != "global" && n_free > 0) {
+  eta_logit_init_draws <- array(0, dim = c(B + 1, K, length(draw_idx)))
+  if (weight_prior != "global" && K > 1) {
     for (i in seq_along(draw_idx)) {
       t <- draw_idx[i]
-      # matrix(..., ncol = n_free), not a bare [, , t] slice: with n_free == 1
-      # (K == 2) that slice silently drops to a plain B-length vector,
-      # breaking rbind()'s column alignment below.
-      eta_known_t <- matrix(weights_info$eta_known[, , t], ncol = n_free)
-      eta_star_t <- matrix(weights_info$eta_star[t, ], nrow = 1, ncol = n_free)
-      eta_alr_init_draws[, , i] <- rbind(eta_known_t, eta_star_t)
+      # matrix(..., ncol = K), not a bare [, , t] slice, so a single-batch
+      # edge case cannot silently drop to a plain vector before rbind().
+      eta_known_t <- matrix(weights_info$eta_known[, , t], ncol = K)
+      eta_star_t <- matrix(weights_info$eta_star[t, ], nrow = 1, ncol = K)
+      eta_logit_init_draws[, , i] <- rbind(eta_known_t, eta_star_t)
     }
   }
 
@@ -487,13 +543,15 @@ predictNewBatch <- function(processed_chain, X, batch_vec = NULL, new_batch_coor
     sample_s_scale = isTRUE(processed_chain$sample_s_scale),
     weight_prior_type = weight_prior_type,
     weights_draws = if (weight_prior == "global") weight_draws[draw_idx, , drop = FALSE] else matrix(0, length(draw_idx), K),
-    eta_alr_init_draws = eta_alr_init_draws,
-    gp_beta_draws = if (weight_prior == "gp") weights_info$beta_hat[, draw_idx, drop = FALSE] else matrix(0, n_free, length(draw_idx)),
-    pp_mu_draws = if (weight_prior == "partial_pooling") weights_info$mu_hat[, draw_idx, drop = FALSE] else matrix(0, n_free, length(draw_idx)),
-    pp_tau2_draws = if (weight_prior == "partial_pooling") weights_info$tau2_hat[, draw_idx, drop = FALSE] else matrix(0, n_free, length(draw_idx)),
+    eta_logit_init_draws = eta_logit_init_draws,
+    gp_beta_draws = if (weight_prior == "gp") weights_info$beta_hat[, draw_idx, drop = FALSE] else matrix(0, K, length(draw_idx)),
+    pp_mu_draws = if (weight_prior == "partial_pooling") weights_info$mu_hat[, draw_idx, drop = FALSE] else matrix(0, K, length(draw_idx)),
+    pp_tau2_draws = if (weight_prior == "partial_pooling") weights_info$tau2_hat[, draw_idx, drop = FALSE] else matrix(0, K, length(draw_idx)),
     gp_tau2_draws = if (weight_prior == "gp") processed_chain$gp_tau2[draw_idx] else rep(1, length(draw_idx)),
     gp_length_scale_draws = if (weight_prior == "gp") processed_chain$gp_length_scale[draw_idx] else rep(1, length(draw_idx)),
     batch_coordinates_new = batch_coordinates_new,
+    gp_kernel_type = gp_kernel_type,
+    pp_mu_prior_sd = processed_chain$pp_mu_prior_sd %||% 10.0,
     eta_proposal_window = processed_chain$final_eta_proposal_window %||% processed_chain$eta_proposal_window %||% 0.1,
     m_proposal_window = processed_chain$final_m_proposal_window %||% processed_chain$m_proposal_window %||% 0.5**2,
     S_proposal_window = if (!is.null(processed_chain$final_S_proposal_window)) {

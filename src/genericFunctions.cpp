@@ -397,6 +397,58 @@ arma::mat maternKernel32(arma::vec x, double tau2, double length_scale, double j
   return K;
 };
 
+//' @title Gaussian-process covariance kernels for batch-weight priors
+//' @description Covariance matrix for the batch-weight GP, including two
+//' NON-stationary kernels. Type 0 is the stationary Matern-3/2 kernel
+//' (see \code{maternKernel32()}). Type 1 is a Wiener process (random walk)
+//' with a diffuse level: k(s, t) = level_var + tau2 * min(s, t). Type 2 is
+//' an integrated Wiener process (the continuous-time second-order random
+//' walk, i.e. the cubic-smoothing-spline prior; Wahba, 1978; Rue & Held,
+//' 2005, Section 3.4) with a diffuse level and slope: k(s, t) = level_var +
+//' slope_var * s * t + tau2 * m^2 (3M - m) / 6, with m = min(s, t) and M =
+//' max(s, t). Types 1 and 2 have variance growing in the coordinate and so
+//' do not assume that the weights' dynamics are stationary; they require
+//' non-negative coordinates (the origin is where the process starts).
+//' @param x Vector of 1-D locations (non-negative for types 1 and 2).
+//' @param type 0 = Matern-3/2, 1 = Wiener process, 2 = integrated Wiener
+//' process.
+//' @param tau2 Marginal variance (type 0) or innovation variance per unit
+//' coordinate (types 1, 2).
+//' @param length_scale Correlation length scale; used only by type 0.
+//' @param jitter Diagonal jitter for numerical stability.
+//' @param level_var,slope_var Prior variances of the diffuse level (types 1
+//' and 2) and slope (type 2).
+//' @return The covariance matrix, length(x) x length(x).
+// [[Rcpp::export]]
+arma::mat gpKernelMatrix(arma::vec x, arma::uword type, double tau2, double length_scale,
+                         double jitter, double level_var, double slope_var) {
+  if (type == 0) {
+    return maternKernel32(x, tau2, length_scale, jitter);
+  }
+  if (type > 2) {
+    Rcpp::stop("gp kernel type must be 0 (Matern-3/2), 1 (Wiener) or 2 (integrated Wiener).");
+  }
+  if (x.n_elem > 0 && x.min() < 0.0) {
+    Rcpp::stop("Non-stationary GP kernels need non-negative batch coordinates.");
+  }
+  uword n = x.n_elem;
+  mat K(n, n);
+  for (uword i = 0; i < n; i++) {
+    for (uword j = 0; j < n; j++) {
+      double m = std::min(x(i), x(j)), M = std::max(x(i), x(j));
+      double v = level_var;
+      if (type == 1) {
+        v += tau2 * m;
+      } else {
+        v += slope_var * x(i) * x(j) + tau2 * m * m * (3.0 * M - m) / 6.0;
+      }
+      K(i, j) = v;
+    }
+  }
+  K.diag() += jitter;
+  return K;
+};
+
 //' @title Multinomial-logit Gaussian process log-kernel
 //' @description The unnormalised log-posterior-kernel for one ALR
 //' coordinate of batch-dependent multinomial weights under a GP prior
@@ -629,4 +681,174 @@ double robbinsMonroUpdate(
   log_window = std::min(std::max(log_window, -20.0), 20.0);
 
   return std::exp(log_window);
+};
+
+//' @title Robbins-Monro update for a reciprocal-parameterised window
+//' @description As \code{robbinsMonroUpdate()}, for proposal windows where a
+//' LARGER value gives a SMALLER step: the Gamma random walk
+//' \code{Gamma(x * w, rate = w)} (variance \code{x / w}) used for the batch
+//' scale, the cluster standard deviations and the t degrees of freedom, and
+//' the Wishart random walk \code{Wishart(Sigma / w, df = w)} (variance
+//' \code{O(1 / w)}) used for cluster covariances. High acceptance must then
+//' DEcrease the window (widen the proposal), so the update is applied to
+//' \code{1 / window} and inverted; that is the same Robbins-Monro recursion
+//' on the step-size scale \code{1 / w}.
+//' @inheritParams robbinsMonroUpdate
+//' @return The updated (still strictly positive) proposal window.
+// [[Rcpp::export]]
+double robbinsMonroUpdateReciprocal(
+  double window,
+  double acceptance_rate,
+  double target_rate,
+  double n,
+  double step_scale,
+  double kappa
+) {
+  return 1.0 / robbinsMonroUpdate(1.0 / window, acceptance_rate, target_rate, n, step_scale, kappa);
+};
+
+//' @title Incremental data log-likelihood change for a feature-wise mean shift
+//' @description Change in the log-likelihood of every item when feature
+//' \code{p} of its cell mean moves by \code{delta_cell[cell]} (the
+//' cell-specific shift; the covariance is fixed). With residual
+//' \eqn{r = x - \mu_c} and precision \eqn{\Lambda_c}, the Mahalanobis form
+//' changes from \eqn{u = r' \Lambda r} to \eqn{u' = u - 2 \delta (\Lambda r)_p +
+//' \delta^2 \Lambda_{pp}}, so a Gaussian item needs only one row of
+//' \eqn{\Lambda_c} (O(P) work) rather than two full quadratic forms (O(P^2));
+//' a Student-t item also needs \eqn{u} itself (O(P^2)). Terms constant in
+//' the mean (log-determinants, normalising constants) cancel.
+//' @param X_t P x N data.
+//' @param cell_of_item N-vector (0-indexed) of each item's cell, the column of
+//' \code{mean_sum} and slice of \code{cov_comb_inv} that applies to it.
+//' @param mean_sum P x C matrix of cell means.
+//' @param cov_comb_inv P x P x C cell precision matrices.
+//' @param p The (0-indexed) feature being shifted.
+//' @param delta_cell C-vector of shifts of feature p in each cell.
+//' @param t_df_item Empty for a Gaussian likelihood; otherwise N-vector of
+//' Student-t degrees of freedom.
+//' @return The change in log-likelihood.
+//' @keywords internal
+//' @export
+// [[Rcpp::export]]
+double interactionLogLikDelta(
+  arma::mat X_t,
+  arma::uvec cell_of_item,
+  arma::mat mean_sum,
+  arma::cube cov_comb_inv,
+  arma::uword p,
+  arma::vec delta_cell,
+  arma::vec t_df_item
+) {
+  return interactionLogLikDeltaImpl(X_t, cell_of_item, mean_sum, cov_comb_inv, p, delta_cell, t_df_item);
+};
+
+double interactionLogLikDeltaImpl(
+  const arma::mat& X_t,
+  const arma::uvec& cell_of_item,
+  const arma::mat& mean_sum,
+  const arma::cube& cov_comb_inv,
+  arma::uword p,
+  const arma::vec& delta_cell,
+  const arma::vec& t_df_item
+) {
+  const uword N = X_t.n_cols, P = X_t.n_rows;
+  const bool gaussian = (t_df_item.n_elem == 0);
+  double total = 0.0;
+  vec r(P);
+
+  for(uword n = 0; n < N; n++) {
+    const uword c = cell_of_item(n);
+    const double delta = delta_cell(c);
+    if(delta == 0.0) {
+      continue;
+    }
+    const mat& Lambda = cov_comb_inv.slice(c);
+    r = X_t.col(n) - mean_sum.col(c);
+
+    // (Lambda r)_p
+    const double lambda_r_p = arma::dot(Lambda.row(p), r);
+    const double du = -2.0 * delta * lambda_r_p + delta * delta * Lambda(p, p);
+
+    if(gaussian) {
+      total += -0.5 * du;
+    } else {
+      const double nu = t_df_item(n);
+      const double u = arma::dot(r, Lambda * r);
+      total += -0.5 * (nu + (double) P) * (std::log1p((u + du) / nu) - std::log1p(u / nu));
+    }
+  }
+  return total;
+};
+
+//' @title Posterior-mean batch-corrected data
+//' @description For every item, the posterior mean of its latent
+//' batch-free signal given its observed value and one draw of the
+//' parameters. The fitted model has, for an item in cluster k and batch b,
+//' \eqn{x = \mu_k + m_b + c + e}, with \eqn{c \sim N(0, \Sigma_k)} the
+//' batch-free within-cluster signal and \eqn{e \sim N(0, diag((S_b - 1)
+//' \Sigma_{k,pp}))} the batch's extra per-feature noise, independent of
+//' \eqn{c}, so that \eqn{Cov(x) = \Sigma_k + diag((S_b - 1) \Sigma_{k,pp})
+//' = \Sigma_{kb}} (the model's \code{cov_comb}; this requires \eqn{S_b \ge
+//' 1}, which the \code{S_loc = 1} support of the batch-scale prior
+//' guarantees). By the Gaussian conditioning identity
+//' \eqn{E[c \mid x] = \Sigma_k \Sigma_{kb}^{-1} (x - \mu_k - m_b)}, and the
+//' returned value is \eqn{\mu_k + E[c \mid x]}. For the Student-t model the
+//' same expression is the exact posterior mean given the latent scale
+//' variable, whose factor cancels, and hence marginally. Unlike rescaling
+//' the residual by \eqn{S_b^{-1/2}}, this is the exact inverse of the
+//' fitted (diagonal-inflation) batch model for a non-diagonal
+//' \eqn{\Sigma_k}. It is a denoising estimate, not a change of variables:
+//' within-cluster deviations are shrunk towards \eqn{\mu_k} by
+//' \eqn{\Sigma_k \Sigma_{kb}^{-1}}.
+//' @param X_t P x N (complete, imputed) data.
+//' @param labels N-vector of 0-indexed cluster labels.
+//' @param batch_vec N-vector of 0-indexed batch labels.
+//' @param B The number of batches.
+//' @param mu P x K cluster means.
+//' @param mean_sum P x (K * B) matrix whose column \code{k * B + b} is
+//' \eqn{\mu_k + m_b} (plus the interaction term when used).
+//' @param cov P x P x K cluster covariances \eqn{\Sigma_k}.
+//' @param cov_comb_inv P x P x (K * B) inverses of \eqn{\Sigma_{kb}}.
+//' @return An N x P matrix.
+//' @keywords internal
+//' @export
+// [[Rcpp::export]]
+arma::mat batchCorrectedPosteriorMean(
+  arma::mat X_t,
+  arma::uvec labels,
+  arma::uvec batch_vec,
+  arma::uword B,
+  arma::mat mu,
+  arma::mat mean_sum,
+  arma::cube cov,
+  arma::cube cov_comb_inv
+) {
+  uword N = X_t.n_cols, P = X_t.n_rows, k = 0, kb = 0;
+  mat Y(N, P);
+  vec residual(P);
+
+  for(uword n = 0; n < N; n++) {
+    k = labels(n);
+    kb = k * B + batch_vec(n);
+    residual = X_t.col(n) - mean_sum.col(kb);
+    Y.row(n) = (mu.col(k) + cov.slice(k) * (cov_comb_inv.slice(kb) * residual)).t();
+  }
+
+  return Y;
+};
+
+double meanAcceptanceOccupied(
+  const arma::uvec& accepted_this_sweep,
+  const arma::uvec& N_k,
+  double fallback
+) {
+  double total = 0.0;
+  uword n_occupied = 0;
+  for(uword k = 0; k < N_k.n_elem; k++) {
+    if(N_k(k) > 0) {
+      total += (double) accepted_this_sweep(k);
+      n_occupied++;
+    }
+  }
+  return (n_occupied > 0) ? total / (double) n_occupied : fallback;
 };

@@ -111,7 +111,7 @@ batchSemiSupervisedMixtureModel <- function(X,
                                             m_scale = NULL,
                                             rho = 3.0,
                                             theta = 1.0,
-                                            sample_s_scale = FALSE,
+                                            sample_s_scale = TRUE,
                                             s_scale_shape = 2.0,
                                             s_scale_rate = 1.0,
                                             eta = 1.0,
@@ -125,10 +125,11 @@ batchSemiSupervisedMixtureModel <- function(X,
                                             initial_class_df = NULL,
                                             # -- optional structural extensions --
                                             include_interaction = FALSE,
-                                            batch_weight_prior = c("global", "partial_pooling", "gp"),
+                                            batch_weight_prior = NULL,
                                             batch_coordinates = NULL,
-                                            gp_tau2 = 1.0,
+                                            gp_tau2 = NULL,
                                             gp_length_scale = 1.0,
+                                            gp_kernel = "rw1",
                                             sample_gp_hyperparameters = FALSE,
                                             pp_tau2_shape = 2.0,
                                             pp_tau2_rate = 1.0,
@@ -271,7 +272,14 @@ batchSemiSupervisedMixtureModel <- function(X,
 
   # Validate and map to the integer code the C++ layer expects: 0 = global,
   # 1 = partial pooling, 2 = gp.
-  batch_weight_prior <- match.arg(batch_weight_prior)
+  # NULL (the default) means partial pooling whenever there is more than one
+  # batch, and a single shared weight vector when there is only one (a
+  # population variance across batches is not estimable from one batch).
+  if (is.null(batch_weight_prior)) {
+    batch_weight_prior <- if (B > 1) "partial_pooling" else "global"
+  } else {
+    batch_weight_prior <- match.arg(batch_weight_prior, c("partial_pooling", "global", "gp"))
+  }
   weight_prior_type <- switch(batch_weight_prior,
     global = 0L,
     partial_pooling = 1L,
@@ -284,6 +292,27 @@ batchSemiSupervisedMixtureModel <- function(X,
     batch_coordinates <- numeric(0)
   } else if (length(batch_coordinates) != B) {
     stop("batch_coordinates must have one entry per batch (length B).")
+  }
+
+  # GP kernel over batch_coordinates. The non-stationary kernels ("rw1",
+  # "rw2") start at the earliest coordinate; coordinates are rescaled to
+  # [0, 1] so that gp_tau2 and the diffuse level/slope are comparable
+  # across datasets (the origin and scale are stored for prediction).
+  gp_kernel <- match.arg(gp_kernel, c("rw1", "rw2", "matern32"))
+  gp_kernel_type <- .gpKernelCode(gp_kernel)
+  if (is.null(gp_tau2)) {
+    # The mode of each kernel's default tau2 prior (see sampler.cpp).
+    gp_tau2 <- switch(gp_kernel, matern32 = 1.0, rw1 = 20 / 3, rw2 = 500)
+  }
+  gp_coordinate_origin <- 0
+  gp_coordinate_scale <- 1
+  batch_coordinates_original <- batch_coordinates
+  if (batch_weight_prior == "gp" && gp_kernel_type != 0L) {
+    bc <- if (length(batch_coordinates) == 0) seq(0, B - 1) else batch_coordinates
+    batch_coordinates_original <- bc
+    gp_coordinate_origin <- min(bc)
+    gp_coordinate_scale <- if (diff(range(bc)) > 0) diff(range(bc)) else 1
+    batch_coordinates <- (bc - gp_coordinate_origin) / gp_coordinate_scale
   }
 
   # Only meaningful for type = 'MVN_MIXED'.
@@ -342,6 +371,7 @@ batchSemiSupervisedMixtureModel <- function(X,
     batch_coordinates = batch_coordinates,
     gp_tau2 = gp_tau2,
     gp_length_scale = gp_length_scale,
+    gp_kernel_type = gp_kernel_type,
     eta_proposal_window = eta_proposal_window,
     sample_gp_hyperparameters = sample_gp_hyperparameters,
     gp_hyperparameter_proposal_window = gp_hyperparameter_proposal_window,
@@ -529,7 +559,10 @@ batchSemiSupervisedMixtureModel <- function(X,
   mcmc_output$a_gamma <- a_gamma
   mcmc_output$b_gamma <- b_gamma
   mcmc_output$batch_weight_prior <- batch_weight_prior
-  mcmc_output$batch_coordinates <- batch_coordinates
+  mcmc_output$batch_coordinates <- batch_coordinates_original
+  mcmc_output$gp_kernel <- gp_kernel
+  mcmc_output$gp_coordinate_origin <- gp_coordinate_origin
+  mcmc_output$gp_coordinate_scale <- gp_coordinate_scale
   mcmc_output$eta_proposal_window <- eta_proposal_window
   mcmc_output$sample_gp_hyperparameters <- sample_gp_hyperparameters
   mcmc_output$gp_hyperparameter_proposal_window <- gp_hyperparameter_proposal_window

@@ -23,7 +23,9 @@ estimate. Must be ``'mean'`` or ``'median'``. ``'median'`` is the default.}
 \item{chains_already_processed}{Logical indicating if the chains have already
 had a burn-in applied.}
 
-\item{nCores}{Integer used by salso to parallelize point estimate prediction.}
+\item{nCores}{Ignored. Retained for backwards compatibility: point
+estimation used to call ``salso::salso()``, which used it to parallelize
+its search; it is now done by the local, single-threaded ``minVI()``.}
 }
 \value{
 A named list of quantities related to prediction/clustering:
@@ -36,8 +38,11 @@ A named list of quantities related to prediction/clustering:
    allocated to the class with the highest probability.
 
  * ``pred``: $N$ vector of the predicted class for each sample. If the model
-   is unsupervised then the ``salso`` function from Dahl et al. (2021) is
-   used on the sampled partitions using the default settings.
+   is unsupervised then ``minVI(method = "greedy")`` is applied to the
+   posterior similarity matrix of the sampled partitions: the point estimate
+   minimising the Jensen lower bound to the posterior expected Variation of
+   Information (Wade & Ghahramani, 2018), refined by greedy relocation.
+   This needs the ``N x N`` similarity matrix in memory.
 
  * ``samples``: List of sampled allocations for each view. Columns
    correspond to items being clustered, rows to MCMC samples.

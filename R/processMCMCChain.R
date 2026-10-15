@@ -34,6 +34,10 @@
 #'  * ``inferred_dataset``: $(N x P)$ matrix. The inferred ``batch-free''
 #'  dataset.
 #'
+#'  Each item's posterior-mean batch-free signal (the mean or median, over
+#'  retained samples, of \eqn{\mu_k + \Sigma_k \Sigma_{kb}^{-1} (x - \mu_k - m_b)}),
+#'  a shrunk (denoised) estimate rather than a rescaling of the residual.
+#'
 #'  * ``allocation_probability``: $(N x K)$ matrix. The point estimate of
 #'  the allocation probabilities for each data point to each class.
 #'
@@ -175,7 +179,7 @@ processMCMCChain <- function(mcmc_output, burn, point_estimate_method = "median"
   correlated_weights_used <- isTRUE(mcmc_output$weight_prior_type > 0)
   if (correlated_weights_used) {
     new_output$w_batch <- mcmc_output$w_batch[, , keep_indices, drop = FALSE]
-    new_output$eta_alr <- mcmc_output$eta_alr[, , keep_indices, drop = FALSE]
+    new_output$eta_logit <- mcmc_output$eta_logit[, , keep_indices, drop = FALSE]
     new_output$gp_tau2 <- mcmc_output$gp_tau2[keep_indices]
     new_output$gp_length_scale <- mcmc_output$gp_length_scale[keep_indices]
     new_output$pp_mu <- mcmc_output$pp_mu[, keep_indices, drop = FALSE]

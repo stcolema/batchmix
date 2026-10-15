@@ -1,8 +1,8 @@
 #' @title Minimium VI
 #' @description Local implementation of S. Wade's `minVI` function from their
 #' `mcclust.ext` package (available from github).
-#' Reimplemented here to avoid dependency on a non-CRAN package and we have
-#' dropped the `greedy` method. Finds the optimal partition by minimising the
+#' Reimplemented here to avoid dependency on a non-CRAN package. Finds the
+#' optimal partition by minimising the
 #' lower bound to the Variation of Information obtained from Jensen's inequality
 #' where the expectation and log are reversed. For full details please see the
 #' aforementioned package and Wade and Ghahramani, 2018, 'Bayesian Cluster
@@ -33,8 +33,13 @@
 #'
 #' * `.$method`: the point method used to infer the clustering(s)
 #'
-#' Names are due to legacy reasons - this function is replacing the
+#' Names are due to legacy reasons - this function replaces the
 #' `salso::salso` function and name choices are to minimise workflow damage.
+#'
+#' Every method works from the `n x n` PSM, which needs `8 n^2` bytes; for very
+#' large `n` (tens of thousands of items) this can exceed memory, unlike the
+#' PSM-free search in `salso`, the trade-off for not depending on a Rust
+#' toolchain.
 #' @examples
 #' \dontrun{
 #' # MCMC samples and BIC vector
@@ -57,14 +62,35 @@ minVI <- function(psm,
                   cls.draw = NULL,
                   method = "avg",
                   max.k = NULL) {
-  wrong_method <- !(method %in% c("avg", "comp", "draws", "all"))
+  wrong_method <- !(method %in% c("avg", "comp", "draws", "greedy", "all"))
   if (wrong_method) {
-    stop("method must be one of 'avg', 'comp', 'draws' or 'all'.")
+    stop("method must be one of 'avg', 'comp', 'draws', 'greedy' or 'all'.")
   }
 
   method <- match.arg(method, choices = method)
   if (method %in% c("draws", "all") & is.null(cls.draw)) {
     stop("cls.draw must be provided if method=''draws''")
+  }
+
+  if (method == "greedy") {
+    candidates <- list(
+      minVI(psm, cls.draw, method = "avg", max.k = max.k),
+      minVI(psm, cls.draw, method = "comp", max.k = max.k)
+    )
+    if (!is.null(cls.draw)) {
+      candidates <- c(candidates, list(minVI(psm, cls.draw, method = "draws", max.k = max.k)))
+    }
+    values <- vapply(candidates, function(cl) VI.lb(matrix(cl, nrow = 1), psm), numeric(1))
+    start <- as.vector(candidates[[which.min(values)]])
+    refined <- minVIGreedyRefine(psm, as.integer(start))
+    estimate <- as.vector(refined$labels)
+    attr(estimate, "info") <- list(
+      loss = "VI",
+      maxNClusters = max.k,
+      expectedLoss = refined$value,
+      method = "greedy"
+    )
+    return(estimate)
   }
 
   # If no maximum number of clusters is passed, set this to quarter of the

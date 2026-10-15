@@ -43,6 +43,10 @@ A named list similar to the output of
  * ``inferred_dataset``: $(N x P)$ matrix. The inferred ``batch-free''
  dataset.
 
+ Each item's posterior-mean batch-free signal (the mean or median, over
+ retained samples, of \eqn{\mu_k + \Sigma_k \Sigma_{kb}^{-1} (x - \mu_k - m_b)}),
+ a shrunk (denoised) estimate rather than a rescaling of the residual.
+
  * ``allocation_probability``: $(N x K)$ matrix. The point estimate of
  the allocation probabilities for each data point to each class.
 

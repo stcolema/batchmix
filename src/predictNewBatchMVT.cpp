@@ -38,12 +38,14 @@ Rcpp::List predictNewBatchMVT(
     bool sample_s_scale,
     arma::uword weight_prior_type,
     arma::mat weights_draws,
-    arma::cube eta_alr_init_draws,
+    arma::cube eta_logit_init_draws,
     arma::mat gp_beta_draws,
     arma::mat pp_mu_draws,
     arma::mat pp_tau2_draws,
     arma::vec gp_tau2_draws,
     arma::vec gp_length_scale_draws,
+    arma::uword gp_kernel_type,
+    double pp_mu_prior_sd,
     arma::vec batch_coordinates_new,
     double eta_proposal_window,
     double m_proposal_window,
@@ -57,7 +59,6 @@ Rcpp::List predictNewBatchMVT(
   uword N = X.n_rows, P = X.n_cols, N_new = X_new.n_rows;
   uword B_new = B + 1;
   uword predict_batch = B; // 0-indexed: the new batch is the last one
-  uword n_free = (K > 0) ? K - 1 : 0;
   uword n_draws = means_draws.n_slices;
 
   arma::mat X_full = arma::join_cols(X, X_new);
@@ -86,7 +87,7 @@ Rcpp::List predictNewBatchMVT(
     weight_prior_type, batch_coordinates_new,
     gp_tau2_draws.n_elem ? gp_tau2_draws(0) : 1.0,
     gp_length_scale_draws.n_elem ? gp_length_scale_draws(0) : 1.0,
-    eta_proposal_window, false, 0.1, 2.0, 1.0, 10.0
+    eta_proposal_window, false, 0.1, 2.0, 1.0, pp_mu_prior_sd, gp_kernel_type
   );
 
   my_sampler.sampleFromPriors();
@@ -133,7 +134,7 @@ Rcpp::List predictNewBatchMVT(
     if (weight_prior_type == 0) {
       my_sampler.w = weights_draws.row(t).t();
     } else {
-      my_sampler.eta_alr = eta_alr_init_draws.slice(t);
+      my_sampler.eta_logit = eta_logit_init_draws.slice(t);
       if (weight_prior_type == 1) {
         my_sampler.pp_mu = pp_mu_draws.col(t);
         my_sampler.pp_tau2 = pp_tau2_draws.col(t);
@@ -147,7 +148,7 @@ Rcpp::List predictNewBatchMVT(
           my_sampler.gp_cov, my_sampler.gp_chol, jitter_unused
         );
       }
-      my_sampler.updateSimplexFromALR(n_free);
+      my_sampler.updateSimplexFromLogits();
     }
 
     my_sampler.matrixCombinations(); // also recomputes pdf_coef from t_df - see mvtSampler::matrixCombinations()

@@ -25,9 +25,12 @@ batchmixControl(
 }
 \arguments{
 \item{mu_proposal_window}{The proposal window for the cluster mean
-proposal kernel. The proposal density is a Gaussian distribution, the
-window is the variance. Making this smaller will normally increase the
-acceptance rate.}
+proposal kernel. The proposal is a Gaussian random walk shaped like the
+cluster's own covariance, \eqn{\mu' = \mu + w L z} with
+\eqn{L L^\top = \Sigma_k}, \eqn{z \sim N(0, I)} and \eqn{w} this window,
+so it is a step size in units of the cluster's own spread (it was an
+isotropic step in the data's units before this shaping was introduced).
+Making this smaller will normally increase the acceptance rate.}
 
 \item{cov_proposal_window}{The proposal window for the cluster
 covariance proposal kernel when \code{type} is \code{'MVN'} or

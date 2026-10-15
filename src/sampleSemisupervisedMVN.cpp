@@ -48,6 +48,7 @@ Rcpp::List sampleSemisupervisedMVN (
     arma::vec batch_coordinates,
     double gp_tau2,
     double gp_length_scale,
+    arma::uword gp_kernel_type,
     double eta_proposal_window,
     bool sample_gp_hyperparameters,
     double gp_hyperparameter_proposal_window,
@@ -85,7 +86,7 @@ Rcpp::List sampleSemisupervisedMVN (
     batch_coordinates = arma::regspace<arma::vec>(0, B - 1);
   }
   my_sampler.initialiseInteraction(include_interaction, gamma_proposal_window, a_gamma, b_gamma);
-  my_sampler.initialiseBatchWeightPrior(weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd);
+  my_sampler.initialiseBatchWeightPrior(weight_prior_type, batch_coordinates, gp_tau2, gp_length_scale, eta_proposal_window, sample_gp_hyperparameters, gp_hyperparameter_proposal_window, pp_tau2_shape, pp_tau2_rate, pp_mu_prior_sd, gp_kernel_type);
 
   uword P = X.n_cols, N = X.n_rows, n_saved = std::floor(n_iter / thin);
 
@@ -112,7 +113,7 @@ Rcpp::List sampleSemisupervisedMVN (
     latent_data(N, P, n_saved),
     gamma_saved(P, K * B, n_saved),
     w_batch_saved(B, K, n_saved),
-    eta_alr_saved(B, (K > 0) ? K - 1 : 0, n_saved);
+    eta_logit_saved(B, K, n_saved);
 
   mu_saved.zeros();
   cov_saved.zeros();
@@ -124,9 +125,9 @@ Rcpp::List sampleSemisupervisedMVN (
   vec gp_tau2_saved = zeros<vec>(n_saved),
     gp_length_scale_saved = zeros<vec>(n_saved),
     rho_saved = zeros<vec>(n_saved);
-  arma::mat pp_mu_saved((K > 0) ? K - 1 : 0, n_saved, arma::fill::zeros),
-    pp_tau2_saved((K > 0) ? K - 1 : 0, n_saved, arma::fill::zeros),
-    gp_beta_saved((K > 0) ? K - 1 : 0, n_saved, arma::fill::zeros);
+  arma::mat pp_mu_saved(K, n_saved, arma::fill::zeros),
+    pp_tau2_saved(K, n_saved, arma::fill::zeros),
+    gp_beta_saved(K, n_saved, arma::fill::zeros);
 
   uword save_int = 0;
 
@@ -174,15 +175,20 @@ Rcpp::List sampleSemisupervisedMVN (
 
     if(auto_tune && r < n_burn) {
       double n_adapt = (double) (r + 1);
-      my_sampler.mu_proposal_window = robbinsMonroUpdate(my_sampler.mu_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.mu_count - prev_mu_count)), 0.234, n_adapt);
-      my_sampler.cov_proposal_window = robbinsMonroUpdate(my_sampler.cov_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.cov_count - prev_cov_count)), 0.234, n_adapt);
+      // Rates are averaged over occupied clusters only (empty clusters take
+      // forced prior draws, not proposals). cov_proposal_window is the
+      // Wishart df and S_proposal_window a Gamma shape multiplier: LARGER
+      // means a SMALLER step, so both use the reciprocal update. The df is
+      // floored at P, below which wishrnd() is not a valid proposal.
+      my_sampler.mu_proposal_window = robbinsMonroUpdate(my_sampler.mu_proposal_window, meanAcceptanceOccupied(my_sampler.mu_count - prev_mu_count, my_sampler.N_k, 0.234), 0.234, n_adapt);
+      my_sampler.cov_proposal_window = std::max((double) P, robbinsMonroUpdateReciprocal(my_sampler.cov_proposal_window, meanAcceptanceOccupied(my_sampler.cov_count - prev_cov_count, my_sampler.N_k, 0.234), 0.234, n_adapt));
       my_sampler.m_proposal_window = robbinsMonroUpdate(my_sampler.m_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.m_count - prev_m_count)), 0.234, n_adapt);
-      my_sampler.S_proposal_window = robbinsMonroUpdate(my_sampler.S_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.S_count - prev_S_count)), 0.234, n_adapt);
+      my_sampler.S_proposal_window = robbinsMonroUpdateReciprocal(my_sampler.S_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.S_count - prev_S_count)), 0.234, n_adapt);
       if(include_interaction) {
         my_sampler.gamma_proposal_window = robbinsMonroUpdate(my_sampler.gamma_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(arma::vectorise(my_sampler.gamma_count - prev_gamma_count))), 0.234, n_adapt);
       }
       if(weight_prior_type > 0 && K > 1) {
-        my_sampler.eta_proposal_window = robbinsMonroUpdate(my_sampler.eta_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.eta_count - prev_eta_count)), 0.234, n_adapt);
+        my_sampler.eta_proposal_window = robbinsMonroUpdate(my_sampler.eta_proposal_window, arma::mean(arma::conv_to<arma::vec>::from(my_sampler.eta_count - prev_eta_count)) / my_sampler.eta_moves_per_sweep, 0.234, n_adapt);
         if(weight_prior_type == 2 && sample_gp_hyperparameters) {
           double gp_hyper_rate = (double) (my_sampler.gp_hyperparameter_count - prev_gp_hyperparameter_count);
           my_sampler.gp_hyperparameter_proposal_window = robbinsMonroUpdate(my_sampler.gp_hyperparameter_proposal_window, gp_hyper_rate, 0.234, n_adapt);
@@ -229,7 +235,7 @@ Rcpp::List sampleSemisupervisedMVN (
 
       gamma_saved.slice( save_int ) = reshape(mat(my_sampler.gamma.memptr(), my_sampler.gamma.n_elem, 1, false), P, K * B);
       w_batch_saved.slice( save_int ) = my_sampler.w_batch;
-      eta_alr_saved.slice( save_int ) = my_sampler.eta_alr;
+      eta_logit_saved.slice( save_int ) = my_sampler.eta_logit;
       gp_tau2_saved( save_int ) = my_sampler.gp_tau2;
       gp_length_scale_saved( save_int ) = my_sampler.gp_length_scale;
       rho_saved( save_int ) = my_sampler.rho;
@@ -269,8 +275,8 @@ Rcpp::List sampleSemisupervisedMVN (
   out["tau2_interaction"] = my_sampler.tau2_interaction;
   out["gamma_acceptance_rate"] = arma::conv_to< arma::vec >::from(arma::vectorise(my_sampler.gamma_count)) / n_iter;
   out["w_batch"] = w_batch_saved;
-  out["eta_alr"] = eta_alr_saved;
-  out["eta_acceptance_rate"] = arma::conv_to< arma::vec >::from(my_sampler.eta_count) / n_iter;
+  out["eta_logit"] = eta_logit_saved;
+  out["eta_acceptance_rate"] = arma::conv_to< arma::vec >::from(my_sampler.eta_count) / (n_iter * my_sampler.eta_moves_per_sweep);
   out["gp_tau2"] = gp_tau2_saved;
   out["gp_length_scale"] = gp_length_scale_saved;
   out["pp_mu"] = pp_mu_saved;

@@ -249,6 +249,9 @@ arma::mat squaredExponentialKernel(arma::vec x, double tau2, double length_scale
 //' @return The covariance matrix, length(x) x length(x).
 arma::mat maternKernel32(arma::vec x, double tau2, double length_scale, double jitter);
 
+arma::mat gpKernelMatrix(arma::vec x, arma::uword type, double tau2, double length_scale,
+                         double jitter, double level_var, double slope_var);
+
 //' @title Multinomial-logit Gaussian process log-kernel
 //' @description The unnormalised log-posterior-kernel for one additive
 //' log-ratio (ALR) coordinate of a set of batch-dependent multinomial
@@ -489,6 +492,55 @@ double robbinsMonroUpdate(
   double n,
   double step_scale = 1.0,
   double kappa = 0.6
+);
+
+// Robbins-Monro update for a window whose LARGER values give SMALLER
+// proposal steps (Gamma-RW shape multiplier, Wishart df, ...); see
+// genericFunctions.cpp.
+double robbinsMonroUpdateReciprocal(
+  double window,
+  double acceptance_rate,
+  double target_rate,
+  double n,
+  double step_scale = 1.0,
+  double kappa = 0.6
+);
+
+// Change in the data log-likelihood when feature p of every cell's mean moves
+// by delta_cell(c) (c = cell_of_item(n) indexes mean_sum's columns and
+// cov_comb_inv's slices); see genericFunctions.cpp. `t_df_item` is empty for
+// a Gaussian likelihood, else the per-item Student-t degrees of freedom.
+double interactionLogLikDeltaImpl(
+  const arma::mat& X_t,
+  const arma::uvec& cell_of_item,
+  const arma::mat& mean_sum,
+  const arma::cube& cov_comb_inv,
+  arma::uword p,
+  const arma::vec& delta_cell,
+  const arma::vec& t_df_item
+);
+
+// Posterior mean of each item's latent batch-free signal; see
+// genericFunctions.cpp.
+arma::mat batchCorrectedPosteriorMean(
+  arma::mat X_t,
+  arma::uvec labels,
+  arma::uvec batch_vec,
+  arma::uword B,
+  arma::mat mu,
+  arma::mat mean_sum,
+  arma::cube cov,
+  arma::cube cov_comb_inv
+);
+
+// Mean of the per-cluster acceptance indicators over OCCUPIED clusters only;
+// empty clusters take forced prior draws, not Metropolis proposals, so they
+// carry no information about the proposal's acceptance rate. Returns
+// `fallback` when every cluster is empty.
+double meanAcceptanceOccupied(
+  const arma::uvec& accepted_this_sweep,
+  const arma::uvec& N_k,
+  double fallback
 );
 
 #endif /* GENFUN_H */
