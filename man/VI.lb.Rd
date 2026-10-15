@@ -39,6 +39,6 @@ mcmc_outputs <- fitBatchMix(
 
 # Note that in this toy example we have not applied a burn in
 psm <- createSimilarityMat(mcmc_outputs[[1]]$samples)
-VI.lb(mcmc_outputs[[1]]$samples[1, ], psm)
+batchmix:::VI.lb(mcmc_outputs[[1]]$samples[1, ], psm)
 }
 }
