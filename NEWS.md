@@ -160,6 +160,17 @@
   `posterior` is a suggested package; `Depends: R (>= 3.6.0)` is added for the
   delayed method registration.
 
+* **Parallel chains: `n_cores` in `fitBatchMix()` and `continueChains()`.** Off by default (one core, or
+  `options(batchmix.cores)`), so existing calls run exactly as before, draw for draw. With
+  `n_cores > 1` each chain gets its own L'Ecuyer-CMRG random-number stream, drawn from the user's
+  generator, so the result follows `set.seed()` and does not depend on the number of cores, nor on
+  whether workers are forked (Unix-alikes) or sockets (Windows; `options(batchmix.parallel_type)`
+  forces either); the user's generator kind and state are restored. A parallel run differs from the
+  serial run for the same seed, because serial chains share one stream. At most two cores are used
+  while `R CMD check` runs (`_R_CHECK_LIMIT_CORES_`), as `data.table` does, and never more than the
+  chains or the machine allow. A failing chain is reported by number. `parallel` (a base package)
+  is added to `Imports`; `n_chains` is now checked to be a positive integer.
+
 * **`pointwiseLogLik()`: the log-likelihood of each item at each draw, for `loo` and `waic`.**
   It returns the draws x items matrix (with `chain_id` for `loo::relative_eff()`) of
   `log sum_k w_bk f(x_n | mu_kb, Sigma_kb)`: the cluster allocation is summed out, so the value
