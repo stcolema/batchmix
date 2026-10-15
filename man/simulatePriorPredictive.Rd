@@ -7,7 +7,7 @@
 simulatePriorPredictive(
   X,
   batch_vec,
-  K,
+  K_max,
   type = c("MVN", "MVT", "MVN_LKJ", "MVN_MIXED"),
   column_type = NULL,
   alpha = 1,
@@ -26,7 +26,8 @@ simulatePriorPredictive(
   t_df_shape = 2,
   t_df_rate = 0.1,
   t_df_loc = 2,
-  n_datasets = 1
+  n_datasets = 1,
+  K = NULL
 )
 }
 \arguments{
@@ -46,7 +47,7 @@ mirroring the C++ constructor exactly), not any latent-scale transform.}
 
 \item{batch_vec}{Observed batch label for each row of X.}
 
-\item{K}{The number of clusters to simulate.}
+\item{K_max}{The number of clusters to simulate.}
 
 \item{type}{One of 'MVN', 'MVT', 'MVN_LKJ', 'MVN_MIXED' (see
 \code{\link{batchSemiSupervisedMixtureModel}} for what each means).}
@@ -103,6 +104,8 @@ is 'MVT'. Defaults match \code{mvtSampler}'s own defaults
 
 \item{n_datasets}{Number of independent prior predictive datasets to
 draw.}
+
+\item{K}{Deprecated; use \code{K_max}.}
 }
 \value{
 A list of length \code{n_datasets}; each element is a list with

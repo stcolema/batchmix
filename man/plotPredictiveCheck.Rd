@@ -84,7 +84,7 @@ Gelman, 2019, "Visualization in Bayesian Workflow", JRSS-A 182(2)):
 X <- matrix(c(rnorm(100, 0, 1), rnorm(100, 3, 1)), ncol = 2, byrow = TRUE)
 batch_vec <- sample(seq(1, 3), replace = TRUE, size = 100)
 
-prior_sims <- simulatePriorPredictive(X, batch_vec, K = 2, type = "MVN", n_datasets = 20)
+prior_sims <- simulatePriorPredictive(X, batch_vec, K_max = 2, type = "MVN", n_datasets = 20)
 plotPredictiveCheck(X, prior_sims, style = "density", column = 1)
 plotPredictiveCheck(X, prior_sims,
   style = "statistic", column = 1,

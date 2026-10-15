@@ -21,7 +21,7 @@ test_that("simulatePriorPredictive()'s batch-shift draws have the correct scale 
   batch_vec <- rep(0, N)
   m_scale <- 0.05
 
-  sims <- simulatePriorPredictive(X, batch_vec, K = 1, type = "MVN",
+  sims <- simulatePriorPredictive(X, batch_vec, K_max = 1, type = "MVN",
     m_scale = m_scale, n_datasets = 4000
   )
   m_draws <- vapply(sims, function(s) s$params$m[1, 1], numeric(1))
@@ -52,7 +52,7 @@ test_that("simulatePriorPredictive()/simulatePosteriorPredictive() work for type
   batch_vec <- rep(0L, N)
 
   prior_sims <- simulatePriorPredictive(
-    X, batch_vec, K = 1, type = "MVN_MIXED", column_type = column_type,
+    X, batch_vec, K_max = 1, type = "MVN_MIXED", column_type = column_type,
     n_datasets = 3
   )
   expect_length(prior_sims, 3)
@@ -102,7 +102,7 @@ test_that("simulatePriorPredictive() still works for 'MVN', 'MVT', 'MVN_LKJ' (no
   batch_vec <- sample(0:1, N, replace = TRUE)
 
   for (ty in c("MVN", "MVT", "MVN_LKJ")) {
-    sims <- simulatePriorPredictive(X, batch_vec, K = 2, type = ty, n_datasets = 2)
+    sims <- simulatePriorPredictive(X, batch_vec, K_max = 2, type = ty, n_datasets = 2)
     expect_length(sims, 2)
     expect_equal(dim(sims[[1]]$X), c(N, P))
     expect_false(anyNA(sims[[1]]$X))
@@ -116,7 +116,7 @@ test_that("plotPredictiveCheck() warns when style = 'density' is used on an appa
   X[, 2] <- as.numeric(X[, 2] > 0)
   batch_vec <- rep(0, N)
 
-  sims <- simulatePriorPredictive(X, batch_vec, K = 1, type = "MVN_MIXED",
+  sims <- simulatePriorPredictive(X, batch_vec, K_max = 1, type = "MVN_MIXED",
     column_type = c(0L, 1L), n_datasets = 5
   )
 
@@ -152,4 +152,20 @@ test_that("plotPredictiveCheck() warns when style = 'density' is used on an appa
   obs_masked[censor_code[, 1] != 0] <- NA
   expect_equal(mean(obs_masked, na.rm = TRUE), mean(X[-outlier_idx, 1]))
   expect_gt(full_mean, mean(obs_masked, na.rm = TRUE) + 1) # confirms the outliers really do move the naive mean
+})
+
+test_that("simulatePriorPredictive(K = ) is the deprecated name of K_max", {
+  set.seed(1)
+  X <- matrix(rnorm(40), 20, 2)
+  batch_vec <- rep(1:2, 10)
+  set.seed(2)
+  new <- simulatePriorPredictive(X, batch_vec, K_max = 2, type = "MVN", n_datasets = 2)
+  set.seed(2)
+  expect_warning(
+    old <- simulatePriorPredictive(X, batch_vec, K = 2, type = "MVN", n_datasets = 2),
+    "`K` argument of `simulatePriorPredictive\\(\\)` is deprecated"
+  )
+  expect_identical(old, new)
+  expect_error(simulatePriorPredictive(X, batch_vec, K_max = 2, K = 2, type = "MVN"), "both given")
+  expect_error(simulatePriorPredictive(X, batch_vec, type = "MVN"), "K_max")
 })

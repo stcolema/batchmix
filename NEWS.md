@@ -88,6 +88,8 @@
 
 ## Breaking (soft - old code still works, with a deprecation warning)
 
+* **`simulatePriorPredictive(K = )` is now `K_max`**, as in the fitting functions and in `mdir`. The old name still
+  works, with a warning.
 * **`fitBatchMix()` is now the package's main entry point**, replacing
   `runMCMCChains()` as the recommended way to fit a model: it runs several
   chains (fitting only one chain is not extra rigour, it is how

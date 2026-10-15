@@ -54,7 +54,7 @@
 #' raw \{0, 1\} values are used as-is for this derivation too (again
 #' mirroring the C++ constructor exactly), not any latent-scale transform.
 #' @param batch_vec Observed batch label for each row of X.
-#' @param K The number of clusters to simulate.
+#' @param K_max The number of clusters to simulate.
 #' @param type One of 'MVN', 'MVT', 'MVN_LKJ', 'MVN_MIXED' (see
 #' \code{\link{batchSemiSupervisedMixtureModel}} for what each means).
 #' @param column_type Only used if \code{type = "MVN_MIXED"}: a P-vector,
@@ -99,6 +99,7 @@
 #' (\code{psi = 2, chi = 0.1, t_loc = 2}).
 #' @param n_datasets Number of independent prior predictive datasets to
 #' draw.
+#' @param K Deprecated; use \code{K_max}.
 #' @return A list of length \code{n_datasets}; each element is a list with
 #' \code{X} (the simulated, fully-observed N x P data matrix), \code{labels}
 #' (the simulated N-vector of prior cluster draws, 0-indexed) and
@@ -111,7 +112,7 @@
 #' @export
 simulatePriorPredictive <- function(X,
                                     batch_vec,
-                                    K,
+                                    K_max,
                                     type = c("MVN", "MVT", "MVN_LKJ", "MVN_MIXED"),
                                     column_type = NULL,
                                     alpha = 1,
@@ -130,7 +131,13 @@ simulatePriorPredictive <- function(X,
                                     t_df_shape = 2.0,
                                     t_df_rate = 0.1,
                                     t_df_loc = 2.0,
-                                    n_datasets = 1) {
+                                    n_datasets = 1,
+                                    K = NULL) {
+  K_max <- .batchmixRenamedArg(
+    if (missing(K_max)) NULL else K_max, K, "K_max", "K", "simulatePriorPredictive",
+    required = TRUE
+  )
+  K <- K_max
   type <- match.arg(type)
   is_mixed <- type == "MVN_MIXED"
 

@@ -202,7 +202,7 @@ unless overridden - since that is what is being checked.
 ```{r priorPC}
 prior_sims <- simulatePriorPredictive(
   X, batch_vec,
-  K = K, type = "MVN",
+  K_max = K, type = "MVN",
   n_datasets = 30
 )
 
