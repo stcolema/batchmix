@@ -133,7 +133,7 @@ public:
   
   virtual void calcBIC() override;
   
-  double clusterLikelihood(
+  virtual double clusterLikelihood(
     double t_df,
     arma::uvec cluster_ind,
     arma::vec cov_det,
@@ -141,7 +141,7 @@ public:
     arma::cube cov_inv
   ) ;
   
-  double batchLikelihood(
+  virtual double batchLikelihood(
     arma::uvec batch_inds,
     arma::uvec labels,
     arma::vec cov_det,
@@ -168,6 +168,15 @@ public:
     arma::cube cov_comb_inv
   ) override;
   
+  // The data and prior parts of dfLogKernel() are separate so that a test sampler
+  // can switch the likelihood off and leave the prior untouched.
+  virtual double dfLogLikelihood(arma::uword k,
+    double t_df,
+    double pdf_coef
+  );
+
+  double dfLogPrior(double t_df) const;
+
   virtual double dfLogKernel(arma::uword k, 
     double t_df,
     double pdf_coef

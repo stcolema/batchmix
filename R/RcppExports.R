@@ -683,11 +683,61 @@ partialPoolingWeightChain <- function(labels, batch_vec, K, B, n_iter, mu, tau2,
 #' @param tau2,length_scale Kernel parameters.
 #' @param level_sd The prior sd of the diffuse level (and slope).
 #' @param eta_pw Proposal window of the block random walk.
-#' @return A list with the \code{eta} trace (B x K x n_iter) and
-#' \code{eta_count}.
+#' @param sample_hyperparameters Update \code{tau2} and \code{length_scale}
+#' by Metropolis-Hastings, so that they follow their hyperpriors.
+#' @param hyper_pw Proposal window of that update.
+#' @return A list with the \code{eta} trace (B x K x n_iter),
+#' \code{eta_count}, the traces of the hyperparameters and the shape and rate
+#' of their priors.
 #' @keywords internal
-gpWeightChain <- function(K, B, n_iter, coords, kernel_type, tau2, length_scale, level_sd, eta_pw) {
-    .Call('_batchmix_gpWeightChain', PACKAGE = 'batchmix', K, B, n_iter, coords, kernel_type, tau2, length_scale, level_sd, eta_pw)
+gpWeightChain <- function(K, B, n_iter, coords, kernel_type, tau2, length_scale, level_sd, eta_pw, sample_hyperparameters = FALSE, hyper_pw = 0.1) {
+    .Call('_batchmix_gpWeightChain', PACKAGE = 'batchmix', K, B, n_iter, coords, kernel_type, tau2, length_scale, level_sd, eta_pw, sample_hyperparameters, hyper_pw)
+}
+
+#' @title Prior-only chain for the plain MVN and MVT samplers (internal)
+#' @description Runs the sampler's sweep (weights, Metropolis steps and, if
+#' asked, the labels) with the data likelihood switched off, so the chain's
+#' stationary distribution is the prior. The initial state is a draw from the
+#' prior, so the cluster, batch and hyperparameter blocks are stationary
+#' from the first sweep when the labels are held fixed.
+#' @param type \code{"MVN"} or \code{"MVT"}.
+#' @param X Data matrix (only its dimensions and the empirical-Bayes prior
+#' centre and scale matter).
+#' @param K,B Number of clusters and batches.
+#' @param labels Cluster label (0-indexed) of each row of \code{X}.
+#' @param batch_vec Batch label (0-indexed) of each row of \code{X}.
+#' @param n_iter Number of sweeps.
+#' @param mu_pw,cov_pw,m_pw,S_pw,t_df_pw,s_scale_pw Proposal windows, on the
+#' scale the sampler uses internally.
+#' @param m_scale,rho,theta The batch shift and scale hyperparameters.
+#' @param sample_m_scale,sample_s_scale Sample the shift prior's variance and
+#' the scale prior's concentration.
+#' @param concentration K-vector, the Dirichlet concentration of the weights.
+#' @param update_allocation Update the labels (they follow the prior) rather
+#' than holding them fixed.
+#' @return A list of traces and the prior's hyperparameters.
+#' @keywords internal
+priorOnlyChain <- function(type, X, K, B, labels, batch_vec, n_iter, mu_pw, cov_pw, m_pw, S_pw, t_df_pw, m_scale, rho, theta, sample_m_scale, sample_s_scale, s_scale_pw, concentration, update_allocation) {
+    .Call('_batchmix_priorOnlyChain', PACKAGE = 'batchmix', type, X, K, B, labels, batch_vec, n_iter, mu_pw, cov_pw, m_pw, S_pw, t_df_pw, m_scale, rho, theta, sample_m_scale, sample_s_scale, s_scale_pw, concentration, update_allocation)
+}
+
+#' @title Prior-only chain for the batch-by-cluster interaction (internal)
+#' @description Runs the interaction term's Metropolis step and the Gibbs
+#' update of its variance with no items, so that no data likelihood enters and
+#' the chain targets the prior: each \code{gamma[p, , ]} is Gaussian on the
+#' sum-to-zero subspace with variance \code{tau2_interaction[p]}, itself
+#' \code{InvGamma(a_gamma, b_gamma)}.
+#' @param type \code{"MVN"} or \code{"MVT"} (which has its own interaction step).
+#' @param P,K,B Number of features, clusters and batches.
+#' @param n_iter Number of sweeps.
+#' @param gamma_pw Proposal window (sd) of the block random walk.
+#' @param a_gamma,b_gamma Shape and rate of the Inverse-Gamma hyperprior.
+#' @return A list with the traces of \code{tau2} (n_iter x P), of the sum of
+#' squares of \code{gamma[p, , ]} (n_iter x P) and of \code{gamma[1, , ]}
+#' (K x B x n_iter), and the acceptance counts.
+#' @keywords internal
+priorOnlyInteractionChain <- function(type, P, K, B, n_iter, gamma_pw, a_gamma, b_gamma) {
+    .Call('_batchmix_priorOnlyInteractionChain', PACKAGE = 'batchmix', type, P, K, B, n_iter, gamma_pw, a_gamma, b_gamma)
 }
 
 #' @title Sample semi-supervised MVN Mixture model
