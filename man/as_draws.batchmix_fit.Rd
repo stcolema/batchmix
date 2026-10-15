@@ -148,5 +148,6 @@ if (requireNamespace("posterior", quietly = TRUE)) {
 }
 }
 \seealso{
-\code{\link{assessConvergence}}, \code{\link{rankNormalizedRhat}}
+\code{\link{assessConvergence}}, \code{\link{rankNormalizedRhat}},
+\code{\link{pointwiseLogLik}} for the per-item log-likelihoods that \pkg{loo} needs
 }

@@ -160,6 +160,19 @@
   `posterior` is a suggested package; `Depends: R (>= 3.6.0)` is added for the
   delayed method registration.
 
+* **`pointwiseLogLik()`: the log-likelihood of each item at each draw, for `loo` and `waic`.**
+  It returns the draws x items matrix (with `chain_id` for `loo::relative_eff()`) of
+  `log sum_k w_bk f(x_n | mu_kb, Sigma_kb)`: the cluster allocation is summed out, so the value
+  does not depend on the labelling, and the batch shift, batch scale, batch-specific weights and
+  interaction are applied. It is recomputed from the stored draws, so it needs `X` and `batch_vec`
+  (and `fixed` for a semi-supervised fit) but no refit. Supported for `MVN`, `MVN_LKJ` and `MVT`,
+  with `NA` entries integrated out; `MVN_MIXED` is refused because its binary and censored columns
+  need probit integrals. Items with an observed label contribute the joint density of data and
+  label. The row sums equal the observed-data log-likelihood the sampler records at each draw, for
+  every batch weight prior, with interaction, and for the t and LKJ types (tested). Leave-one-out
+  here leaves one item out, so it does not assess prediction for an unseen batch
+  (`predictNewBatch()` does that); `loo` is a suggested package.
+
 * **Fitted models now print and summarise like a model object, not a raw
   list** (`runBatchMix()`/`batchSemiSupervisedMixtureModel()`/
   `continueChain()`/`processMCMCChain()` return an object of class
