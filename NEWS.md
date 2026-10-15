@@ -1,5 +1,11 @@
 # batchmix 3.0.0
 
+## Vignettes
+
+* `batchmix_workflow` now covers the posterior draws (`as_draws()`), model comparison with `pointwiseLogLik()` and
+  `loo`, parallel chains (`n_cores`) and the corrected Rhat/ESS, and has a table of the names shared with `mdir`
+  and the differences that remain.
+
 ## Breaking changes to defaults and results (read first)
 
 * **Partial pooling is now the default.** `batch_weight_prior` defaults to
