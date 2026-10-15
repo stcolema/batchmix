@@ -23,6 +23,12 @@
 #' recommend 1.01 as the threshold, tightened from the older folklore
 #' value of 1.1).
 #'
+#' The bulk ESS is the effective sample size of the rank-normalized split
+#' chains; the tail ESS is the smaller of the ESS of the indicators of the 5\%
+#' and 95\% quantiles (Vehtari et al., 2021, Section 4.2), which is \code{NA} if
+#' either indicator is constant, as in \code{posterior}. The estimators follow \code{posterior} and
+#' agree with its \code{rhat()}, \code{ess_bulk()} and \code{ess_tail()}.
+#'
 #' @param chains A numeric matrix, iterations (rows) x chains (columns), OR
 #' a list of numeric vectors (one per chain, need not be equal length after
 #' removing burn-in elsewhere - they are truncated to the shortest).
@@ -48,109 +54,125 @@ rankNormalizedRhat <- function(chains) {
     min_len <- min(vapply(chains, length, integer(1)))
     chains <- vapply(chains, function(x) utils::tail(x, min_len), numeric(min_len))
   }
-  if (!is.matrix(chains)) {
-    stop("`chains` must be a matrix (iterations x chains) or a list of numeric vectors.")
+  if (!is.matrix(chains) || !is.numeric(chains)) {
+    stop("`chains` must be a numeric matrix (iterations x chains) or a list of numeric vectors.")
   }
-
-  n <- nrow(chains)
-  m <- ncol(chains)
-  if (n < 4) {
+  if (anyNA(chains) || any(!is.finite(chains))) {
+    return(list(
+      rhat = NA_real_, rhat_bulk = NA_real_, rhat_tail = NA_real_,
+      ess_bulk = NA_real_, ess_tail = NA_real_
+    ))
+  }
+  if (nrow(chains) < 4) {
     stop("Need at least 4 iterations per chain (after burn-in) to split.")
   }
 
   # Split each chain in half (split-Rhat): doubles the number of chains
   # compared, at half the length, so within-chain non-stationarity shows up
   # as a between-"chain" discrepancy too.
-  half <- n %/% 2
-  split_chains <- cbind(
-    chains[seq_len(half), , drop = FALSE],
-    chains[(n - half + 1):n, , drop = FALSE]
-  )
+  split_chains <- .splitChains(chains)
 
-  rhat_ess <- function(x) {
-    n_i <- nrow(x)
-    m_i <- ncol(x)
+  bulk <- .rhatAndEss(.rankNormalize(split_chains))
+  folded <- .rhatAndEss(.rankNormalize(abs(split_chains - stats::median(split_chains))))
 
-    z <- .rankNormalize(x)
-
-    chain_means <- colMeans(z)
-    grand_mean <- mean(chain_means)
-    B <- n_i / (m_i - 1) * sum((chain_means - grand_mean)^2)
-    W <- mean(apply(z, 2, stats::var))
-    var_plus <- ((n_i - 1) / n_i) * W + B / n_i
-    rhat <- sqrt(var_plus / W)
-
-    ess <- .effectiveSampleSize(z, W, var_plus)
-
-    list(rhat = rhat, ess = ess)
-  }
-
-  bulk <- rhat_ess(split_chains)
-  folded <- abs(split_chains - stats::median(split_chains))
-  tail_metric <- rhat_ess(folded)
+  # Tail ESS (Vehtari et al., 2021, Section 4.2): the smaller of the ESS of the
+  # indicators of the 5% and 95% quantiles; undefined (NA) if either indicator is
+  # constant, as in 'posterior'.
+  # The cut-offs come from the chains before splitting, which matters for an odd
+  # number of draws (the split drops the middle one).
+  q <- stats::quantile(chains, c(0.05, 0.95), names = FALSE, type = 7)
+  ess_q <- vapply(q, function(cut) {
+    ind <- .splitChains((chains <= cut) * 1)
+    if (all(ind == ind[1])) {
+      return(NA_real_)
+    }
+    .rhatAndEss(ind)$ess
+  }, numeric(1))
 
   list(
-    rhat = max(bulk$rhat, tail_metric$rhat),
+    rhat = max(bulk$rhat, folded$rhat),
     rhat_bulk = bulk$rhat,
-    rhat_tail = tail_metric$rhat,
+    rhat_tail = folded$rhat,
     ess_bulk = bulk$ess,
-    ess_tail = tail_metric$ess
+    ess_tail = if (anyNA(ess_q)) NA_real_ else min(ess_q)
   )
 }
 
-# Average-rank transform to the standard normal quantile scale (Blom's
-# formula, matching the 'posterior' package's default), applied across ALL
-# chains jointly (rank-normalization must pool chains to be comparable).
+# Split every chain into two halves, dropping the middle draw if n is odd
+.splitChains <- function(x) {
+  n <- nrow(x)
+  half <- n %/% 2
+  cbind(x[seq_len(half), , drop = FALSE], x[n - half + seq_len(half), , drop = FALSE])
+}
+
+# Rank-normalise jointly over all draws, across all chains (the ranks must pool
+# the chains to be comparable): z = qnorm((r - 3/8) / (S + 1/4)), Blom's
+# formula, as in the 'posterior' package.
 .rankNormalize <- function(x) {
   r <- rank(x, ties.method = "average")
-  z <- stats::qnorm((r - 3 / 8) / (length(r) - 1 / 4))
+  z <- stats::qnorm((r - 3 / 8) / (length(r) + 1 / 4))
   matrix(z, nrow = nrow(x), ncol = ncol(x))
 }
 
-# Multi-chain effective sample size via the sum-of-autocorrelations
-# estimator (Gelman et al., 2013, BDA3, Eq. 11.8), truncating the
-# autocorrelation sum at Geyer's (1992) initial monotone sequence: sum
-# consecutive PAIRS of lag-autocorrelations while their sum stays positive
-# and non-increasing, discard the rest. This is the same construction
-# 'rstan'/'posterior' use for bulk/tail ESS once the input has already been
-# rank-normalized (bulk) or rank-normalized-after-folding (tail).
-.effectiveSampleSize <- function(z, W, var_plus) {
-  n_i <- nrow(z)
-  m_i <- ncol(z)
+# Rhat and ESS for (already transformed, split) draws, iterations x chains
+.rhatAndEss <- function(x) {
+  n <- nrow(x)
+  W <- mean(apply(x, 2, stats::var))
+  B <- n * stats::var(colMeans(x))
+  var_plus <- ((n - 1) / n) * W + B / n
+  rhat <- if (W > 0) sqrt(var_plus / W) else NA_real_
+  list(rhat = rhat, ess = .effectiveSampleSize(x, W, var_plus))
+}
 
-  # Too few post-split iterations to estimate any autocorrelation structure
-  # at all (needs at least a lag-2 pair) - fall back to the no-autocorrelation
-  # assumption (tau_hat = 1) rather than erroring; assessConvergence()'s
-  # Rhat is still meaningful here even when ESS can't be, and a short chain
-  # should read as "low ESS", not crash.
-  max_lag <- n_i - 1
-  if (max_lag < 2) {
-    return(m_i * n_i)
+# Multi-chain ESS: rho_t = 1 - (W - mean_j acov_j(t)) / var_plus, with the pairs
+# of adjacent autocorrelations summed while positive, made monotone
+# non-increasing (Geyer's initial monotone sequence), and the final term added
+# as in Vehtari et al. (2021, Section 3.2, eq. 10) and the Stan reference
+# manual ("Effective sample size"). The autocovariances use the 1 / n divisor;
+# only the lag-0 term is rescaled to the unbiased variance (inside W). As in
+# Stan, tau is bounded below by 1 / log10(S) to avoid absurdly large ESS.
+.effectiveSampleSize <- function(x, W, var_plus) {
+  n <- nrow(x)
+  m <- ncol(x)
+  total <- m * n
+  # Too few draws to estimate any autocorrelation structure: assume none, so a
+  # short chain reads as "low ESS" instead of failing
+  if (!is.finite(var_plus) || var_plus <= 0 || n < 6) {
+    return(if (n < 6) total else NA_real_)
   }
 
-  acov <- vapply(seq_len(m_i), function(j) {
-    stats::acf(z[, j], lag.max = max_lag, plot = FALSE, type = "covariance")$acf[, 1, 1]
-  }, numeric(n_i))
+  acov <- vapply(seq_len(m), function(j) {
+    stats::acf(x[, j], lag.max = n - 1, plot = FALSE, type = "covariance", demean = TRUE)$acf[, 1, 1]
+  }, numeric(n))
+  mean_acov <- rowMeans(acov)
 
-  rho_hat_t <- 1 - (W - rowMeans(acov)) / var_plus
-
-  # Geyer's initial monotone sequence: pair up lags (1,2), (3,4), ...; sum of
-  # each pair must be positive and the running sum non-increasing.
-  lag_starts <- seq(2, max_lag, by = 2)
-  paired_sums <- rho_hat_t[lag_starts] + rho_hat_t[pmin(lag_starts + 1, max_lag + 1)]
-  paired_sums[is.na(paired_sums)] <- -Inf
-
-  keep <- integer(0)
-  running_min <- Inf
-  for (i in seq_along(paired_sums)) {
-    if (paired_sums[i] <= 0) break
-    running_min <- min(running_min, paired_sums[i])
-    keep <- c(keep, running_min)
+  rho_at <- function(lag) 1 - (W - mean_acov[lag + 1]) / var_plus
+  rho <- numeric(n)
+  rho[1] <- 1
+  rho[2] <- rho_at(1)
+  even <- 1
+  odd <- rho[2]
+  t <- 0
+  while (t < n - 5 && is.finite(even + odd) && (even + odd) > 0) {
+    t <- t + 2
+    even <- rho_at(t)
+    odd <- rho_at(t + 1)
+    if (is.finite(even + odd) && (even + odd) >= 0) {
+      rho[t + 1] <- even
+      rho[t + 2] <- odd
+    }
+    if (rho[t + 1] + rho[t + 2] > rho[t - 1] + rho[t]) {
+      rho[t + 1] <- (rho[t - 1] + rho[t]) / 2
+      rho[t + 2] <- rho[t + 1]
+    }
   }
-
-  tau_hat <- 1 + 2 * sum(keep)
-  ess <- (m_i * n_i) / max(tau_hat, 1e-8)
-  min(ess, m_i * n_i)
+  max_t <- t
+  if (is.finite(even) && even > 0) {
+    rho[max_t + 1] <- even
+  }
+  tau <- -1 + 2 * sum(rho[seq_len(max_t)]) + rho[max_t + 1]
+  tau <- max(tau, 1 / log10(total))
+  total / tau
 }
 
 #' @title BICM: the Bayesian information criterion at the best posterior draw

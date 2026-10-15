@@ -70,6 +70,22 @@
 * The startup message now lists these changes and points to the vignettes,
   which were updated throughout (see the items below).
 
+* **`rankNormalizedRhat()` (and so `assessConvergence()`, `fitBatchMix()`'s
+  convergence report) now agrees with `posterior`.** Three departures from
+  Vehtari et al. (2021) are corrected: (i) the rank-normalisation used
+  `(r - 3/8) / (S - 1/4)` where Blom's formula has `S + 1/4`; (ii) the tail ESS
+  was the ESS of the folded series, not the smaller ESS of the 5% and 95%
+  quantile indicators, and is now `NA` if either indicator is constant; (iii)
+  the ESS estimator omitted the final-term correction and the lower bound on
+  the autocorrelation time that Stan uses. On the same draws, the new values
+  match `posterior::rhat()`, `ess_bulk()` and `ess_tail()` to 1e-6 on white,
+  autocorrelated, heavy-tailed, non-mixing, odd-length and discrete series
+  (`tests/testthat/test-convergence-diagnostics.R`); the old ones differed
+  (on one short run of 60 draws: bulk ESS 7 against 9, tail ESS 27 against 43).
+  Rhat and ESS from earlier versions are therefore not comparable with these,
+  and a chain judged converged by the old values may not be by the new.
+  Reported `Rhat`/ESS in saved reports from earlier versions should be recomputed.
+
 ## Breaking (soft - old code still works, with a deprecation warning)
 
 * **`fitBatchMix()` is now the package's main entry point**, replacing
