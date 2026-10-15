@@ -33,6 +33,7 @@ fitBatchMix(
   initial_batch_scale = NULL,
   initial_class_df = NULL,
   verbose = TRUE,
+  n_cores = NULL,
   ...
 )
 }
@@ -155,6 +156,17 @@ of freedom. Defaults to draws from the prior distribution.}
 
 \item{verbose}{Logical indicating if warnings about proposal windows should
 be printed.}
+
+\item{n_cores}{Number of cores to run the chains on; the default (one, or
+\code{options(batchmix.cores)}) runs them one after another. With more than
+one, each chain gets its own L'Ecuyer-CMRG random-number stream, drawn from the
+generator in use, so the result follows \code{set.seed()} and does not depend on
+the number of cores or on the kind of worker (forked processes on Unix-alikes,
+sockets on Windows; \code{options(batchmix.parallel_type = "FORK")} or
+\code{"PSOCK"} forces one). It differs from the serial result for the same
+seed, since the serial chains share one stream. Never more cores than chains or
+than the machine has, and at most two while \code{R CMD check} runs. Messages
+from chains running in other processes may not appear.}
 
 \item{...}{Further arguments passed to \code{\link{runBatchMix}} (e.g.
 \code{include_interaction}, \code{batch_weight_prior} and their

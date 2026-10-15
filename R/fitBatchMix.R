@@ -38,6 +38,16 @@
 #' these are also \code{fitBatchMix()}'s own formal arguments, not only
 #' \code{runBatchMix()}'s, and roxygen2's \code{@@inheritParams} does not
 #' resolve a comma-grouped \code{@@param} tag from another function.)
+#' @param n_cores Number of cores to run the chains on; the default (one, or
+#' \code{options(batchmix.cores)}) runs them one after another. With more than
+#' one, each chain gets its own L'Ecuyer-CMRG random-number stream, drawn from the
+#' generator in use, so the result follows \code{set.seed()} and does not depend on
+#' the number of cores or on the kind of worker (forked processes on Unix-alikes,
+#' sockets on Windows; \code{options(batchmix.parallel_type = "FORK")} or
+#' \code{"PSOCK"} forces one). It differs from the serial result for the same
+#' seed, since the serial chains share one stream. Never more cores than chains or
+#' than the machine has, and at most two while \code{R CMD check} runs. Messages
+#' from chains running in other processes may not appear.
 #' @param ... Further arguments passed to \code{\link{runBatchMix}} (e.g.
 #' \code{include_interaction}, \code{batch_weight_prior} and their
 #' associated options, or \code{eta}/\code{column_type}/\code{censor_code}
@@ -127,7 +137,12 @@ fitBatchMix <- function(X,
                         initial_batch_scale = NULL,
                         initial_class_df = NULL,
                         verbose = TRUE,
+                        n_cores = NULL,
                         ...) {
+  if (!is.numeric(n_chains) || length(n_chains) != 1 || is.na(n_chains) || n_chains < 1) {
+    stop("`n_chains` must be a single positive integer.", call. = FALSE)
+  }
+  n_cores <- .batchmixResolveCores(n_cores, n_chains)
   dots <- list(...)
   # strict_dots = FALSE: unlike runBatchMix()/batchSemiSupervisedMixtureModel()
   # (whose `...` accepts only the deprecated `R`), fitBatchMix()'s `...` is
@@ -170,9 +185,11 @@ fitBatchMix <- function(X,
 
   control <- .resolveControlArgs(missing(control), control, deprecated_control_args, "fitBatchMix")
 
-  mcmc_lst <- vector("list", n_chains)
+  if (n_cores > 1 && verbose) {
+    message(sprintf("Running %d chains of %d iterations on %d cores...", n_chains, n_iter, n_cores))
+  }
 
-  mcmc_lst <- lapply(mcmc_lst, function(x) {
+  mcmc_lst <- .batchmixRunChains(n_chains, n_cores, function(ii) {
     do.call(runBatchMix, c(list(
       X,
       n_iter,
