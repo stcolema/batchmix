@@ -87,6 +87,14 @@ Rcpp::List predictNewBatchMVNMixed(
     column_type, censor_code_full
   );
 
+  // delta_2, the empirical-Bayes scale of the batch-shift prior, is computed
+  // from the data the sampler is constructed on. That is the training data
+  // pooled with the new batch here, which differs from the value the model
+  // was fitted with (and from the one predictNewBatch() uses to draw the
+  // initial shift). Restore the fitted value, from the training data alone.
+  arma::mat train_cov = arma::cov(imputeColumnMeans(X));
+  my_sampler.delta_2 = arma::accu(train_cov.diag()) / (double) P;
+
   my_sampler.initialiseBatchWeightPrior(
     weight_prior_type, batch_coordinates_new,
     gp_tau2_draws.n_elem ? gp_tau2_draws(0) : 1.0,
@@ -189,5 +197,6 @@ Rcpp::List predictNewBatchMVNMixed(
   out["shift_new"] = shift_new_out;
   out["scale_new"] = scale_new_out;
   out["weight_new"] = weight_new_out;
+  out["delta_2"] = my_sampler.delta_2;
   return out;
 };

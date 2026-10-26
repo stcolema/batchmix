@@ -12,10 +12,12 @@ rStickBreakingPrior(alpha, K)
 \item{K}{The number of weights to generate.}
 }
 \value{
-A vector of component weights.
+A vector of \code{K} component weights summing to one.
 }
 \description{
-Draw weights from the stick-breaking prior.
+Draw weights from the stick-breaking prior of a Dirichlet process
+with concentration \code{alpha}, truncated at \code{K} components (the last
+weight takes the remaining mass), so that the weights sum to one.
 }
 \examples{
 weights <- rStickBreakingPrior(1, 50)

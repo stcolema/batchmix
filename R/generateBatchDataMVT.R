@@ -78,6 +78,11 @@ generateBatchDataMVT <- function(N,
   # The data matrices
   observed_data <- true_data <- matrix(nrow = N, ncol = P)
 
+  # A multivariate t is a Gaussian scale mixture: one chi-square variate per
+  # item, shared by all of its features (not one per feature, which would give
+  # independent univariate t margins)
+  chi_draws <- stats::rchisq(N, dfs[group_IDs])
+
   # Iterate over each of the columns permuting the means associated with each
   # label.
   for (p in seq(1, P))
@@ -97,7 +102,7 @@ generateBatchDataMVT <- function(N,
       k <- group_IDs[n]
       b <- batch_IDs[n]
 
-      chi_draw <- stats::rchisq(1, dfs[k])
+      chi_draw <- chi_draws[n]
 
       # For ease of reading the following lines, create group and batch parameters
       .mu <- reordered_group_means[k]

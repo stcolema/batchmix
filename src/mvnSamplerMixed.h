@@ -118,6 +118,16 @@ public:
   void sigmaMHStep();
   void batchScaleMetropolis();
 
+  // As mvnSamplerSeparationStrategy::sLogKernel(), but the S ~ S_loc +
+  // InvGamma(rho, theta) prior is summed over continuous columns only. A
+  // binary column has S fixed at S_loc, where that density is not defined
+  // (log(0) and theta / 0 give a NaN kernel, and with it a NaN acceptance
+  // probability for the whole batch).
+  double sLogKernel(arma::uword b,
+    arma::vec S_b,
+    arma::vec cov_comb_log_det,
+    arma::cube cov_comb_inv) override;
+
   // As mvnSamplerSeparationStrategy::sScaleConcentrationMetropolis(), but
   // excludes binary/probit columns (column_type == 1) from the InvGamma
   // log-likelihood sum: their S(p, b) is fixed at 1 for identification

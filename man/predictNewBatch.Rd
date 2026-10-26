@@ -101,7 +101,9 @@ usual per-item probability/class point estimates), and
 \code{shift_new_draws}/\code{scale_new_draws}/\code{weight_new_draws}
 (the composition-sampling-refined versions of \code{shift_draws}/
 \code{scale_draws}/\code{weight_draws}, now conditioned on \code{X_new}
-as well as the fitted model).
+as well as the fitted model), and \code{shift_prior_delta_2}, the
+empirical-Bayes scale of the batch-shift prior used in the composition
+sampling (that of the training data \code{X}).
 }
 \description{
 Posterior-predictive quantities for a batch not seen

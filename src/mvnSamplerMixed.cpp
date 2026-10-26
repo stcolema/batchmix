@@ -309,6 +309,27 @@ void mvnSamplerMixed::batchScaleMetropolis() {
   }
 };
 
+double mvnSamplerMixed::sLogKernel(arma::uword b,
+                                   arma::vec S_b,
+                                   arma::vec cov_comb_log_det,
+                                   arma::cube cov_comb_inv) {
+
+  double score = groupLikelihood(batch_ind(b),
+    labels,
+    cov_comb_log_det,
+    mean_sum.cols(KB_inds + b),
+    cov_comb_inv
+  );
+
+  for(uword p = 0; p < P; p++) {
+    if(column_type(p) == 1) {
+      continue;
+    }
+    score += -((rho + 1) * std::log(S_b(p) - S_loc) + theta / (S_b(p) - S_loc));
+  }
+  return score;
+};
+
 // As mvnSamplerSeparationStrategy::sScaleConcentrationMetropolis(), but
 // excludes binary/probit columns (column_type == 1) from the InvGamma
 // log-likelihood sum - see the header comment for why.
