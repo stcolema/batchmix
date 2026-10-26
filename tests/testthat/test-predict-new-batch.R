@@ -253,3 +253,23 @@ test_that("predictNewBatch(): composition sampling works for MVT/MVN_LKJ/MVN_MIX
     expect_true(all(abs(rowSums(pred$allocation_probability) - 1) < 1e-6), label = paste(type, "alloc sums to 1"))
   }
 })
+
+test_that("predictNewBatch(): the shift prior's scale is the fitted model's, not that of the training data pooled with the new batch", {
+  # delta_2, the empirical-Bayes scale of the batch-shift prior, is computed from the data a
+  # sampler is built on. The composition sampler is built on the training data plus the new
+  # batch; a new batch far from the training data inflated delta_2, and with it the prior on
+  # the new batch's shift, relative to the fit (and to the initial draw predictNewBatch() makes).
+  d <- make_predict_fixture(seed = 5201, B = 3, n_per_batch = 30)
+  out <- batchSemiSupervisedMixtureModel(
+    d$X, n_iter = 60, thin = 5, d$labels_true, d$fixed, d$batch_vec, "MVN",
+    initial_class_means = d$init_means, verbose = FALSE
+  )
+  proc <- processMCMCChain(out, burn = 30)
+  nb <- make_new_batch(5202, d$mu_true, shift_true = c(25, 25), n_new = 20)
+  pooled <- mean(diag(stats::cov(rbind(d$X, nb$X_new))))
+  fitted <- mean(diag(stats::cov(d$X)))
+  expect_gt(pooled, 2 * fitted) # the shifted batch really does inflate the pooled variance
+  pred <- predictNewBatch(proc, d$X, batch_vec = d$batch_vec, X_new = nb$X_new,
+                           n_draws = 3, n_pred_iter = 10)
+  expect_equal(pred$shift_prior_delta_2, fitted)
+})

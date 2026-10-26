@@ -6,6 +6,34 @@
   `loo`, parallel chains (`n_cores`) and the corrected Rhat/ESS, and has a table of the names shared with `mdir`
   and the differences that remain.
 
+## Fixes from an adversarial review of the samplers and priors
+
+* **`MVN_MIXED` with a binary column barely updated the batch scale of the continuous
+  columns.** A binary column has its batch scale pinned at `S_loc`, where the
+  Inverse-Gamma prior density is undefined, and the kernel summed that prior over every
+  column, so it was NaN. On a three-batch example with true variance inflations 1, 2.5
+  and 4 the acceptance rate of the scale update was 1-17% and the posterior means were
+  1.01, 1.08 and 1.00; with the prior summed over continuous columns only they are 81-90%
+  and 1.26, 3.84 and 4.52 (the same data without the binary column give 1.26, 4.02 and
+  4.83). Fits that included a binary column should be re-run.
+* `predictNewBatch(X_new = ...)` used the empirical-Bayes scale of the batch-shift prior
+  (`delta_2`) of the training data pooled with the new batch inside the composition
+  sampler, but that of the training data alone for its initial draw and in the fit. It
+  now uses the training value throughout and returns it as `shift_prior_delta_2`.
+* `generateBatchData(type = "MVT")` and `generateBatchDataMVT()` drew one chi-square
+  variate per feature, giving independent univariate t margins. They now draw one per item,
+  so that features share the scale mixture of a multivariate t.
+* `rStickBreakingPrior()` returned weights summing to `1 - (alpha / (1 + alpha))^K` on
+  average (about 0.875 for `alpha = 1`, `K = 3`); the last break now takes the remaining
+  stick, as in the truncated stick-breaking prior. It only seeds initial labels.
+* `calcAllocProb()` returned `NULL` for an unknown `method`; it now stops. The unused and
+  incorrect C++ helper `rLogNormal()` (it returned the logarithm of a normal draw) is removed.
+* Verification added alongside: a Geweke successive-conditional comparison
+  (`inst/experiments/geweke/`) of the whole sweep for MVN, MVT, MVN_LKJ and MVN_MIXED,
+  with the interaction term, sampled `lambda_2`/`rho` and imputed entries, and of the
+  partial-pooling and Gaussian-process weight updates, found no discrepancy other than
+  the first item above (see the README there for the resolution of each run).
+
 ## Breaking changes to defaults and results (read first)
 
 * **Partial pooling is now the default.** `batch_weight_prior` defaults to

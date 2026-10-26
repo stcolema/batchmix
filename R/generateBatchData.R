@@ -130,6 +130,13 @@ generateBatchData <- function(N,
   reordered_batch_shift <- batch_shift
   reordered_batch_scale <- batch_scale
 
+  # A multivariate t is a Gaussian scale mixture: one chi-square variate per
+  # item, shared by all of its features (not one per feature, which would give
+  # independent univariate t margins)
+  if (mvt_generated) {
+    chi_draws <- stats::rchisq(N, group_dfs[group_IDs])
+  }
+
   # Iterate over each of the columns permuting the means associated with each
   # label.
   for (p in seq(1, P))
@@ -169,7 +176,7 @@ generateBatchData <- function(N,
       }
 
       if (mvt_generated) {
-        chi_draw <- stats::rchisq(1, group_dfs[k])
+        chi_draw <- chi_draws[n]
 
         # Adjust to the group distribution
         true_data[n, p] <- x * .sd * sqrt(group_dfs[k] / chi_draw) + .mu

@@ -82,10 +82,8 @@ calcAllocProb <- function(mcmc_samples, burn = 0, method = "median") {
   if (method == "mean") {
     probs <- rowSums(.alloc, dims = 2) / dim(.alloc)[3]
   }
-  if (length(probs) == 1) {
-    if (is.null(probs)) {
-      stop("``method`` must be one of 'mean' or 'median'")
-    }
+  if (is.null(probs)) {
+    stop("``method`` must be one of 'mean' or 'median'")
   }
   probs
 }

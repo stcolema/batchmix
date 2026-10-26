@@ -424,7 +424,9 @@
 #' \code{shift_new_draws}/\code{scale_new_draws}/\code{weight_new_draws}
 #' (the composition-sampling-refined versions of \code{shift_draws}/
 #' \code{scale_draws}/\code{weight_draws}, now conditioned on \code{X_new}
-#' as well as the fitted model).
+#' as well as the fitted model), and \code{shift_prior_delta_2}, the
+#' empirical-Bayes scale of the batch-shift prior used in the composition
+#' sampling (that of the training data \code{X}).
 #' @export
 predictNewBatch <- function(processed_chain, X, batch_vec = NULL, new_batch_coordinate = NULL, X_new = NULL,
                              fixed_new = NULL, labels_new_init = NULL,
@@ -601,6 +603,7 @@ predictNewBatch <- function(processed_chain, X, batch_vec = NULL, new_batch_coor
   out$shift_est <- apply(raw$shift_new, 1, stats::median)
   out$scale_est <- apply(raw$scale_new, 1, stats::median)
   out$weight_est <- apply(raw$weight_new, 1, stats::median)
+  out$shift_prior_delta_2 <- raw$delta_2
   out$mean_sum_est <- processed_chain$mean_est + out$shift_est
 
   out
